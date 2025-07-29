@@ -1,44 +1,76 @@
 <template>
   <div class="max-w-2xl mx-auto">
-    <!-- Check-in Form -->
+    <!-- [MODIFIED] Check-in Form or Result View -->
     <div class="bg-white rounded-xl shadow-lg p-8 border-2 border-dashed border-gray-300 relative overflow-hidden">
-      <!-- 報到成功/失敗的動畫疊加層 -->
-      <transition name="check-in-animation">
-        <div v-if="checkinResult" :class="checkinResult.status.includes('成功') || checkinResult.status.includes('準時') ? 'bg-green-400' : 'bg-yellow-400'"
-             class="absolute inset-0 bg-opacity-90 flex flex-col justify-center items-center text-white z-10 p-4">
-          <p class="text-2xl font-bold">{{ checkinResult.status }}</p>
-          <p class="text-4xl font-extrabold my-2">{{ checkinResult.name }}</p>
-          <p class="text-xl">您已完成{{ mode }}</p>
-          <button @click="resetCheckIn" class="mt-6 bg-white text-indigo-600 font-bold py-2 px-8 rounded-full shadow-lg hover:bg-gray-100 transition">繼續報到</button>
+      <!-- Form View -->
+      <div v-if="!checkinResult">
+        <h2 class="text-3xl font-bold text-gray-800 text-center mb-8">刷卡報到</h2>
+        <div class="mb-6 flex justify-center gap-4">
+          <label class="inline-flex items-center cursor-pointer p-2 rounded-lg transition" :class="{'bg-indigo-100': mode === '簽到'}">
+            <input type="radio" v-model="mode" value="簽到" class="form-radio h-5 w-5 text-indigo-600 focus:ring-indigo-500">
+            <span class="ml-2 text-lg font-medium">簽到</span>
+          </label>
+          <label class="inline-flex items-center cursor-pointer p-2 rounded-lg transition" :class="{'bg-indigo-100': mode === '簽退'}">
+            <input type="radio" v-model="mode" value="簽退" class="form-radio h-5 w-5 text-indigo-600 focus:ring-indigo-500">
+            <span class="ml-2 text-lg font-medium">簽退</span>
+          </label>
         </div>
-      </transition>
+        <div class="mb-6">
+          <label for="eventSelector" class="block text-sm font-medium text-gray-700 mb-2">選擇活動</label>
+          <select id="eventSelector" v-model="selectedEventId" class="w-full pl-4 pr-10 py-3 border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500">
+              <option :value="null">-- 不選擇活動 (一般模式) --</option>
+              <option v-for="event in dataStore.events" :key="event.id" :value="event.id">{{ event.name }}</option>
+          </select>
+        </div>
+        <div class="relative">
+          <input type="text" v-model="checkinInput" @keyup.enter="handleCheckIn" ref="checkinInputRef" class="w-full pl-14 pr-4 py-4 border border-gray-300 rounded-lg text-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500" placeholder="輸入學號或感應卡號...">
+          <div class="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400">
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H4a3 3 0 00-3 3v8a3 3 0 003 3z" /></svg>
+          </div>
+        </div>
+        <button @click="handleCheckIn" class="mt-6 w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-4 px-4 rounded-lg text-lg transition shadow-md hover:shadow-lg focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">確認{{ mode }}</button>
+      </div>
 
-      <!-- 主要表單內容 -->
-      <h2 class="text-3xl font-bold text-gray-800 text-center mb-8">刷卡報到</h2>
-      <div class="mb-6 flex justify-center gap-4">
-        <label class="inline-flex items-center cursor-pointer p-2 rounded-lg transition" :class="{'bg-indigo-100': mode === '簽到'}">
-          <input type="radio" v-model="mode" value="簽到" class="form-radio h-5 w-5 text-indigo-600 focus:ring-indigo-500">
-          <span class="ml-2 text-lg font-medium">簽到</span>
-        </label>
-        <label class="inline-flex items-center cursor-pointer p-2 rounded-lg transition" :class="{'bg-indigo-100': mode === '簽退'}">
-          <input type="radio" v-model="mode" value="簽退" class="form-radio h-5 w-5 text-indigo-600 focus:ring-indigo-500">
-          <span class="ml-2 text-lg font-medium">簽退</span>
-        </label>
-      </div>
-      <div class="mb-6">
-        <label for="eventSelector" class="block text-sm font-medium text-gray-700 mb-2">選擇活動</label>
-        <select id="eventSelector" v-model="selectedEventId" class="w-full pl-4 pr-10 py-3 border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500">
-            <option :value="null">-- 不選擇活動 (一般模式) --</option>
-            <option v-for="event in dataStore.events" :key="event.id" :value="event.id">{{ event.name }}</option>
-        </select>
-      </div>
-      <div class="relative">
-        <input type="text" v-model="checkinInput" @keyup.enter="handleCheckIn" ref="checkinInputRef" class="w-full pl-14 pr-4 py-4 border border-gray-300 rounded-lg text-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500" placeholder="輸入學號或感應卡號...">
-        <div class="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400">
-            <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H4a3 3 0 00-3 3v8a3 3 0 003 3z" /></svg>
+      <!-- Result View (Matches old version's style) -->
+      <div v-else class="check-in-animation">
+        <div class="text-center" :class="checkinResult.statusColorClass + '-100'">
+            <div class="inline-flex items-center justify-center w-16 h-16 rounded-full mb-4" :class="checkinResult.statusColorClass + '-500 text-white'" v-html="checkinResult.statusIcon">
+            </div>
+            <h3 class="text-2xl font-bold" :class="checkinResult.statusColorClass + '-800'">{{ checkinResult.statusText }}</h3>
+        </div>
+
+        <div class="p-6">
+            <div v-if="checkinResult.person" class="mb-6">
+                <div class="text-center mb-4">
+                    <div class="inline-flex items-center justify-center w-20 h-20 rounded-full bg-indigo-100 text-indigo-800 text-2xl font-bold mb-2">{{ checkinResult.person.name.charAt(0) }}</div>
+                    <h3 class="text-xl font-bold">{{ checkinResult.person.name }}</h3>
+                </div>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div class="bg-gray-50 p-3 rounded-lg">
+                        <p class="text-sm text-gray-500">學號</p>
+                        <p class="font-medium" :class="dataStore.getInputColorClass(checkinResult.person.code)">{{ checkinResult.person.code }}</p>
+                    </div>
+                    <div class="bg-gray-50 p-3 rounded-lg">
+                        <p class="text-sm text-gray-500">卡號</p>
+                        <p class="font-medium">{{ checkinResult.person.card_number }}</p>
+                    </div>
+                    <div v-if="checkinResult.event" class="col-span-1 sm:col-span-2 bg-indigo-50 p-3 rounded-lg">
+                        <p class="text-sm text-gray-500">活動</p>
+                        <p class="font-medium text-indigo-800">{{ checkinResult.event.name }}</p>
+                    </div>
+                </div>
+            </div>
+             <div v-else class="bg-gray-50 p-4 rounded-lg text-center mb-6">
+                <p class="text-sm text-gray-500">輸入的{{ checkinResult.inputType }}：<span class="font-medium">{{ checkinResult.input }}</span></p>
+                <p class="text-gray-500 mt-2">請確認{{ checkinResult.inputType }}是否正確，或聯繫管理員</p>
+            </div>
+            <div class="text-center">
+                <button @click="resetCheckIn" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-3 px-8 rounded-lg transition duration-300 transform hover:scale-105 shadow-md">
+                    繼續報到
+                </button>
+            </div>
         </div>
       </div>
-      <button @click="handleCheckIn" class="mt-6 w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-4 px-4 rounded-lg text-lg transition shadow-md hover:shadow-lg focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">確認{{ mode }}</button>
     </div>
 
     <!-- Today's Temporary Records -->
@@ -84,7 +116,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, nextTick } from 'vue';
+import { ref, onMounted, nextTick, computed } from 'vue';
 import { useUiStore } from '@/store/ui';
 import { useDataStore } from '@/store/data';
 import * as api from '@/services/api';
@@ -98,13 +130,12 @@ const selectedEventId = ref(null);
 const checkinInput = ref('');
 const checkinResult = ref(null);
 const tempRecords = ref([]);
-const checkinInputRef = ref(null); // 用於聚焦輸入框
+const checkinInputRef = ref(null);
 
 onMounted(async () => {
   uiStore.setLoading(true);
   try {
     await dataStore.fetchEvents();
-    // 從 sessionStorage 載入暫存記錄
     const saved = sessionStorage.getItem('tempCheckInRecords');
     if (saved) {
       tempRecords.value = JSON.parse(saved);
@@ -113,12 +144,47 @@ onMounted(async () => {
     uiStore.showMessage(`頁面初始化失敗: ${error.message}`, 'error');
   } finally {
       uiStore.setLoading(false);
-      // 自動聚焦到輸入框
       nextTick(() => {
         checkinInputRef.value?.focus();
       });
   }
 });
+
+// [NEW] Helper to generate result object for the template
+const generateCheckinResult = (recordData, person) => {
+    const event = recordData.event_id ? dataStore.getEventById(recordData.event_id) : null;
+    let statusColorClass, statusIcon, statusText;
+
+    switch (recordData.status) {
+        case '準時':
+            statusColorClass = 'bg-green'; statusIcon = `<svg xmlns="http://www.w3.org/2000/svg" class="h-10 w-10" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" /></svg>`; statusText = '準時報到'; break;
+        case '遲到':
+            statusColorClass = 'bg-yellow'; statusIcon = `<svg xmlns="http://www.w3.org/2000/svg" class="h-10 w-10" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>`; statusText = '遲到'; break;
+        case '報到失敗 - 查無此人':
+            statusColorClass = 'bg-red'; statusIcon = `<svg xmlns="http://www.w3.org/2000/svg" class="h-10 w-10" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>`; statusText = '報到失敗 (查無此人)'; break;
+        case '簽退成功':
+            statusColorClass = 'bg-blue'; statusIcon = `<svg xmlns="http://www.w3.org/2000/svg" class="h-10 w-10" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>`; statusText = '簽退成功'; break;
+        case '簽退失敗 - 查無此人':
+            statusColorClass = 'bg-red'; statusIcon = `<svg xmlns="http://www.w3.org/2000/svg" class="h-10 w-10" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>`; statusText = '簽退失敗 (查無此人)'; break;
+        case '異常(未簽到)':
+            statusColorClass = 'bg-red'; statusIcon = `<svg xmlns="http://www.w3.org/2000/svg" class="h-10 w-10" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>`; statusText = '簽退異常 (未簽到)'; break;
+        case '重複簽退':
+        case '重複簽到':
+            statusColorClass = 'bg-yellow'; statusIcon = `<svg xmlns="http://www.w3.org/2000/svg" class="h-10 w-10" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.228 9.247a4.998 4.998 0 00-.776 2.343M11.603 16.03a6.002 6.002 0 00.99 1.139M15 14l-3-3m0 0l-3-3m3 3l3 3m0 0l3-3m0 0a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>`; statusText = recordData.status; break;
+        default:
+            statusColorClass = 'bg-blue'; statusIcon = `<svg xmlns="http://www.w3.org/2000/svg" class="h-10 w-10" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" /></svg>`; statusText = '報到成功'; break;
+    }
+
+    return {
+        person,
+        event,
+        input: recordData.input,
+        inputType: recordData.input_type,
+        statusColorClass: statusColorClass,
+        statusIcon: statusIcon,
+        statusText: statusText,
+    };
+};
 
 const handleCheckIn = async () => {
   if (!checkinInput.value.trim()) return;
@@ -128,33 +194,29 @@ const handleCheckIn = async () => {
       input: checkinInput.value.trim(),
       mode: mode.value,
       eventId: selectedEventId.value,
-      deviceId: getDeviceId() // 假設 getDeviceId 存在於 utils 中
+      deviceId: getDeviceId()
     });
     
-    // 顯示結果動畫
-    checkinResult.value = result.personInfo;
+    // [MODIFIED] Use helper to generate result object for template
+    checkinResult.value = generateCheckinResult(result.recordData, result.personInfo);
 
-    // 準備並新增記錄到暫存列表
     const fullRecord = {
         ...result.recordData,
-        id: Date.now(), // 前端臨時ID
-        created_at: new Date().toISOString() // 確保有時間戳
+        id: Date.now(),
+        created_at: new Date().toISOString()
     };
     tempRecords.value.unshift(fullRecord);
-
-    // 更新 sessionStorage
     sessionStorage.setItem('tempCheckInRecords', JSON.stringify(tempRecords.value));
-
     checkinInput.value = '';
 
   } catch (error) {
     uiStore.showMessage(error.message, 'error');
-    // 讓使用者知道錯誤後，清空輸入框以便重新輸入
     checkinInput.value = '';
   } finally {
-      // 無論成功或失敗，都重新聚焦
       nextTick(() => {
-        checkinInputRef.value?.focus();
+        if(checkinResult.value === null) {
+            checkinInputRef.value?.focus();
+        }
       });
   }
 };
@@ -173,7 +235,6 @@ const saveTempRecords = async () => {
   }
   uiStore.setLoading(true);
   try {
-    // FIX: Correct function name is saveRecords
     await api.saveRecords(tempRecords.value);
     uiStore.showMessage('記錄已成功儲存至資料庫！', 'success');
     tempRecords.value = [];
@@ -198,17 +259,3 @@ const clearTempRecords = () => {
     }
 }
 </script>
-
-<style scoped>
-/* 報到動畫 */
-.check-in-animation-enter-active,
-.check-in-animation-leave-active {
-  transition: all 0.5s cubic-bezier(0.68, -0.55, 0.27, 1.55);
-}
-
-.check-in-animation-enter-from,
-.check-in-animation-leave-to {
-  opacity: 0;
-  transform: scale(0.3);
-}
-</style>

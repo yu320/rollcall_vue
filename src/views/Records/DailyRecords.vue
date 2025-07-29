@@ -50,6 +50,7 @@
               </tr>
             </thead>
             <tbody class="bg-white divide-y divide-gray-100">
+              <!-- [MODIFIED] Added data-label attributes for responsive view -->
               <tr v-for="record in paginatedRecords" :key="record.id" class="hover:bg-gray-50">
                 <td data-label="選取" class="px-6 py-4"><input type="checkbox" v-model="selectedRecords" :value="record.id"></td>
                 <td data-label="時間" class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{{ new Date(record.created_at).toLocaleTimeString('zh-TW') }}</td>
@@ -113,12 +114,11 @@ const savedDates = ref([]);
 const selectedRecords = ref([]);
 const pagination = ref({
   currentPage: 1,
-  pageSize: 25, // Default to a more common value
+  pageSize: 25,
   totalPages: 1,
 });
 
-// Use a single utility for formatting
-const formatDate = (dateInput) => format(parseISO(dateInput), 'yyyy-MM-dd');
+const formatDateOnly = (dateInput) => format(parseISO(dateInput), 'yyyy-MM-dd');
 
 const loadRecords = async () => {
   if (!selectedDate.value) return;
@@ -127,7 +127,7 @@ const loadRecords = async () => {
   try {
     records.value = await api.fetchRecordsByDate(selectedDate.value);
   } catch (error) {
-    records.value = []; // Clear records on error
+    records.value = [];
     uiStore.showMessage(`讀取記錄失敗: ${error.message}`, 'error');
   } finally {
     isLoading.value = false;
@@ -140,7 +140,7 @@ const fetchSavedDates = async () => {
     try {
         const dateStats = await api.fetchAllSavedDatesWithStats();
         const statsMap = dateStats.reduce((acc, record) => {
-            const dateStr = formatDate(record.created_at);
+            const dateStr = formatDateOnly(record.created_at);
             if (!acc[dateStr]) {
                 acc[dateStr] = { date: dateStr, total: 0 };
             }
@@ -164,7 +164,6 @@ const selectSavedDate = (date) => {
   selectedDate.value = date;
 };
 
-// --- Watchers for automatic updates ---
 watch(selectedDate, (newDate) => {
     if (newDate) loadRecords();
 });
@@ -179,8 +178,6 @@ watch(() => pagination.value.pageSize, () => {
     pagination.value.totalPages = Math.ceil(records.value.length / pagination.value.pageSize);
 });
 
-
-// --- Computed Properties ---
 const paginatedRecords = computed(() => {
   const start = (pagination.value.currentPage - 1) * pagination.value.pageSize;
   const end = start + pagination.value.pageSize;
@@ -194,8 +191,6 @@ const selectAll = computed({
   },
 });
 
-
-// --- Actions ---
 const confirmSingleDelete = (record) => {
   if (confirm(`確定要刪除這筆在 ${new Date(record.created_at).toLocaleString('zh-TW')} 由 ${record.name_at_checkin} 執行的記錄嗎？`)) {
     deleteRecords([record.id]);
@@ -214,8 +209,8 @@ const deleteRecords = async (ids) => {
     await api.batchDeleteRecords(ids);
     uiStore.showMessage('刪除成功', 'success');
     selectedRecords.value = [];
-    await loadRecords(); // Reload current date's records
-    await fetchSavedDates(); // Refresh the date list in case a date becomes empty
+    await loadRecords();
+    await fetchSavedDates();
   } catch (error) {
     uiStore.showMessage(`刪除失敗: ${error.message}`, 'error');
   } finally {
@@ -230,7 +225,7 @@ const exportToCSV = () => {
   }
   let csvContent = '日期,時間,姓名,學號/卡號,類型,狀態,關聯活動\n';
   records.value.forEach(r => {
-    const recordDate = formatDate(r.created_at);
+    const recordDate = formatDateOnly(r.created_at);
     const recordTime = new Date(r.created_at).toLocaleTimeString('zh-TW', { hour12: false });
     const row = [
         recordDate,

@@ -9,7 +9,7 @@
         <select v-model="selectedEventId" @change="loadRecords" class="w-full px-4 py-2 border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-indigo-400">
           <option :value="null">-- 請選擇一個活動 --</option>
           <option v-for="event in dataStore.events" :key="event.id" :value="event.id">
-            {{ event.name }} ({{ formatDateTime(event.start_time) }})
+            {{ event.name }} ({{ formatDateTime(event.start_time, 'yyyy-MM-dd') }})
           </option>
         </select>
       </div>
@@ -54,6 +54,7 @@
               </tr>
             </thead>
             <tbody class="bg-white divide-y divide-gray-100">
+              <!-- [MODIFIED] Added data-label attributes for responsive view -->
               <tr v-for="record in paginatedRecords" :key="record.personnelId" class="hover:bg-gray-50">
                 <td data-label="選取" class="px-6 py-4"><input type="checkbox" v-model="selectedPersonnel" :value="record.personnelId" class="h-4 w-4 text-indigo-600 rounded"></td>
                 <td data-label="學號" class="px-6 py-4 whitespace-nowrap text-sm text-gray-800">{{ record.code }}</td>
@@ -86,9 +87,7 @@
 import { ref, onMounted, computed, watch } from 'vue';
 import { useUiStore } from '@/store/ui';
 import { useDataStore } from '@/store/data';
-// [FIXED] Import all functions from api.js as an object
 import * as api from '@/services/api';
-// [FIXED] Import utility function for formatting dates
 import { formatDateTime } from '@/utils';
 
 const uiStore = useUiStore();
@@ -101,10 +100,7 @@ const groupedRecords = ref([]);
 const selectedPersonnel = ref([]);
 const pagination = ref({ currentPage: 1, pageSize: 10, totalPages: 1 });
 
-// --- Lifecycle Hooks ---
-
 onMounted(async () => {
-  // Fetch initial data needed for the page to function
   if (dataStore.events.length === 0) {
       await dataStore.fetchEvents();
   }
@@ -112,8 +108,6 @@ onMounted(async () => {
       await dataStore.fetchAllPersonnel();
   }
 });
-
-// --- Computed Properties ---
 
 const selectedEventName = computed(() => {
     const event = dataStore.events.find(e => e.id === selectedEventId.value);
@@ -133,22 +127,19 @@ const selectAll = computed({
   },
 });
 
-// --- Watchers ---
-
 watch(allRecordsForEvent, (newRecords) => {
-    // This watcher processes the raw records into a user-friendly grouped format
     const personnelMap = new Map(dataStore.personnel.map(p => [p.id, p]));
     const recordsByPerson = {};
 
     newRecords.forEach(rec => {
-        if (!rec.personnel_id) return; // Skip records without a person attached
+        if (!rec.personnel_id) return;
 
         if (!recordsByPerson[rec.personnel_id]) {
             const personInfo = personnelMap.get(rec.personnel_id);
             recordsByPerson[rec.personnel_id] = {
                 personnelId: rec.personnel_id,
-                name: personInfo?.name || rec.name_at_checkin, // Use latest name, fallback to recorded name
-                code: personInfo?.code || rec.input, // Use official code, fallback to input
+                name: personInfo?.name || rec.name_at_checkin,
+                code: personInfo?.code || rec.input,
                 allRecordIds: [],
             };
         }
@@ -164,7 +155,6 @@ watch(allRecordsForEvent, (newRecords) => {
     groupedRecords.value = Object.values(recordsByPerson).map(p => {
         const hasCheckedIn = !!p.checkInTime;
         const hasCheckedOut = !!p.checkOutTime;
-
         let statusText = '';
         let statusClass = 'bg-gray-100 text-gray-800';
 
@@ -188,14 +178,10 @@ watch(allRecordsForEvent, (newRecords) => {
     pagination.value.totalPages = Math.ceil(groupedRecords.value.length / pagination.value.pageSize);
 });
 
-
 watch(() => pagination.value.pageSize, () => {
-    // Reset to first page when page size changes
     pagination.value.currentPage = 1;
     pagination.value.totalPages = Math.ceil(groupedRecords.value.length / pagination.value.pageSize);
 });
-
-// --- Methods ---
 
 const loadRecords = async () => {
   if (!selectedEventId.value) {
@@ -206,7 +192,6 @@ const loadRecords = async () => {
   isLoading.value = true;
   uiStore.setLoading(true);
   try {
-    // [FIXED] Correctly call the API function
     allRecordsForEvent.value = await api.fetchRecordsByEventId(selectedEventId.value);
   } catch (error) {
     uiStore.showMessage(`讀取活動記錄失敗: ${error.message}`, 'error');
@@ -237,11 +222,10 @@ const deletePersonnelRecords = async (personnelIds) => {
 
     uiStore.setLoading(true);
     try {
-        // [FIXED] Correctly call the API function
         await api.batchDeleteRecords(recordIdsToDelete);
         uiStore.showMessage('刪除成功', 'success');
         selectedPersonnel.value = [];
-        loadRecords(); // Reload records for the current event
+        loadRecords();
     } catch (error) {
         uiStore.showMessage(`刪除失敗: ${error.message}`, 'error');
     } finally {

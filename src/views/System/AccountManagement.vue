@@ -46,6 +46,7 @@
           </tr>
         </thead>
         <tbody class="bg-white divide-y divide-gray-100">
+          <!-- [MODIFIED] Added data-label attributes for responsive view -->
           <tr v-for="account in filteredAccounts" :key="account.id" class="hover:bg-gray-50">
             <td data-label="選取" class="px-4 py-4"><input type="checkbox" v-model="selectedAccounts" :value="account.id" :disabled="isCurrentUser(account.id)" class="h-4 w-4 text-indigo-600 rounded disabled:bg-gray-300"></td>
             <td data-label="電子郵件" class="px-6 py-4 text-sm font-medium text-gray-900 break-all">{{ account.email }}</td>
@@ -114,7 +115,6 @@ const isEditing = ref(false);
 const editableAccount = ref({});
 const selectedFile = ref(null);
 
-// Fetch initial data
 onMounted(async () => {
   isLoading.value = true;
   await refreshAccounts();
@@ -128,13 +128,16 @@ onMounted(async () => {
 
 const refreshAccounts = async () => {
   try {
-    accounts.value = await api.fetchAllAccounts();
+    const fetchedAccounts = await api.fetchAllAccounts();
+    accounts.value = fetchedAccounts.map(acc => ({
+        ...acc,
+        role: acc.roles?.name || '未定義' // Flatten role name
+    }));
   } catch(error) {
     uiStore.showMessage(`讀取帳號列表失敗: ${error.message}`, 'error');
   }
 }
 
-// Computed property for filtering accounts
 const filteredAccounts = computed(() => {
   if (!searchTerm.value) {
     return accounts.value;
@@ -146,7 +149,6 @@ const filteredAccounts = computed(() => {
   );
 });
 
-// Computed property for select all functionality
 const selectAll = computed({
   get: () => {
     const availableAccounts = filteredAccounts.value.filter(acc => !isCurrentUser(acc.id));
@@ -169,7 +171,6 @@ const getRoleClass = (roleName) => {
   }
 }
 
-// Modal handling
 const openModal = (account = null) => {
   if (account) {
     isEditing.value = true;
@@ -185,12 +186,10 @@ const closeModal = () => {
   isModalOpen.value = false;
 };
 
-// CRUD operations
 const saveAccount = async () => {
   uiStore.setLoading(true);
   try {
     const payload = { ...editableAccount.value };
-    // Don't send empty password on update
     if (isEditing.value && !payload.password) {
       delete payload.password;
     }
@@ -230,7 +229,7 @@ const confirmBatchDelete = () => {
 const deleteAccounts = async (ids) => {
   uiStore.setLoading(true);
   try {
-    await api.batchDeleteAccounts(ids);
+    await api.deleteAccounts(ids);
     uiStore.showMessage('所選帳號已成功刪除', 'success');
     await refreshAccounts();
     selectedAccounts.value = [];
@@ -241,7 +240,6 @@ const deleteAccounts = async (ids) => {
   }
 };
 
-// Import functionality
 const handleFileSelect = (event) => {
   selectedFile.value = event.target.files[0];
 };
@@ -254,12 +252,12 @@ const importAccounts = () => {
   const reader = new FileReader();
   reader.onload = async (e) => {
     const text = e.target.result;
-    const lines = text.split('\n').slice(1); // Skip header
+    const lines = text.split('\n').slice(1);
     const accountsToCreate = lines.map(line => {
         const [email, password, nickname, role_name] = line.trim().split(',');
         if (!email || !password || !role_name) return null;
         return { email, password, nickname: nickname || '', role: role_name };
-    }).filter(Boolean); // Filter out invalid lines
+    }).filter(Boolean);
 
     if(accountsToCreate.length === 0) {
         return uiStore.showMessage('檔案中無有效資料可匯入。', 'warning');
@@ -270,7 +268,7 @@ const importAccounts = () => {
         await api.batchCreateAccounts(accountsToCreate);
         uiStore.showMessage(`成功匯入 ${accountsToCreate.length} 個帳號。`, 'success');
         await refreshAccounts();
-        selectedFile.value = null; // Reset file input
+        selectedFile.value = null;
     } catch(error) {
         uiStore.showMessage(`批次匯入失敗: ${error.message}`, 'error');
     } finally {

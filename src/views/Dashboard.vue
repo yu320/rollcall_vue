@@ -46,6 +46,7 @@
                 </tr>
               </thead>
               <tbody class="bg-white divide-y divide-gray-100">
+                 <!-- [MODIFIED] Added data-label attributes for responsive view -->
                 <tr v-for="attendee in dashboardData.attendees" :key="attendee.personnel_id" class="hover:bg-gray-50">
                   <td data-label="姓名" class="px-6 py-4 font-medium text-gray-800">{{ attendee.name }}</td>
                   <td data-label="學號" class="px-6 py-4 text-gray-600">{{ attendee.code }}</td>
@@ -143,7 +144,6 @@ const updateDashboard = async () => {
   try {
     const data = await api.getDashboardData(selectedEventId.value);
     
-    // Process data for display
     dashboardData.value = {
         summaryCards: [
             createSummaryCard('應到人數', data.summary.expectedCount, 'users'),
@@ -160,7 +160,7 @@ const updateDashboard = async () => {
     renderCharts();
   } catch (error) {
     uiStore.showMessage(`載入儀錶板數據失敗: ${error.message}`, 'error');
-    dashboardData.value = null; // Clear data on error
+    dashboardData.value = null;
   } finally {
     isLoading.value = false;
     uiStore.setLoading(false);
@@ -173,7 +173,6 @@ const renderCharts = () => {
 
   if (!dashboardData.value || !dashboardData.value.charts) return;
 
-  // Render Status Doughnut Chart
   if (statusChartCanvas.value) {
     const statusData = dashboardData.value.charts.status;
     chartInstances.status = new Chart(statusChartCanvas.value, {
@@ -191,7 +190,6 @@ const renderCharts = () => {
     });
   }
 
-  // Render Timeline Line Chart
   if (timelineChartCanvas.value) {
     const timelineData = dashboardData.value.charts.timeline.map(d => ({
         x: parseISO(d.time),

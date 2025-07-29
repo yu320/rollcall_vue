@@ -12,15 +12,20 @@
 
     <!-- Event List -->
     <div class="space-y-4">
-      <div v-for="event in dataStore.events" :key="event.id" class="bg-white rounded-lg shadow-md p-4 flex justify-between items-center">
+      <div v-for="event in dataStore.events" :key="event.id" class="bg-white rounded-lg shadow-md p-4 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
           <h4 class="text-lg font-bold text-indigo-700">{{ event.name }}</h4>
           <p class="text-sm text-gray-600">開始時間: {{ formatDateTime(event.start_time) }}</p>
           <p v-if="event.end_time" class="text-sm text-gray-600">結束時間: {{ formatDateTime(event.end_time) }}</p>
         </div>
-        <div class="flex gap-2">
-          <button @click="openModal(event)" class="p-2 text-blue-600 hover:text-blue-800">編輯</button>
-          <button @click="confirmDelete(event)" class="p-2 text-red-600 hover:text-red-800">刪除</button>
+        <!-- [MODIFIED] Buttons changed to icons -->
+        <div class="flex-shrink-0 flex gap-2">
+          <button @click="openModal(event)" class="p-2 text-blue-600 hover:text-blue-800 rounded-full bg-blue-100 hover:bg-blue-200 transition" aria-label="編輯活動">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path></svg>
+          </button>
+          <button @click="confirmDelete(event)" class="p-2 text-red-600 hover:text-red-800 rounded-full bg-red-100 hover:bg-red-200 transition" aria-label="刪除活動">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+          </button>
         </div>
       </div>
     </div>
@@ -45,8 +50,8 @@
           <input type="datetime-local" v-model="editableEvent.end_time" class="w-full mt-1 border rounded-md p-2">
         </div>
         <div class="flex justify-end gap-3">
-          <button type="button" @click="closeModal">取消</button>
-          <button type="submit">儲存</button>
+          <button type="button" @click="closeModal" class="bg-gray-200 text-gray-800 px-4 py-2 rounded-lg hover:bg-gray-300">取消</button>
+          <button type="submit" class="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700">儲存</button>
         </div>
       </form>
     </Modal>

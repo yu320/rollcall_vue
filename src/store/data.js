@@ -26,6 +26,23 @@ export const useDataStore = defineStore('data', () => {
     return (id) => eventMap.get(id);
   });
 
+  // --- [NEW] Helper function for UI ---
+  /**
+   * 根據輸入字串的第一個字元返回 Tailwind CSS 顏色類別。
+   * @param {string} input - 輸入字串 (學號或卡號)。
+   * @returns {string} - 顏色類別字串。
+   */
+  function getInputColorClass(input) {
+    if (!input || typeof input !== 'string' || input.length === 0) return '';
+    const firstChar = input.charAt(0).toLowerCase();
+    if (/[a-z]/.test(firstChar)) {
+        return `code-${firstChar}`;
+    }
+    if (/[0-9]/.test(firstChar)) {
+        return `code-digit-${firstChar}`;
+    }
+    return '';
+  }
 
   // --- Actions for Personnel ---
 
@@ -149,7 +166,6 @@ export const useDataStore = defineStore('data', () => {
   async function updateRolePermissions(roleId, permissionIds) {
     uiStore.setLoading(true);
     try {
-      // FIX: Correct function name is updatePermissionsForRole
       await api.updatePermissionsForRole(roleId, permissionIds);
       await fetchRolesAndPermissions(); // Refresh data after update
       uiStore.showMessage('權限已更新', 'success');
@@ -168,6 +184,7 @@ export const useDataStore = defineStore('data', () => {
     permissions,
     getPersonnelById,
     getEventById,
+    getInputColorClass, // [NEW] Expose the function
     fetchAllPersonnel,
     savePerson,
     batchDeletePersonnel,
