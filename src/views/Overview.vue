@@ -74,7 +74,7 @@
 <script setup>
 import { ref, onMounted, computed, nextTick } from 'vue';
 import { useUiStore } from '@/store/ui';
-import { useDataStore } from '@/store/data';
+import { useDataStore } from '@/store/data'; // 使用 Pinia 的 dataStore
 import * as api from '@/services/api';
 import { createSummaryCard, formatDateTime } from '@/utils/index'; // 確保引入 createSummaryCard 和 formatDateTime
 import { parseISO, isFuture } from 'date-fns';
@@ -121,7 +121,7 @@ onMounted(async () => {
     generateSummary(); // 根據獲取到的數據生成摘要卡片
 
     // 在 DOM 更新後渲染圖表
-    await nextTick();
+    await nextTick(); // 使用 nextTick 等待 DOM 更新
     renderAllCharts();
 
   } catch (error) {
@@ -182,6 +182,7 @@ const renderAllCharts = () => {
 const renderOverviewStatusChart = () => {
     destroyChart(overviewStatusChartInstance); // 銷毀舊圖表
 
+    // 確保 canvas 元素已經被渲染到 DOM 中
     if (!overviewStatusChartCanvas.value) {
         console.warn("無法找到 'overviewStatusChartCanvas' 元素，跳過圖表渲染。");
         return; 
@@ -208,13 +209,14 @@ const renderOverviewStatusChart = () => {
             maintainAspectRatio: false,
             plugins: { legend: { position: 'bottom' } }
         }
-    });
+    );
 };
 
 // 渲染「近期活動趨勢」折線圖
 const renderOverviewActivityTrendChart = () => {
     destroyChart(overviewActivityTrendChartInstance); // 銷毀舊圖表
 
+    // 確保 canvas 元素已經被渲染到 DOM 中
     if (!overviewActivityTrendChartCanvas.value) {
         console.warn("無法找到 'overviewActivityTrendChartCanvas' 元素，跳過圖表渲染。");
         return; 

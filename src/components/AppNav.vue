@@ -16,7 +16,7 @@
             <span>資料分析</span>
             <svg class="w-4 h-4 ml-1 transition-transform" :class="{'rotate-180': dropdowns.dataAnalysis}" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
           </button>
-          <div ref="dataAnalysisMenuRef" v-show="dropdowns.dataAnalysis" class="dropdown-menu-floating">
+          <div ref="dataAnalysisMenuRef" v-if="dropdowns.dataAnalysis" class="dropdown-menu-floating">
             <router-link to="/dashboard" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">儀錶板</router-link>
             <router-link to="/report" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">報表</router-link>
           </div>
@@ -28,7 +28,7 @@
                 <span>檢視記錄</span>
                 <svg class="w-4 h-4 ml-1 transition-transform" :class="{'rotate-180': dropdowns.records}" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
             </button>
-            <div ref="recordsMenuRef" v-show="dropdowns.records" class="dropdown-menu-floating">
+            <div ref="recordsMenuRef" v-if="dropdowns.records" class="dropdown-menu-floating">
                 <router-link to="/records/activity" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">活動記錄</router-link>
                 <router-link to="/records/daily" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">每日記錄</router-link>
             </div>
@@ -40,7 +40,7 @@
                 <span>資料管理</span>
                 <svg class="w-4 h-4 ml-1 transition-transform" :class="{'rotate-180': dropdowns.management}" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
             </button>
-            <div ref="managementMenuRef" v-show="dropdowns.management" class="dropdown-menu-floating">
+            <div ref="managementMenuRef" v-if="dropdowns.management" class="dropdown-menu-floating">
                 <router-link v-if="canView('events:create')" to="/events" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">活動管理</router-link>
                 <router-link v-if="canView('personnel:read')" to="/personnel" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">人員管理</router-link>
                 <router-link v-if="canView('personnel:create')" to="/import/personnel" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">人員資料匯入</router-link>
@@ -56,7 +56,7 @@
 </template>
 
 <script setup>
-import { ref, reactive } from 'vue';
+import { ref, reactive, nextTick } from 'vue'; // 引入 nextTick
 import { useRoute } from 'vue-router';
 import { useAuthStore } from '@/store/auth';
 
@@ -86,8 +86,8 @@ const canView = (permission) => authStore.hasPermission(permission);
 const isRouteActive = (path) => route.path.startsWith(path);
 
 // 打開指定的下拉選單
-const openDropdown = (menu) => {
-  // Close all other dropdowns first
+const openDropdown = async (menu) => { // 將 openDropdown 設為 async
+  // 先關閉所有其他下拉選單
   for (const key in dropdowns) {
     if (key !== menu) {
       dropdowns[key] = false;
@@ -95,28 +95,31 @@ const openDropdown = (menu) => {
   }
   dropdowns[menu] = true;
 
-  // Implement dynamic positioning for mobile if needed
-  if (window.innerWidth <= 768) {
-    let menuElement = null;
-    let buttonElement = null;
-    if (menu === 'dataAnalysis') {
-      menuElement = dataAnalysisMenuRef.value;
-      buttonElement = dataAnalysisButtonRef.value;
-    } else if (menu === 'records') {
-      menuElement = recordsMenuRef.value;
-      buttonElement = recordsButtonRef.value;
-    } else if (menu === 'management') {
-      menuElement = managementMenuRef.value;
-      buttonElement = managementButtonRef.value;
-    }
+  // 等待 DOM 更新，確保 v-if 渲染了菜單元素
+  await nextTick(); 
 
-    if (menuElement && buttonElement) {
+  let menuElement = null;
+  let buttonElement = null;
+  if (menu === 'dataAnalysis') {
+    menuElement = dataAnalysisMenuRef.value;
+    buttonElement = dataAnalysisButtonRef.value;
+  } else if (menu === 'records') {
+    menuElement = recordsMenuRef.value;
+    buttonElement = recordsButtonRef.value;
+  } else if (menu === 'management') {
+    menuElement = managementMenuRef.value;
+    buttonElement = managementButtonRef.value;
+  }
+
+  if (menuElement && buttonElement) {
+    // 強制設定 display: block，以確保在所有情況下都能顯示
+    menuElement.style.display = 'block'; 
+
+    if (window.innerWidth <= 768) { // 手機版
       const rect = buttonElement.getBoundingClientRect();
-      // Calculate top relative to the viewport + current scroll position
-      // Add a small offset (e.g., 4px) to ensure it's not directly on the button edge.
       menuElement.style.top = `${rect.bottom + window.scrollY + 4}px`; 
-      // Ensure the menu is visible by setting its display property if it's not already
-      menuElement.style.display = 'block'; 
+    } else { // 桌面版，清除可能的手機版 top 設定
+      menuElement.style.top = ''; 
     }
   }
 };
@@ -124,15 +127,10 @@ const openDropdown = (menu) => {
 // 關閉指定的下拉選單
 const closeDropdown = (menu) => {
   dropdowns[menu] = false;
-  // For mobile, explicitly hide the element after closing to prevent layout issues
-  // This might be redundant if v-show correctly handles display: none
-  if (window.innerWidth <= 768) {
-      let menuElement = null;
-      if (menu === 'dataAnalysis') menuElement = dataAnalysisMenuRef.value;
-      else if (menu === 'records') menuElement = recordsMenuRef.value;
-      else if (menu === 'management') menuElement = managementMenuRef.value;
-      if (menuElement) menuElement.style.display = 'none';
-  }
+  // 由於使用 v-if，元素會在 dropdowns[menu] 變為 false 時從 DOM 中移除，
+  // 因此不需要顯式設定 display: 'none'。
+  // 但為了安全，如果元素仍然存在 (例如因為動畫延遲)，可以設定。
+  // 不過在這裡，我們主要依賴 v-if 的移除行為。
 };
 </script>
 
@@ -140,8 +138,8 @@ const closeDropdown = (menu) => {
 /* 專屬於此元件的樣式 */
 .dropdown-menu-floating {
   position: absolute;
-  /* `v-show` 會自動控制 `display: none;` 和 `display: block;` */
-  /* display: none;  這裡移除，因為 v-show 會處理 */
+  /* `v-if` 會直接控制元素的渲染與移除，所以不需要 display: none; */
+  /* display: none; */ 
   z-index: 50;
   top: 100%;
   left: 0;
