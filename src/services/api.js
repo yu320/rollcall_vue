@@ -9,7 +9,7 @@
  * - 讓業務邏輯層的程式碼更簡潔，不需關心數據庫操作的具體細節。
  */
 import supabase from './supabase';
-import { BATCH_SIZE } from '@/utils/constants'; // 引入批次大小設定
+import { BATCH_SIZE } from '@/utils/constants'; // 修正：確保從 constants.js 引入
 
 // --- 身份驗證 & 權限 API ---
 
@@ -68,6 +68,16 @@ export async function getUserProfile(userId) {
   if (error) throw error;
   return data;
 }
+
+/**
+ * 更新使用者密碼
+ * @param {string} newPassword
+ */
+export async function updateUserPassword(newPassword) {
+    const { error } = await supabase.auth.updateUser({ password: newPassword });
+    if (error) throw error;
+}
+
 
 // --- 稽核日誌 API ---
 
@@ -137,7 +147,30 @@ export async function fetchAllPersonnel() {
     return data;
 }
 
-// ... (其他 API 函式)
+export async function createPersonnel(personData) {
+    const { data, error } = await supabase.from('personnel').insert(personData).select().single();
+    if (error) throw error;
+    recordAuditLog({ action_type: 'CREATE', target_table: 'personnel', target_id: data.id, description: `新增人員: ${data.name}`, new_value: data });
+    return data;
+}
+
+export async function updatePersonnel(id, personData) {
+    const { data: oldData } = await supabase.from('personnel').select('*').eq('id', id).single();
+    const { data, error } = await supabase.from('personnel').update(personData).eq('id', id).select().single();
+    if (error) throw error;
+    recordAuditLog({ action_type: 'UPDATE', target_table: 'personnel', target_id: data.id, description: `更新人員: ${data.name}`, old_value: oldData, new_value: data });
+    return data;
+}
+
+export async function batchDeletePersonnel(ids) {
+    const { data: oldData } = await supabase.from('personnel').select('*').in('id', ids);
+    const { error } = await supabase.from('personnel').delete().in('id', ids);
+    if (error) throw error;
+    if (oldData) {
+        recordAuditLog({ action_type: 'DELETE_BATCH', target_table: 'personnel', description: `批量刪除 ${oldData.length} 位人員`, old_value: oldData });
+    }
+}
+
 
 // --- 報到記錄 API ---
 export async function fetchRecordsByDate(date) {
@@ -155,8 +188,26 @@ export async function fetchRecordsByDate(date) {
     return data;
 }
 
+export async function fetchRecordsByEventId(eventId) {
+    const { data, error } = await supabase
+        .from('check_in_records')
+        .select('*, events(name)')
+        .eq('event_id', eventId)
+        .order('created_at', { ascending: true });
+    if (error) throw error;
+    return data;
+}
+
+export async function fetchRecordsByDateRange(startDate, endDate) {
+    let query = supabase.from('check_in_records').select('*').order('created_at', { ascending: false });
+    if (startDate) query = query.gte('created_at', startDate.toISOString());
+    if (endDate) query = query.lte('created_at', endDate.toISOString());
+    const { data, error } = await query;
+    if (error) throw error;
+    return data;
+}
+
 export async function saveRecords(records) {
-    // 移除前端產生的臨時 id
     const recordsToInsert = records.map(({ id, ...rest }) => rest);
     const { error } = await supabase.from('check_in_records').insert(recordsToInsert);
     if (error) throw error;
@@ -184,10 +235,7 @@ export async function createAccount(accountData) {
     const adminUserId = await getAdminUserId();
     const response = await fetch('/api/create-account', {
         method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            'X-Admin-User-Id': adminUserId
-        },
+        headers: { 'Content-Type': 'application/json', 'X-Admin-User-Id': adminUserId },
         body: JSON.stringify(accountData)
     });
     const result = await response.json();
@@ -199,10 +247,7 @@ export async function updateAccount(accountData) {
     const adminUserId = await getAdminUserId();
     const response = await fetch('/api/update-account', {
         method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            'X-Admin-User-Id': adminUserId
-        },
+        headers: { 'Content-Type': 'application/json', 'X-Admin-User-Id': adminUserId },
         body: JSON.stringify(accountData)
     });
     const result = await response.json();
@@ -214,10 +259,7 @@ export async function batchDeleteAccounts(ids) {
     const adminUserId = await getAdminUserId();
     const response = await fetch('/api/delete-account', {
         method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            'X-Admin-User-Id': adminUserId
-        },
+        headers: { 'Content-Type': 'application/json', 'X-Admin-User-Id': adminUserId },
         body: JSON.stringify({ ids })
     });
     const result = await response.json();
@@ -228,24 +270,17 @@ export async function batchDeleteAccounts(ids) {
 export async function fetchAllAccounts() {
     const { data, error } = await supabase
         .from('profiles')
-        .select('id, email, role:roles(name), nickname')
+        .select('id, email, roles(name), nickname')
         .order('email', { ascending: true });
     if (error) throw error;
-    // 整理回傳的資料結構，讓 role 直接是角色名稱字串
     return data.map(p => ({ ...p, role: p.roles?.name || '未知' }));
 }
 
-// [NEW] 權限管理 API
+// --- 權限管理 API ---
 export async function fetchAllRolesAndPermissions() {
     const { data, error } = await supabase
         .from('roles')
-        .select(`
-            id,
-            name,
-            role_permissions (
-                permissions (id, name)
-            )
-        `);
+        .select(`id, name, role_permissions ( permissions (id, name) )`);
     if (error) throw error;
     return data;
 }
@@ -257,14 +292,10 @@ export async function fetchAllPermissions() {
 }
 
 export async function updateRolePermissions(roleId, permissionIds) {
-    // 1. 刪除該角色所有舊的權限關聯
-    const { error: deleteError } = await supabase.from('role_permissions').delete().eq('role_id', roleId);
-    if (deleteError) throw deleteError;
-
-    // 2. 插入新的權限關聯
+    await supabase.from('role_permissions').delete().eq('role_id', roleId);
     if (permissionIds.length > 0) {
         const newLinks = permissionIds.map(pid => ({ role_id: roleId, permission_id: pid }));
-        const { error: insertError } = await supabase.from('role_permissions').insert(newLinks);
-        if (insertError) throw insertError;
+        const { error } = await supabase.from('role_permissions').insert(newLinks);
+        if (error) throw error;
     }
 }
