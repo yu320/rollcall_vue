@@ -72,7 +72,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, computed, nextTick } from 'vue';
+import { ref, onMounted, computed, nextTick, watch } from 'vue'; // [FIXED] 引入 watch
 import { useUiStore } from '@/store/ui';
 import { useDataStore } from '@/store/data'; // 使用 Pinia 的 dataStore
 import * as api from '@/services/api'; 
@@ -96,12 +96,23 @@ let overviewActivityTrendChartInstance = null;
 const overviewStatusChartCanvas = ref(null);
 const overviewActivityTrendChartCanvas = ref(null);
 
+// [FIXED] 新增 watch 來監聽 isLoading 狀態，確保在 DOM 渲染後才執行圖表渲染
+watch(isLoading, (newVal) => {
+  if (newVal === false) {
+    // 使用 nextTick 確保 v-if="!isLoading" 的區塊已經被渲染到畫面上
+    nextTick(() => {
+      renderAllCharts();
+    });
+  }
+});
+
+
 // 銷毀圖表實例的輔助函數
 const destroyChart = (chartInstance) => {
   if (chartInstance) {
     chartInstance.destroy();
-    chartInstance = null; // 清空引用
   }
+  return null; // 返回 null 以便重新賦值
 };
 
 
@@ -120,14 +131,14 @@ onMounted(async () => {
     recentRecords.value = records || [];
     generateSummary(); // 根據獲取到的數據生成摘要卡片
 
-    // 在 DOM 更新後渲染圖表
-    await nextTick(); // 使用 nextTick 等待 DOM 更新
-    renderAllCharts();
+    // [REMOVED] 移除此處的圖表渲染呼叫，交由 watch 處理
+    // await nextTick(); 
+    // renderAllCharts();
 
   } catch (error) {
     uiStore.showMessage(`無法載入總覽資訊: ${error.message}`, 'error');
   } finally {
-    isLoading.value = false;
+    isLoading.value = false; // 這個狀態改變會觸發上面的 watch
     uiStore.setLoading(false); // 隱藏全局載入遮罩
   }
 });
@@ -180,9 +191,8 @@ const renderAllCharts = () => {
 
 // 渲染「總操作狀態分佈」圓餅圖
 const renderOverviewStatusChart = () => {
-    destroyChart(overviewStatusChartInstance); // 銷毀舊圖表
+    overviewStatusChartInstance = destroyChart(overviewStatusChartInstance); // 銷毀舊圖表並清空引用
 
-    // 確保 canvas 元素已經被渲染到 DOM 中
     if (!overviewStatusChartCanvas.value) {
         console.warn("無法找到 'overviewStatusChartCanvas' 元素，跳過圖表渲染。");
         return; 
@@ -214,25 +224,21 @@ const renderOverviewStatusChart = () => {
 
 // 渲染「近期活動趨勢」折線圖
 const renderOverviewActivityTrendChart = () => {
-    destroyChart(overviewActivityTrendChartInstance); // 銷毀舊圖表
+    overviewActivityTrendChartInstance = destroyChart(overviewActivityTrendChartInstance); // 銷毀舊圖表並清空引用
 
-    // 確保 canvas 元素已經被渲染到 DOM 中
     if (!overviewActivityTrendChartCanvas.value) {
         console.warn("無法找到 'overviewActivityTrendChartCanvas' 元素，跳過圖表渲染。");
         return; 
     }
 
-    // 獲取最近的活動 (例如，最近10個活動)
     const sortedEvents = [...dataStore.events].sort((a, b) => new Date(a.start_time) - new Date(b.start_time));
     const recentEvents = sortedEvents.slice(Math.max(sortedEvents.length - 10, 0)); 
 
-    const labels = recentEvents.map(e => e.name); // 活動名稱作為 X 軸標籤
+    const labels = recentEvents.map(e => e.name);
     const checkInData = recentEvents.map(event => {
-        // 計算每個活動的簽到人次
         return recentRecords.value.filter(r => r.event_id === event.id && r.action_type === '簽到').length;
     });
     const checkOutData = recentEvents.map(event => {
-        // 計算每個活動的簽退人次
         return recentRecords.value.filter(r => r.event_id === event.id && r.action_type === '簽退').length;
     });
 
@@ -245,15 +251,15 @@ const renderOverviewActivityTrendChart = () => {
                 {
                     label: '簽到人次',
                     data: checkInData,
-                    borderColor: '#4F46E5', // Indigo-600
+                    borderColor: '#4F46E5',
                     backgroundColor: 'rgba(79, 70, 229, 0.2)',
                     fill: true,
-                    tension: 0.3 // 平滑曲線
+                    tension: 0.3
                 },
                 {
                     label: '簽退人次',
                     data: checkOutData,
-                    borderColor: '#F59E0B', // Amber-500
+                    borderColor: '#F59E0B',
                     backgroundColor: 'rgba(245, 158, 11, 0.2)',
                     fill: true,
                     tension: 0.3
@@ -264,13 +270,12 @@ const renderOverviewActivityTrendChart = () => {
             responsive: true,
             maintainAspectRatio: false,
             scales: {
-                y: { beginAtZero: true } // Y 軸從 0 開始
+                y: { beginAtZero: true }
             },
             plugins: {
-                legend: { display: true } // 顯示圖例
+                legend: { display: true }
             }
         }
     });
 };
 </script>
-
