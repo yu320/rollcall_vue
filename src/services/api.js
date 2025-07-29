@@ -396,8 +396,16 @@ export async function fetchAllSavedDatesWithStats() {
     return data;
 }
 
+// [FIX] 修正 importCheckinRecords 函數的參數傳遞方式
 export async function importCheckinRecords(importData) {
-    const { data, error } = await supabase.rpc('import_checkin_records_with_personnel_creation', { records_to_import: importData });
+    // importData 是一個物件，包含 records, eventId, actionType
+    // RPC 函數 import_checkin_records_with_personnel_creation 預期這些是獨立的參數
+    const { records, eventId, actionType } = importData;
+    const { data, error } = await supabase.rpc('import_checkin_records_with_personnel_creation', { 
+        records_to_import: records, 
+        eventid: eventId, 
+        actiontype: actionType 
+    });
     if (error) throw error;
     return data;
 }
