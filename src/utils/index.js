@@ -23,6 +23,20 @@ export function formatDateTime(dateInput, formatString = 'yyyy-MM-dd HH:mm:ss') 
 }
 
 /**
+ * 將 Date 物件格式化為 YYYY-MM-DD。
+ * @param {Date} date - Date 物件。
+ * @returns {string} - 格式化後的日期字串。
+ */
+export function formatDate(date) { // 新增此函數的導出
+    if (!date) return '';
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+}
+
+
+/**
  * [NEW] 獲取或生成一個唯一的設備 ID。
  * 它會儲存在 localStorage 中，以便在不同 session 中保持一致。
  * @returns {string} - 唯一的設備 ID。
@@ -144,3 +158,4 @@ export function createSummaryCard(title, value, iconName, changeData = null) {
         </div>
     `;
 }
+
