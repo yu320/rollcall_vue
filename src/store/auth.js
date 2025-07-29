@@ -1,119 +1,106 @@
 // src/store/auth.js
+
 import { defineStore } from 'pinia';
 import { ref, computed } from 'vue';
-import { api } from '@/services/api';
+// [FIX] 使用 `import * as api` 來將所有導出的函式集合到 `api` 物件中
+import * as api from '@/services/api';
 import router from '@/router';
 
 export const useAuthStore = defineStore('auth', () => {
   // --- State ---
-  const user = ref(null); // Supabase auth user object
-  const profile = ref(null); // Your public.profiles data
-  const permissions = ref(new Set()); // 使用 Set 提高權限檢查效能
-  const error = ref(null); // 登入或驗證過程中的錯誤訊息
-  const isLoading = ref(false); // 控制登入時的載入動畫
+  const user = ref(null);
+  const userPermissions = ref(new Set());
+  const loading = ref(true); // 用於追蹤初始 session 檢查狀態
 
   // --- Getters ---
   const isLoggedIn = computed(() => !!user.value);
-  const userRole = computed(() => profile.value?.roles?.name || null);
-  const userNickname = computed(() => profile.value?.nickname || user.value?.email?.split('@')[0] || '使用者');
-  
-  // 權限檢查函式
+  const userRoleName = computed(() => user.value?.roles?.name || '未知');
+
+  /**
+   * 檢查使用者是否擁有特定權限
+   * @param {string} permissionName - 權限名稱 (e.g., 'personnel:create')
+   * @returns {boolean}
+   */
   const hasPermission = (permissionName) => {
-    // 管理員 (admin) 擁有所有權限
-    if (userRole.value === 'admin') {
-      return true;
-    }
-    return permissions.value.has(permissionName);
+    return userPermissions.value.has(permissionName);
   };
 
   // --- Actions ---
 
   /**
-   * 處理使用者登入
-   * @param {object} credentials - { email, password }
+   * 登入
+   * @param {string} email
+   * @param {string} password
    */
-  const login = async (credentials) => {
-    isLoading.value = true;
-    error.value = null;
-    try {
-      const { user: authUser } = await api.login(credentials);
+  async function login(email, password) {
+    // [FIX] 使用 api.login
+    const { user: authUser } = await api.login(email, password);
+    if (authUser) {
       await fetchUserProfile(authUser.id);
-      router.push({ name: 'Overview' }); // 登入成功後導向總覽頁面
-    } catch (e) {
-      error.value = e.message;
-      user.value = null;
-      profile.value = null;
-    } finally {
-      isLoading.value = false;
+      router.push('/'); // 登入成功後導向首頁
     }
-  };
+  }
 
   /**
-   * 處理使用者登出
+   * 登出
    */
-  const logout = async () => {
+  async function logout() {
+    // [FIX] 使用 api.logout
     await api.logout();
     user.value = null;
-    profile.value = null;
-    permissions.value.clear();
-    router.push({ name: 'Login' });
-  };
+    userPermissions.value.clear();
+    router.push('/login'); // 登出後導向登入頁
+  }
 
   /**
-   * 獲取並設定使用者資料和權限
-   * @param {string} userId - 使用者 ID
+   * 獲取並設定使用者資料及權限
+   * @param {string} userId
    */
-  const fetchUserProfile = async (userId) => {
-    if (!userId) return;
-    try {
-        const userProfile = await api.getUserProfile(userId);
-        profile.value = userProfile;
+  async function fetchUserProfile(userId) {
+    // [FIX] 使用 api.getUserProfile
+    const profile = await api.getUserProfile(userId);
+    user.value = profile;
 
-        // 從 userProfile 中提取並設定權限
-        const userPermissions = await api.getPermissionsForRole(userProfile.role_id);
-        permissions.value = new Set(userPermissions.map(p => p.name));
-    } catch (e) {
-        console.error("無法獲取使用者資料:", e);
-        // 如果獲取資料失敗，強制登出以策安全
-        await logout();
+    // 解析並設定權限
+    const permissions = new Set();
+    if (profile?.roles?.role_permissions) {
+      profile.roles.role_permissions.forEach(rp => {
+        permissions.add(rp.permissions.name);
+      });
     }
-  };
-  
-  /**
-   * 檢查當前 session，用於應用程式初始化
-   */
-  const checkSession = async () => {
-      isLoading.value = true;
-      try {
-          const session = await api.getSession();
-          if (session?.user) {
-              user.value = session.user;
-              await fetchUserProfile(session.user.id);
-          } else {
-              user.value = null;
-              profile.value = null;
-          }
-      } catch (e) {
-          console.error("Session check failed:", e);
-          user.value = null;
-          profile.value = null;
-      } finally {
-          isLoading.value = false;
-      }
-  };
+    userPermissions.value = permissions;
+  }
 
+  /**
+   * 檢查初始登入狀態
+   */
+  async function checkInitialAuth() {
+    try {
+      loading.value = true;
+      // [FIX] 使用 api.getSession
+      const session = await api.getSession();
+      if (session) {
+        await fetchUserProfile(session.user.id);
+      }
+    } catch (error) {
+      console.error('檢查初始登入狀態失敗:', error);
+      user.value = null;
+      userPermissions.value.clear();
+    } finally {
+      loading.value = false;
+    }
+  }
 
   return {
     user,
-    profile,
+    loading,
     isLoggedIn,
-    userRole,
-    userNickname,
-    error,
-    isLoading,
+    userRoleName,
+    hasPermission,
     login,
     logout,
-    checkSession,
-    hasPermission,
+    checkInitialAuth,
   };
+}, {
+  persist: true, // 使用 pinia-plugin-persistedstate 將狀態儲存在 localStorage
 });
