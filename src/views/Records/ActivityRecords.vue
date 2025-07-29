@@ -254,5 +254,4 @@ const exportToCSV = () => {
     document.body.removeChild(link);
     URL.revokeObjectURL(link.href);
 };
-
 </script>

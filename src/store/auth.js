@@ -5,6 +5,8 @@ import { ref, computed } from 'vue';
 import * as api from '@/services/api';
 import router from '@/router';
 import { useUiStore } from './ui';
+// [NEW] 引入 DEFAULT_EMAIL_DOMAIN 常數
+import { DEFAULT_EMAIL_DOMAIN } from '@/utils/constants';
 
 export const useAuthStore = defineStore('auth', () => {
   const uiStore = useUiStore();
@@ -31,7 +33,13 @@ export const useAuthStore = defineStore('auth', () => {
     loading.value = true;
     error.value = null; // Reset error on new login attempt
     try {
-      const { user: authUser } = await api.login(email, password);
+      let finalEmail = email;
+      // [MODIFIED] 如果 Email 不包含 '@' 符號，則自動補上預設網域
+      if (email && !email.includes('@')) {
+        finalEmail = email + DEFAULT_EMAIL_DOMAIN;
+      }
+
+      const { user: authUser } = await api.login(finalEmail, password);
       if (authUser) {
         await fetchUserProfile(authUser.id);
         router.push('/');

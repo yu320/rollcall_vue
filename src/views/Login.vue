@@ -8,10 +8,11 @@
     </div>
     
     <!-- Login Card -->
-    <div v-if="!authStore.loading" class="login-card w-full max-w-md rounded-2xl p-8 md:p-10">
+    <div v-if="!authStore.loading" class="login-card w-full max-w-md rounded-2xl p-8 md:p-10 transition-all duration-300 ease-out transform">
       <div class="text-center mb-8">
         <h1 class="text-2xl font-bold text-gray-800">報到管理系統</h1>
         <p class="text-gray-600 mt-2">請登入以繼續使用系統</p>
+        <!-- [MODIFIED] Adjust clock display to 24-hour format -->
         <div class="text-lg font-semibold text-indigo-600 mt-2 clock">{{ currentTime }}</div>
       </div>
       
@@ -29,7 +30,12 @@
         <p v-if="authStore.error" class="text-red-600 text-sm mt-2 text-center">{{ authStore.error }}</p>
         
         <div>
-          <button type="submit" class="login-btn w-full flex justify-center py-3 px-4 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white">
+          <!-- [MODIFIED] Add icon to the login button -->
+          <button type="submit" class="login-btn w-full flex justify-center py-3 px-4 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white items-center">
+            <!-- Login Icon (similar to a user/login symbol) -->
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1" />
+            </svg>
             登入系統
           </button>
         </div>
@@ -68,7 +74,11 @@ let clockInterval = null;
 
 const updateClock = () => {
   const now = new Date();
-  currentTime.value = now.toLocaleTimeString('zh-TW');
+  // [MODIFIED] Use 24-hour format with padStart for consistent display
+  const hours = String(now.getHours()).padStart(2, '0');
+  const minutes = String(now.getMinutes()).padStart(2, '0');
+  const seconds = String(now.getSeconds()).padStart(2, '0');
+  currentTime.value = `${hours}:${minutes}:${seconds}`;
 };
 
 onMounted(() => {

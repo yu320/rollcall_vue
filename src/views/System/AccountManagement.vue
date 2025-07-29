@@ -77,7 +77,7 @@
           <input type="text" id="accountNickname" v-model="editableAccount.nickname" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500">
         </div>
         <div class="mb-4">
-          <label for="accountPassword" class="block text-gray-700 font-medium mb-2">密碼 <span v-if="isEditing" class="text-sm text-gray-500">(留空表示不修改)</span></label>
+          <label for="accountPassword" class="block text-sm font-medium text-gray-700">密碼 <span v-if="isEditing" class="text-sm text-gray-500">(留空表示不修改)</span></label>
           <input type="password" id="accountPassword" v-model="editableAccount.password" :required="!isEditing" minlength="6" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500" placeholder="至少6位數">
         </div>
         <div class="mb-6">
@@ -289,5 +289,4 @@ const downloadSample = () => {
   document.body.removeChild(link);
   URL.revokeObjectURL(link.href);
 };
-
 </script>

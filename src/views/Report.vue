@@ -140,7 +140,7 @@
                         <p class="text-sm text-gray-500">{{ personnelReportData.person.building || '無棟別' }} | {{ (personnelReportData.person.tags || []).join(', ') || '無標籤' }}</p>
                     </div>
                 </div>
-                <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+                <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6" id="personnelReportStats">
                     <div class="bg-gray-50 p-4 rounded-lg text-center"><p class="text-sm text-gray-500">簽到次數</p><p class="text-2xl font-bold text-gray-900">{{ personnelReportData.stats.checkInCount }}</p></div>
                     <div class="bg-gray-50 p-4 rounded-lg text-center"><p class="text-sm text-gray-500">簽退次數</p><p class="text-2xl font-bold text-gray-900">{{ personnelReportData.stats.checkOutCount }}</p></div>
                     <div class="bg-gray-50 p-4 rounded-lg text-center"><p class="text-sm text-gray-500">參與率</p><p class="text-2xl font-bold text-gray-900">{{ personnelReportData.stats.attendanceRate.toFixed(1) }}%</p></div>
@@ -304,6 +304,7 @@ const processReportData = (records, allPersonnel, allEvents, currentBuildingFilt
         if (!r.event_id) return;
         if (!eventGroups[r.event_id]) {
             const event = allEvents.find(e => e.id === r.event_id);
+            // [FIXED] 確保 eventInfo 有預設值，避免 undefined 或 NaN
             eventGroups[r.event_id] = { eventInfo: event || { id: r.event_id, name: '未知活動', start_time: new Date().toISOString() }, records: [] };
         }
         eventGroups[r.event_id].records.push(r);
