@@ -5,7 +5,8 @@
       <div class="flex flex-wrap border-b border-gray-200">
         
         <!-- 總覽頁籤 -->
-        <router-link v-if="canView('overview:view')" to="/overview" class="tab-button" active-class="tab-active">總覽</router-link>
+        <!-- [FIXED] 將 to="/overview" 修正為 to="/" 以匹配路由設定 -->
+        <router-link v-if="canView('overview:view')" to="/" class="tab-button" active-class="tab-active">總覽</router-link>
 
         <!-- 報到系統頁籤 -->
         <router-link v-if="canView('checkin:use')" to="/checkin" class="tab-button" active-class="tab-active">報到系統</router-link>
