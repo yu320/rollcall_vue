@@ -8,8 +8,8 @@
  * - 處理數據的獲取、新增、更新、刪除。
  * - 讓業務邏輯層的程式碼更簡潔，不需關心數據庫操作的具體細節。
  */
-import supabase from './supabase';
-import { BATCH_SIZE } from '@/utils/constants'; // 修正：確保從 constants.js 引入
+import { supabase } from './supabase'; // 關鍵修正：使用具名引入
+import { BATCH_SIZE } from '@/utils/constants';
 
 // --- 身份驗證 & 權限 API ---
 
