@@ -1,233 +1,158 @@
-<template>
-  <div class="space-y-8">
-    <!-- 頁面標題 -->
-    <div class="bg-white rounded-xl shadow-lg p-6 md:p-8 border border-indigo-200">
-      <h2 class="text-3xl font-bold text-indigo-800">系統總覽</h2>
-    </div>
+// src/utils/index.js
 
-    <!-- 總覽內容 -->
-    <div id="overviewContent" v-if="!isLoading && !isEmpty">
-      <!-- 統計卡片 -->
-      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-6 mb-8">
-        <div v-for="card in summaryCards" :key="card.title" class="bg-white rounded-xl shadow-md p-6 border border-gray-200 hover:shadow-lg transition-shadow" v-html="card.html"></div>
-      </div>
-      <!-- 圖表 -->
-      <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div class="bg-white rounded-xl shadow-md p-6 border border-gray-200">
-          <h3 class="text-xl font-bold text-gray-800 mb-4">總操作狀態分佈</h3>
-          <div class="h-72"><canvas ref="statusChartCanvas"></canvas></div>
-        </div>
-        <div class="bg-white rounded-xl shadow-md p-6 border border-gray-200">
-          <h3 class="text-xl font-bold text-gray-800 mb-4">近期活動趨勢</h3>
-          <div class="h-72"><canvas ref="activityTrendChartCanvas"></canvas></div>
-        </div>
-      </div>
-    </div>
+/**
+ * 通用輔助函數模組
+ *
+ * 職責:
+ * - 提供與 DOM、UI 無直接關聯，可在多處重複使用的純函數。
+ * - 例如：日期格式化、資料驗證、本地儲存操作等。
+ */
 
-    <!-- 空狀態提示 -->
-    <div id="overviewEmpty" v-if="!isLoading && isEmpty" class="text-center py-16 text-gray-500 bg-white rounded-xl shadow-lg">
-      <svg xmlns="http://www.w3.org/2000/svg" class="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-      </svg>
-      <h3 class="mt-2 text-sm font-medium text-gray-900">沒有足夠的數據</h3>
-      <p class="mt-1 text-sm text-gray-500">請確保系統中有足夠的人員和活動記錄來生成總覽數據。</p>
-    </div>
-  </div>
-</template>
+/**
+ * 將日期字串格式化為 YYYY-MM-DD HH:MM:SS (24小時制)。
+ * @param {string|Date} dateInput - 日期字串或 Date 物件。
+ * @returns {string} - 格式化後的日期時間字串。
+ */
+export function formatDateTime(dateInput) {
+    if (!dateInput) return '';
+    const date = new Date(dateInput);
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    const hours = String(date.getHours()).padStart(2, '0');
+    const minutes = String(date.getMinutes()).padStart(2, '0');
+    const seconds = String(date.getSeconds()).padStart(2, '0');
+    return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
+}
 
-<script setup>
-import { ref, onMounted, nextTick } from 'vue';
-import { useUiStore } from '@/store/ui';
-import { useDataStore } from '@/store/data';
-import * as api from '@/services/api'; // 關鍵修正
-import Chart from 'chart.js/auto';
-import { createSummaryCard } from '@/utils/index';
+/**
+ * 將 Date 物件格式化為 YYYY-MM-DD。
+ * @param {Date} date - Date 物件。
+ * @returns {string} - 格式化後的日期字串。
+ */
+export function formatDate(date) {
+    if (!date) return '';
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+}
 
-const uiStore = useUiStore();
-const dataStore = useDataStore();
+/**
+ * 根據輸入字串的第一個字元返回 Tailwind CSS 顏色類別。
+ * @param {string} input - 輸入字串 (學號或卡號)。
+ * @returns {string} - 顏色類別字串。
+ */
+export function getInputColorClass(input) {
+    if (!input || typeof input !== 'string' || input.length === 0) return '';
+    const firstChar = input.charAt(0).toLowerCase();
+    if (/[a-z]/.test(firstChar)) return `code-${firstChar}`;
+    if (/[0-9]/.test(firstChar)) return `code-digit-${firstChar}`;
+    return '';
+}
 
-const isLoading = ref(true);
-const isEmpty = ref(false);
-const summaryCards = ref([]);
-const statusChartCanvas = ref(null);
-const activityTrendChartCanvas = ref(null);
+/**
+ * 驗證學號格式是否有效 (必須以字母開頭)。
+ * @param {string} code - 學號字串。
+ * @returns {boolean} - 如果有效則為 true，否則為 false。
+ */
+export function isValidCode(code) {
+    return /^[A-Za-z]/.test(code);
+}
 
-let statusChartInstance = null;
-let activityTrendChartInstance = null;
+/**
+ * 驗證卡號格式是否有效 (必須為純數字)。
+ * @param {string} cardNumber - 卡號字串。
+ * @returns {boolean} - 如果有效則為 true，否則為 false。
+ */
+export function isValidCardNumber(cardNumber) {
+    return /^\d+$/.test(cardNumber);
+}
 
-onMounted(async () => {
-  uiStore.setLoading(true);
-  try {
-    await dataStore.fetchAllPersonnel();
-    await dataStore.fetchEvents();
+/**
+ * 創建單個摘要卡片的 HTML 內容。
+ * @param {string} title - 卡片標題。
+ * @param {string|number} value - 卡片數值。
+ * @param {string} iconName - Feather Icon 的名稱 (這裡使用自定義的SVG路徑代替)。
+ * @param {object|null} [changeData=null] - 包含 {absolute, percentage} 的變化數據物件。
+ * @returns {string} - HTML 字符串。
+ */
+export function createSummaryCard(title, value, iconName, changeData = null) {
+    let iconSvgPath = '';
+    let bgColorClass = '';
+    let textColorClass = '';
 
-    const allPersonnel = dataStore.personnel;
-    const allEvents = dataStore.events;
-
-    if (allPersonnel.length === 0 || allEvents.length === 0) {
-      isEmpty.value = true;
-      return;
+    switch (iconName) {
+        case 'users':
+            iconSvgPath = '<path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2m8-14a4 4 0 100 8 4 4 0 000-8z" />';
+            bgColorClass = 'bg-blue-100'; textColorClass = 'text-blue-500'; break;
+        case 'user-check':
+            iconSvgPath = '<path d="M16 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><polyline points="16 11 18 13 22 9"></polyline>';
+            bgColorClass = 'bg-green-100'; textColorClass = 'text-green-500'; break;
+        case 'user-minus':
+            iconSvgPath = '<path d="M16 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><line x1="23" y1="11" x2="17" y2="11"></line>';
+            bgColorClass = 'bg-orange-100'; textColorClass = 'text-orange-500'; break;
+        case 'pie-chart':
+            iconSvgPath = '<path d="M21.21 15.89A10 10 0 1 1 8.11 2.99"></path><path d="M22 12A10 10 0 0 0 12 2v10z"></path>';
+            bgColorClass = 'bg-purple-100'; textColorClass = 'text-purple-500'; break;
+        case 'clock':
+            iconSvgPath = '<circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline>';
+            bgColorClass = 'bg-yellow-100'; textColorClass = 'text-yellow-500'; break;
+        case 'calendar':
+            iconSvgPath = '<path d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />';
+            bgColorClass = 'bg-indigo-100'; textColorClass = 'text-indigo-500'; break;
+        case 'check-square':
+            iconSvgPath = '<polyline points="9 11 12 14 22 4"></polyline><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"></path>';
+            bgColorClass = 'bg-emerald-100'; textColorClass = 'text-emerald-500'; break;
+        default:
+            bgColorClass = 'bg-gray-100'; textColorClass = 'text-gray-500';
     }
 
-    const today = new Date();
-    const fourteenDaysAgo = new Date();
-    fourteenDaysAgo.setDate(today.getDate() - 14);
-    const recentRecords = await api.fetchRecordsByDateRange(fourteenDaysAgo, today);
+    let trendIconAndText = '';
+    if (changeData && typeof changeData === 'object' && changeData.hasOwnProperty('absolute') && changeData.hasOwnProperty('percentage')) {
+        const { absolute: absoluteChange, percentage: percentageChange } = changeData;
+        let trendColorClass = 'text-gray-500';
+        let trendSvgPath;
+        let trendText;
+        const changeThreshold = 0.1;
 
-    // 渲染卡片和圖表
-    renderOverview(recentRecords, allPersonnel, allEvents);
+        if (percentageChange > changeThreshold) {
+            trendColorClass = 'text-green-500';
+            trendSvgPath = '<polyline points="23 6 13.5 15.5 8.5 10.5 1 18"></polyline><polyline points="17 6 23 6 23 12"></polyline>';
+        } else if (percentageChange < -changeThreshold) {
+            trendColorClass = 'text-red-500';
+            trendSvgPath = '<polyline points="23 18 13.5 8.5 8.5 13.5 1 6"></polyline><polyline points="17 18 23 18 23 12"></polyline>';
+        } else {
+            trendSvgPath = '<line x1="5" y1="12" x2="19" y2="12"></line>';
+        }
 
-  } catch (error) {
-    uiStore.showMessage(`載入總覽數據失敗: ${error.message}`, 'error');
-    isEmpty.value = true;
-  } finally {
-    isLoading.value = false;
-    uiStore.setLoading(false);
-  }
-});
+        if (title.includes('參與率')) {
+            trendText = Math.abs(absoluteChange) > changeThreshold ? `${absoluteChange > 0 ? '+' : ''}${absoluteChange.toFixed(1)} %` : '持平';
+        } else {
+            trendText = Math.round(absoluteChange) !== 0 ? `${absoluteChange > 0 ? '+' : ''}${Math.round(absoluteChange)}` : '持平';
+        }
 
-const renderOverview = (recentRecords, allPersonnel, allEvents) => {
-    // 統計卡片邏輯 (與舊專案 modules/overview.js 相同)
-    const today = new Date();
-    const sevenDaysAgo = new Date();
-    sevenDaysAgo.setDate(today.getDate() - 7);
-    const fourteenDaysAgo = new Date();
-    fourteenDaysAgo.setDate(today.getDate() - 14);
-
-    const currentPeriodRecords = recentRecords.filter(r => new Date(r.created_at) >= sevenDaysAgo);
-    const previousPeriodRecords = recentRecords.filter(r => new Date(r.created_at) < sevenDaysAgo);
-    const currentPeriodEvents = allEvents.filter(e => new Date(e.start_time) >= sevenDaysAgo && new Date(e.start_time) <= today);
-    const previousPeriodEvents = allEvents.filter(e => new Date(e.start_time) >= fourteenDaysAgo && new Date(e.start_time) < sevenDaysAgo);
+        trendIconAndText = `
+            <div class="ml-2 flex items-center text-sm ${trendColorClass} font-semibold">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">${trendSvgPath}</svg>
+                <span>${trendText}</span>
+            </div>
+        `;
+    }
     
-    const calculateStats = (records, events, periodRecords) => {
-        const totalCheckIns = periodRecords.filter(r => r.action_type === '簽到').length;
-        const totalCheckOuts = periodRecords.filter(r => r.action_type === '簽退').length;
-        let totalAttendanceRateSum = 0;
-        let validEventCountForAttendance = 0;
-        for (const event of events) {
-            const recordsForEvent = records.filter(r => r.event_id === event.id && r.action_type === '簽到');
-            const attendedCount = new Set(recordsForEvent.map(r => r.personnel_id)).size;
-            const expectedCount = allPersonnel.length;
-            if (expectedCount > 0) {
-                totalAttendanceRateSum += (attendedCount / expectedCount);
-                validEventCountForAttendance++;
-            }
-        }
-        const averageAttendanceRate = validEventCountForAttendance > 0 ? (totalAttendanceRateSum / validEventCountForAttendance * 100) : 0;
-        return { totalEventsCount: events.length, totalCheckIns, totalCheckOuts, averageAttendanceRate };
-    };
+    const formattedTitle = title.replace(/(\s*\([^)]+\))/g, '<br><span class="text-xs font-normal">$1</span>');
 
-    const currentStats = calculateStats(currentPeriodRecords, currentPeriodEvents, currentPeriodRecords);
-    const previousStats = calculateStats(previousPeriodRecords, previousPeriodEvents, previousPeriodRecords);
-
-    const calculateChange = (current, previous) => {
-        const absoluteChange = current - previous;
-        let percentageChange = 0;
-        if (previous !== 0) {
-            percentageChange = (absoluteChange / previous) * 100;
-        } else if (current > 0) {
-            percentageChange = 100;
-        }
-        return { absolute: absoluteChange, percentage: percentageChange };
-    };
-    
-    const attendanceRateChange = {
-        absolute: currentStats.averageAttendanceRate - previousStats.averageAttendanceRate,
-        percentage: currentStats.averageAttendanceRate - previousStats.averageAttendanceRate
-    };
-
-    const stats = {
-        totalPersonnelCount: allPersonnel.length,
-        totalEventsCount: currentStats.totalEventsCount,
-        totalCheckIns: currentStats.totalCheckIns,
-        totalCheckOuts: currentStats.totalCheckOuts,
-        averageAttendanceRate: currentStats.averageAttendanceRate.toFixed(1),
-        eventsChange: calculateChange(currentStats.totalEventsCount, previousStats.totalEventsCount),
-        checkInsChange: calculateChange(currentStats.totalCheckIns, previousStats.totalCheckIns),
-        checkOutsChange: calculateChange(currentStats.totalCheckOuts, previousStats.totalCheckOuts),
-        attendanceRateChange: attendanceRateChange
-    };
-
-    summaryCards.value = [
-        { title: '總人員數', html: createSummaryCard('總人員數', stats.totalPersonnelCount.toLocaleString(), 'users') },
-        { title: '活動數 (近7日)', html: createSummaryCard('活動數 (近7日)', stats.totalEventsCount.toLocaleString(), 'calendar', stats.eventsChange) },
-        { title: '簽到人次 (近7日)', html: createSummaryCard('簽到人次 (近7日)', stats.totalCheckIns.toLocaleString(), 'check-square', stats.checkInsChange) },
-        { title: '簽退人次 (近7日)', html: createSummaryCard('簽退人次 (近7日)', stats.totalCheckOuts.toLocaleString(), 'user-minus', stats.checkOutsChange) },
-        { title: '平均參與率 (近7日)', html: createSummaryCard('平均參與率 (近7日)', `${stats.averageAttendanceRate}%`, 'pie-chart', stats.attendanceRateChange) }
-    ];
-
-    nextTick(() => {
-        renderStatusChart(recentRecords);
-        renderActivityTrendChart(recentRecords, allEvents);
-    });
-};
-
-const renderStatusChart = (records) => {
-  if (statusChartInstance) statusChartInstance.destroy();
-  if (!statusChartCanvas.value) return;
-  
-  const checkInSuccess = records.filter(r => r.action_type === '簽到' && r.success).length;
-  const checkOutSuccess = records.filter(r => r.action_type === '簽退' && r.success).length;
-  const failures = records.filter(r => !r.success).length;
-
-  statusChartInstance = new Chart(statusChartCanvas.value, {
-    type: 'doughnut',
-    data: {
-      labels: ['簽到成功', '簽退成功', '操作失敗'],
-      datasets: [{
-        data: [checkInSuccess, checkOutSuccess, failures],
-        backgroundColor: ['#10B981', '#3B82F6', '#EF4444'],
-        borderColor: '#FFFFFF',
-        borderWidth: 2,
-      }]
-    },
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      plugins: { legend: { position: 'bottom' } }
-    }
-  });
-};
-
-const renderActivityTrendChart = (records, events) => {
-  if (activityTrendChartInstance) activityTrendChartInstance.destroy();
-  if (!activityTrendChartCanvas.value) return;
-
-  const sortedEvents = [...events].sort((a, b) => new Date(a.start_time) - new Date(b.start_time));
-  const recentEvents = sortedEvents.slice(Math.max(sortedEvents.length - 10, 0)); 
-  const labels = recentEvents.map(e => e.name);
-  const checkInData = recentEvents.map(event => records.filter(r => r.event_id === event.id && r.action_type === '簽到').length);
-  const checkOutData = recentEvents.map(event => records.filter(r => r.event_id === event.id && r.action_type === '簽退').length);
-
-  activityTrendChartInstance = new Chart(activityTrendChartCanvas.value, {
-    type: 'line',
-    data: {
-      labels: labels,
-      datasets: [
-        {
-          label: '簽到人次',
-          data: checkInData,
-          borderColor: '#4F46E5',
-          backgroundColor: 'rgba(79, 70, 229, 0.2)',
-          fill: true,
-          tension: 0.3
-        },
-        {
-          label: '簽退人次',
-          data: checkOutData,
-          borderColor: '#F59E0B',
-          backgroundColor: 'rgba(245, 158, 11, 0.2)',
-          fill: true,
-          tension: 0.3
-        }
-      ]
-    },
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      scales: { y: { beginAtZero: true } },
-      plugins: { legend: { display: true } }
-    }
-  });
-};
-</script>
+    return `
+        <div class="flex items-start w-full">
+            <div class="${bgColorClass} p-3 rounded-lg mr-4 flex-shrink-0">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 ${textColorClass}" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">${iconSvgPath}</svg>
+            </div>
+            <div class="flex-grow min-w-0 flex flex-col items-center"> <p class="text-sm text-gray-500 font-medium">${formattedTitle}</p>
+                <div class="flex items-baseline mt-1">
+                    <p class="text-2xl font-bold text-gray-800">${value}</p>
+                    ${trendIconAndText}
+                </div>
+            </div>
+        </div>
+    `;
+}
