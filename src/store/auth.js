@@ -113,14 +113,19 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
   
-  async function changePassword(newPassword) {
+  // [MODIFIED] Changed from changePassword to updateUserProfile
+  async function updateUserProfile(nickname, newPassword) {
     uiStore.setLoading(true);
     try {
-        await api.updateUserPassword(newPassword);
-        uiStore.showMessage('密碼已成功更新！', 'success');
+        await api.updateUserProfile(user.value.id, nickname, newPassword);
+        // If nickname changed, update the user object in store
+        if (user.value) {
+            user.value.nickname = nickname;
+        }
+        uiStore.showMessage('個人資料已成功更新！', 'success');
         return true;
     } catch (e) {
-        uiStore.showMessage(`密碼更新失敗: ${e.message}`, 'error');
+        uiStore.showMessage(`更新個人資料失敗: ${e.message}`, 'error');
         return false;
     } finally {
         uiStore.setLoading(false);
@@ -138,7 +143,8 @@ export const useAuthStore = defineStore('auth', () => {
     hasPermission,
     login,
     logout,
+    fetchUserProfile, // [FIXED] Expose fetchUserProfile
     checkInitialAuth,
-    changePassword,
+    updateUserProfile, // [MODIFIED] Expose updateUserProfile
   };
 });

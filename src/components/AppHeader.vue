@@ -13,9 +13,9 @@
         <span class="text-gray-700 font-medium px-3 py-1 bg-gray-100 rounded-full order-first sm:order-none">
           歡迎, {{ user.nickname }} ({{ userRoleName }})
         </span>
-        <!-- [MODIFIED] Button style to match old version -->
-        <button @click="openChangePasswordModal" class="bg-blue-500 hover:bg-blue-600 text-white font-medium py-2 px-4 rounded-lg transition duration-300 transform hover:scale-105 shadow-sm">
-          修改我的密碼
+        <!-- [MODIFIED] Button text changed from "修改我的密碼" to "修改個人資料" -->
+        <button @click="openEditProfileModal" class="bg-blue-500 hover:bg-blue-600 text-white font-medium py-2 px-4 rounded-lg transition duration-300 transform hover:scale-105 shadow-sm">
+          修改個人資料
         </button>
         <button @click="handleLogout" class="bg-red-500 hover:bg-red-600 text-white font-medium py-2 px-4 rounded-lg transition duration-300 transform hover:scale-105 shadow-sm">
           登出
@@ -48,9 +48,12 @@ const handleLogout = () => {
   authStore.logout();
 };
 
-const openChangePasswordModal = () => {
+// [MODIFIED] Renamed from openChangePasswordModal to openEditProfileModal
+const openEditProfileModal = () => {
     // Emit an event that the root component (App.vue) can listen to
-    const event = new CustomEvent('open-change-password-modal');
+    // [MODIFIED] Event name changed to reflect profile editing
+    const event = new CustomEvent('open-edit-profile-modal');
     window.dispatchEvent(event);
 };
 </script>
+

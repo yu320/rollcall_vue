@@ -22,7 +22,7 @@
       </div>
     </div>
 
-    <!-- Action bar: Search, Batch Delete, Add Account -->
+    <!-- Action bar: Search, Batch Delete, Batch Edit, Add Account -->
     <div class="flex flex-col sm:flex-row justify-between items-center mb-6 gap-4">
       <div class="relative w-full sm:w-auto">
         <input type="text" v-model="searchTerm" placeholder="搜尋 Email 或暱稱..." class="pl-10 pr-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-400 focus:border-indigo-400 w-full sm:w-64">
@@ -31,6 +31,10 @@
       <div class="flex items-center gap-3 flex-wrap justify-center sm:justify-end w-full sm:w-auto">
         <button v-if="selectedAccounts.length > 0 && canManageAccounts" @click="confirmBatchDelete" class="w-full sm:w-auto bg-red-600 hover:bg-red-700 text-white font-medium py-2 px-4 rounded-lg transition duration-300 flex items-center justify-center shadow-sm hover:shadow-md">
           批次刪除 ({{ selectedAccounts.length }})
+        </button>
+        <!-- [NEW] Batch Edit Button -->
+        <button v-if="selectedAccounts.length > 0 && canManageAccounts" @click="openBatchEditModal" class="w-full sm:w-auto bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-lg transition duration-300 flex items-center justify-center shadow-sm hover:shadow-md">
+          批次修改 ({{ selectedAccounts.length }})
         </button>
         <button v-if="canManageAccounts" @click="openModal()" class="w-full sm:w-auto bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-2 px-4 rounded-lg transition duration-300 flex items-center justify-center shadow-md hover:shadow-lg">
           新增單一帳號
@@ -76,8 +80,8 @@
       <form @submit.prevent="saveAccount">
         <div class="mb-4">
           <label for="accountEmail" class="block text-gray-700 font-medium mb-2">使用者 Email</label>
-          <!-- [MODIFIED] Added @blur event to auto-complete the email domain -->
-          <input type="email" id="accountEmail" v-model="editableAccount.email" @blur="autoCompleteEmail" required class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500">
+          <!-- [MODIFIED] 將 type 改為 text, 以避免瀏覽器預設的 Email 驗證 -->
+          <input type="text" id="accountEmail" v-model="editableAccount.email" required class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500">
         </div>
         <div class="mb-4">
           <label for="accountNickname" class="block text-gray-700 font-medium mb-2">暱稱</label>
@@ -101,11 +105,37 @@
         </div>
       </form>
     </Modal>
+
+    <!-- [NEW] Batch Edit Modal -->
+    <Modal :show="isBatchEditModalOpen" @close="closeBatchEditModal">
+      <template #header>批量修改帳號 ({{ selectedAccounts.length }} 個)</template>
+      <form @submit.prevent="handleBatchEdit">
+        <div class="mb-4">
+          <label for="batchRole" class="block text-gray-700 font-medium mb-2">新的角色 (選填)</label>
+          <select id="batchRole" v-model="batchEditData.new_role_id" class="w-full px-4 py-2 border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-indigo-500">
+            <option :value="null">-- 不修改 --</option>
+            <option v-for="role in availableRolesForAssignment" :key="role.id" :value="role.id">
+              {{ getRoleDisplayName(role.name) }}
+            </option>
+          </select>
+        </div>
+        <div class="mb-6">
+          <label for="batchPassword" class="block text-gray-700 font-medium mb-2">新的密碼 (選填，留空表示不修改)</label>
+          <input type="password" id="batchPassword" v-model="batchEditData.new_password" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500" placeholder="至少6位數">
+          <p v-if="batchEditPasswordError" class="text-red-600 text-sm mt-1">{{ batchEditPasswordError }}</p>
+        </div>
+        <div class="flex flex-col sm:flex-row-reverse gap-3">
+          <button type="submit" class="w-full sm:w-auto bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-2 px-6 rounded-lg">確認修改</button>
+          <button type="button" @click="closeBatchEditModal" class="w-full sm:w-auto bg-gray-200 hover:bg-gray-300 text-gray-800 font-medium py-2 px-6 rounded-lg">取消</button>
+        </div>
+      </form>
+    </Modal>
+
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted, computed } from 'vue';
+import { ref, onMounted, computed, reactive } from 'vue'; // 引入 reactive
 import { useUiStore } from '@/store/ui';
 import { useAuthStore } from '@/store/auth';
 import { useDataStore } from '@/store/data';
@@ -126,6 +156,14 @@ const isEditing = ref(false);
 const editableAccount = ref({});
 const selectedFile = ref(null);
 const importResults = ref({ success: 0, failed: [] });
+
+// [NEW] Batch Edit Modal State
+const isBatchEditModalOpen = ref(false);
+const batchEditData = reactive({
+  new_role_id: null,
+  new_password: '',
+});
+const batchEditPasswordError = ref(''); // For password validation in batch edit modal
 
 // 將 canManageAccounts 權限檢查更改為 accounts:manage_users
 const canManageAccounts = computed(() => authStore.hasPermission('accounts:manage_users'));
@@ -188,12 +226,16 @@ const isCurrentUser = (id) => authStore.user?.id === id;
 const canEditAccount = (account) => {
     // 這裡的邏輯與 api/update-account.js 的後端權限驗證保持一致
     // 只有當前用戶有 manage_users 權限且不是修改自己或修改 superadmin 時才允許
-    if (!authStore.hasPermission('accounts:manage_users') || isCurrentUser(account.id)) {
+    if (!authStore.hasPermission('accounts:manage_users')) {
         return false;
     }
     // admin 不能編輯或刪除 superadmin
     if (currentUserRole.value === 'admin' && account.roles?.name === 'superadmin') {
         return false;
+    }
+    // 不能編輯自己的帳號
+    if (isCurrentUser(account.id)) {
+      return false;
     }
     return true;
 };
@@ -218,8 +260,14 @@ const openModal = (account = null) => {
   }
   isEditing.value = !!account;
   if (account) {
+    // [MODIFIED] 如果是編輯模式且 Email 包含預設網域，則移除它
+    const displayEmail = account.email.endsWith(DEFAULT_EMAIL_DOMAIN)
+      ? account.email.slice(0, -DEFAULT_EMAIL_DOMAIN.length)
+      : account.email;
+
     editableAccount.value = { 
         ...account, 
+        email: displayEmail, // 顯示處理後的 Email
         password: '',
         role_id: account.roles?.id
     };
@@ -238,35 +286,36 @@ const closeModal = () => {
   isModalOpen.value = false;
 };
 
-// [NEW] Function to auto-complete the email domain on blur
-const autoCompleteEmail = () => {
-  if (editableAccount.value.email && !editableAccount.value.email.includes('@')) {
-    editableAccount.value.email += DEFAULT_EMAIL_DOMAIN;
-  }
-};
-
+// [MODIFIED] saveAccount 中處理 Email 網域補齊邏輯已確認
 const saveAccount = async () => {
   uiStore.setLoading(true);
   try {
     const payload = { ...editableAccount.value };
-    // The logic to append domain is now handled by autoCompleteEmail on blur,
-    // but we keep this as a fallback.
+    
+    // 在提交前補齊 Email 網域，只有當 Email 不包含 '@' 符號時
     if (payload.email && !payload.email.includes('@')) {
         payload.email = payload.email + DEFAULT_EMAIL_DOMAIN;
     }
+
     if (isEditing.value && !payload.password) {
       delete payload.password;
     }
     if (payload.password && payload.password.length < 6) {
         throw new Error('密碼長度至少需要6位。');
     }
-    if (!payload.role_id) {
+    // Only require role_id on creation, allow editing to change role
+    if (!isEditing.value && !payload.role_id) {
         throw new Error('請選擇一個角色。');
     }
-    const selectedRole = dataStore.roles.find(r => r.id === payload.role_id);
-    if (!selectedRole) throw new Error('無效的角色選擇。');
-    payload.role = selectedRole.name;
+    // If editing, but no role_id is selected, keep the existing role
+    if (isEditing.value && !payload.role_id && editableAccount.value.roles?.id) {
+      payload.role_id = editableAccount.value.roles.id;
+    }
 
+
+    const selectedRole = dataStore.roles.find(r => r.id === payload.role_id);
+    if (payload.role_id && !selectedRole) throw new Error('無效的角色選擇。');
+    payload.role = selectedRole ? selectedRole.name : undefined; // Set role name for API payload, or undefined if no role selected
 
     if (isEditing.value) {
       await api.updateAccount({ id: payload.id, ...payload });
@@ -411,7 +460,7 @@ const importAccounts = async () => {
     importResults.value.failed = failedAccounts;
 
     if (failedAccounts.length > 0) {
-        uiStore.showMessage(`批次匯入完成。成功 ${successCount} 筆，失敗 ${failedAccounts.length} 筆。`, 'warning');
+        uiStore.showMessage(`批次匯入完成。成功 ${successCount} 筆，失敗 ${failedAccounts.length} 筆。`, 'warning', 5000);
     } else {
         uiStore.showMessage(`所有 ${successCount} 筆帳號已成功建立。`, 'success');
     }
@@ -439,4 +488,97 @@ const downloadSample = () => {
   document.body.removeChild(link);
   URL.revokeObjectURL(link.href);
 };
+
+
+// [NEW] Batch Edit Modal Functions
+const openBatchEditModal = () => {
+  if (selectedAccounts.value.length === 0) {
+    uiStore.showMessage('請至少選擇一個帳號進行批量修改。', 'info');
+    return;
+  }
+  // Reset form and errors
+  batchEditData.new_role_id = null;
+  batchEditData.new_password = '';
+  batchEditPasswordError.value = '';
+  isBatchEditModalOpen.value = true;
+};
+
+const closeBatchEditModal = () => {
+  isBatchEditModalOpen.value = false;
+};
+
+const handleBatchEdit = async () => {
+  batchEditPasswordError.value = ''; // Reset error
+
+  if (!batchEditData.new_role_id && !batchEditData.new_password) {
+    uiStore.showMessage('請至少選擇一個要修改的項目（角色或密碼）。', 'warning');
+    return;
+  }
+
+  if (batchEditData.new_password && batchEditData.new_password.length < 6) {
+    batchEditPasswordError.value = '新密碼長度至少需要6位。';
+    return;
+  }
+
+  const accountsToUpdate = selectedAccounts.value.filter(id => {
+    const acc = accounts.value.find(a => a.id === id);
+    return acc && canEditAccount(acc); // Only update accounts the admin has permission to edit
+  });
+
+  if (accountsToUpdate.length === 0) {
+    uiStore.showMessage('沒有可修改的選取帳號。', 'info');
+    return;
+  }
+
+  uiStore.showConfirmation(
+    '確認批量修改',
+    `您確定要修改選取的 ${accountsToUpdate.length} 個帳號嗎？`,
+    '確認修改',
+    'bg-blue-600 hover:bg-blue-700'
+  ).then(async () => {
+    uiStore.setLoading(true);
+    const updates = accountsToUpdate.map(id => {
+      const payload = { id: id };
+      if (batchEditData.new_role_id) {
+        payload.role_id = batchEditData.new_role_id;
+        const selectedRole = dataStore.roles.find(r => r.id === batchEditData.new_role_id);
+        if (selectedRole) payload.role = selectedRole.name; // Pass role name for API payload
+      }
+      if (batchEditData.new_password) {
+        payload.password = batchEditData.new_password;
+      }
+      return payload;
+    });
+
+    try {
+      const results = await api.batchUpdateAccounts(updates);
+      const successCount = results.filter(r => r.success).length;
+      const failedCount = results.filter(r => !r.success).length;
+
+      if (failedCount > 0) {
+        const failedEmails = results.filter(r => !r.success).map(r => r.email || r.id).join(', ');
+        uiStore.showMessage(`批量修改完成。成功 ${successCount} 筆，失敗 ${failedCount} 筆。失敗帳號: ${failedEmails}`, 'warning', 5000);
+      } else {
+        uiStore.showMessage(`所有 ${successCount} 筆帳號已成功修改。`, 'success');
+      }
+      
+      await refreshAccounts();
+      closeBatchEditModal();
+      selectedAccounts.value = []; // Clear selection
+    } catch (error) {
+      uiStore.showMessage(`批量修改失敗: ${error.message}`, 'error');
+    } finally {
+      uiStore.setLoading(false);
+    }
+  }).catch(() => {
+    // User cancelled
+  });
+};
+
 </script>
+
+<style scoped>
+/*
+  Table styles for responsiveness are managed in src/assets/styles/main.css
+*/
+</style>

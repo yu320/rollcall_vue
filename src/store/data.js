@@ -108,11 +108,12 @@ export const useDataStore = defineStore('data', () => {
   async function createEvent(eventData) {
     uiStore.setLoading(true);
     try {
-        await api.createEvent(eventData);
+        const result = await api.createEvent(eventData);
         await fetchEvents(); // Re-fetch to get the latest list
-        uiStore.showMessage('活動已成功建立', 'success');
+        return result[0]; // Return the created event object
     } catch (error) {
         uiStore.showMessage(`建立活動失敗: ${error.message}`, 'error');
+        return null;
     } finally {
         uiStore.setLoading(false);
     }
@@ -121,11 +122,12 @@ export const useDataStore = defineStore('data', () => {
   async function updateEvent(eventData) {
     uiStore.setLoading(true);
     try {
-        await api.updateEvent(eventData.id, eventData);
+        const result = await api.updateEvent(eventData.id, eventData);
         await fetchEvents(); // Re-fetch to update the list
-        uiStore.showMessage('活動已成功更新', 'success');
+        return result[0]; // Return the updated event object
     } catch (error) {
         uiStore.showMessage(`更新活動失敗: ${error.message}`, 'error');
+        return null;
     } finally {
         uiStore.setLoading(false);
     }
@@ -138,8 +140,10 @@ export const useDataStore = defineStore('data', () => {
       await api.deleteEvent(id);
       events.value = events.value.filter(e => e.id !== id);
       uiStore.showMessage('活動已刪除', 'success');
+      return true;
     } catch (error) {
       uiStore.showMessage(`刪除活動失敗: ${error.message}`, 'error');
+      return false;
     } finally {
       uiStore.setLoading(false);
     }

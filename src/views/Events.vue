@@ -120,8 +120,9 @@ const openModal = (event = null) => {
   isModalOpen.value = true;
 };
 
-// 關閉模態視窗
+// 關閉模態視窗 (編輯/新增表單)
 const closeModal = () => isModalOpen.value = false;
+
 
 // 儲存活動資料 (新增或編輯)
 const saveEvent = async () => {
@@ -145,14 +146,19 @@ const saveEvent = async () => {
 
     uiStore.setLoading(true);
     try {
-        let success = false;
+        let result = null; // Store the result of the API call
         if (isEditing.value) {
-            success = await dataStore.updateEvent(eventData);
-        } else {
-            success = await dataStore.createEvent(eventData);
-        }
-        if (success) {
-            closeModal();
+            result = await dataStore.updateEvent(eventData);
+            if (result) {
+                uiStore.showMessage('活動已成功更新！', 'success'); // Show toast for update
+                closeModal(); // Close the modal after update
+            }
+        } else { // This is for creation
+            result = await dataStore.createEvent(eventData);
+            if (result) { // If creation was successful (result is not null)
+                closeModal(); // Close the input form modal
+                uiStore.showMessage(`活動 "${result.name}" 已成功建立！`, 'success'); // Show toast message with event name
+            }
         }
     } catch(e) {
         // 錯誤已在 dataStore 處理，這裡無需重複顯示
@@ -188,4 +194,3 @@ const deleteEvent = async (id) => {
     }
 };
 </script>
-
