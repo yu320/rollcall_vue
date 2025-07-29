@@ -111,8 +111,10 @@ export const useDataStore = defineStore('data', () => {
         await api.createEvent(eventData);
         await fetchEvents(); // Re-fetch to get the latest list
         uiStore.showMessage('活動已成功建立', 'success');
+        return true; // [MODIFIED] Indicate success
     } catch (error) {
         uiStore.showMessage(`建立活動失敗: ${error.message}`, 'error');
+        return false; // [MODIFIED] Indicate failure
     } finally {
         uiStore.setLoading(false);
     }
@@ -124,8 +126,10 @@ export const useDataStore = defineStore('data', () => {
         await api.updateEvent(eventData.id, eventData);
         await fetchEvents(); // Re-fetch to update the list
         uiStore.showMessage('活動已成功更新', 'success');
+        return true; // [MODIFIED] Indicate success
     } catch (error) {
         uiStore.showMessage(`更新活動失敗: ${error.message}`, 'error');
+        return false; // [MODIFIED] Indicate failure
     } finally {
         uiStore.setLoading(false);
     }
