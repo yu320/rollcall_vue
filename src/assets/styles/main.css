@@ -66,6 +66,7 @@ body {
     width: 100%;
     height: 100%;
     overflow: hidden;
+    z-index: -1;
 }
 
 .animated-bg-shape {
@@ -86,6 +87,66 @@ body {
 
 .clock {
     font-variant-numeric: tabular-nums;
+}
+
+.car-loading-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(255, 255, 255, 0.95);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 1000;
+}
+
+.road {
+    width: 80%;
+    max-width: 400px;
+    height: 100px;
+    position: relative;
+    overflow: hidden;
+    background: #e0e7eb;
+    border-radius: 10px;
+    box-shadow: inset 0 0 10px rgba(0,0,0,0.1);
+}
+
+.car {
+    width: 80px;
+    height: 40px;
+    background: #ff6f61;
+    border-radius: 8px;
+    position: absolute;
+    bottom: 10px;
+    animation: drive 2.5s linear infinite;
+    box-shadow: 0 4px 0 #c62828;
+    left: -100px;
+}
+
+.wheel {
+    width: 16px;
+    height: 16px;
+    background: #333;
+    border-radius: 50%;
+    position: absolute;
+    bottom: -8px;
+    animation: spin 0.5s linear infinite;
+    box-shadow: inset 0 0 5px rgba(0,0,0,0.3);
+}
+
+.wheel.front { left: 10px; }
+.wheel.back { right: 10px; }
+
+@keyframes drive {
+    0% { left: -100px; }
+    100% { left: calc(100% + 100px); }
+}
+
+@keyframes spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
 }
 
 
