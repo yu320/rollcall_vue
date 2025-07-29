@@ -1,32 +1,62 @@
 <template>
-  <div class="max-w-2xl mx-auto bg-white rounded-xl shadow-lg p-6 border border-indigo-200">
-    <h2 class="text-3xl font-bold text-indigo-800 mb-6">匯入人員資料</h2>
-    <p class="text-gray-700 mb-6 text-lg">您可以選擇匯入檔案或手動輸入資料。</p>
+  <div class="max-w-3xl mx-auto bg-white rounded-xl shadow-lg p-6 border border-indigo-200">
+    <h2 class="text-3xl font-bold text-indigo-800 mb-2">匯入人員資料</h2>
+    <p class="text-gray-600 mb-8">支援從 CSV 檔案批次匯入，或手動貼上資料。系統會根據學號或卡號自動新增或更新人員資料。</p>
     
     <!-- CSV File Import Section -->
-    <div class="mb-8 pb-6 border-b border-gray-200">
+    <div class="mb-8 pb-8 border-b border-gray-200">
       <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4">
-        <label for="importFile" class="block text-gray-700 font-medium text-lg">選擇 CSV 檔案匯入</label>
+        <h3 class="text-xl font-semibold text-gray-800">1. 從檔案匯入</h3>
         <a href="#" @click.prevent="downloadSample" class="text-indigo-600 hover:text-indigo-800 font-medium text-sm mt-2 sm:mt-0">下載範例檔</a>
       </div>
       <input type="file" id="importFile" @change="handleFileSelect" accept=".csv" class="w-full text-gray-700 border border-gray-300 rounded-lg p-2 focus:outline-none focus:ring-2 focus:ring-indigo-400">
       <p v-if="selectedFile" class="text-gray-500 text-sm mt-2">已選擇檔案: {{ selectedFile.name }}</p>
-      <button @click="importFromFile" class="mt-5 w-full sm:w-auto bg-emerald-600 hover:bg-emerald-700 text-white font-medium py-2 px-6 rounded-lg transition duration-300 flex items-center justify-center shadow-md hover:shadow-lg">
+      <button @click="importFromFile" :disabled="!selectedFile" class="mt-5 w-full sm:w-auto bg-emerald-600 hover:bg-emerald-700 text-white font-medium py-2 px-6 rounded-lg transition duration-300 flex items-center justify-center shadow-md hover:shadow-lg disabled:bg-gray-400 disabled:cursor-not-allowed">
         匯入檔案
       </button>
     </div>
 
     <!-- Manual Input Section -->
     <div class="mb-4">
-      <label class="block text-gray-700 font-medium mb-2 text-lg">手動輸入人員資料</label>
-      <p class="text-gray-500 text-sm mb-4">每行一筆，格式為：<br><span class="font-medium">姓名,學號,卡號,棟別,"標籤1;標籤2" (棟別與標籤為選填)</span></p>
-      <textarea v-model="manualInput" rows="10" class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-400 mb-4" placeholder="請輸入資料..."></textarea>
+      <h3 class="text-xl font-semibold text-gray-800 mb-2">2. 手動輸入</h3>
+      <p class="text-gray-500 text-sm mb-4">每行一筆，格式為：<br><code class="text-xs bg-gray-100 p-1 rounded">姓名,學號,卡號,棟別,"標籤1;標籤2"</code><br>(棟別與標籤為選填，多個標籤請用分號分隔)</p>
+      <textarea v-model="manualInput" rows="10" class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-400 mb-4" placeholder="王大明,A001,11111111,A1,幹部;全職&#10;陳小美,B002,22222222,B2,職員"></textarea>
       <div class="flex justify-end">
-        <button @click="importFromText" class="w-full sm:w-auto bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-2 px-6 rounded-lg transition duration-300 shadow-md hover:shadow-lg">
-          手動匯入資料
+        <button @click="importFromText" :disabled="!manualInput.trim()" class="w-full sm:w-auto bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-2 px-6 rounded-lg transition duration-300 shadow-md hover:shadow-lg disabled:bg-gray-400 disabled:cursor-not-allowed">
+          手動匯入
         </button>
       </div>
     </div>
+
+     <!-- Import Result Section -->
+    <div v-if="importResult" class="mt-8 border-t border-gray-200 pt-6">
+      <h3 class="text-2xl font-bold text-gray-800 mb-4">匯入結果</h3>
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div class="bg-blue-50 p-4 rounded-lg text-center">
+          <p class="text-sm text-blue-700 font-medium">處理總數</p>
+          <p class="text-3xl font-bold text-blue-800">{{ importResult.totalProcessed }}</p>
+        </div>
+        <div class="bg-green-50 p-4 rounded-lg text-center">
+          <p class="text-sm text-green-700 font-medium">成功新增</p>
+          <p class="text-3xl font-bold text-green-800">{{ importResult.successCount }}</p>
+        </div>
+         <div class="bg-yellow-50 p-4 rounded-lg text-center">
+          <p class="text-sm text-yellow-700 font-medium">成功更新</p>
+          <p class="text-3xl font-bold text-yellow-800">{{ importResult.updateCount }}</p>
+        </div>
+        <div class="bg-red-50 p-4 rounded-lg text-center">
+          <p class="text-sm text-red-700 font-medium">失敗筆數</p>
+          <p class="text-3xl font-bold text-red-800">{{ importResult.errors.length }}</p>
+        </div>
+      </div>
+      <div v-if="importResult.errors.length > 0" class="mt-4">
+        <h4 class="text-lg font-semibold text-red-700 mb-2">失敗詳情</h4>
+        <ul class="list-disc list-inside bg-red-50 p-4 rounded-lg text-red-800 text-sm space-y-1 max-h-48 overflow-y-auto">
+          <li v-for="(error, index) in importResult.errors" :key="index">{{ error }}</li>
+        </ul>
+      </div>
+    </div>
+
   </div>
 </template>
 
@@ -34,16 +64,18 @@
 import { ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { useUiStore } from '@/store/ui';
-import { api } from '@/services/api';
+import * as api from '@/services/api';
 
 const uiStore = useUiStore();
 const router = useRouter();
 
 const manualInput = ref('');
 const selectedFile = ref(null);
+const importResult = ref(null);
 
 const handleFileSelect = (event) => {
   selectedFile.value = event.target.files[0];
+  importResult.value = null;
 };
 
 const importFromFile = () => {
@@ -52,63 +84,73 @@ const importFromFile = () => {
     return;
   }
   const reader = new FileReader();
-  reader.onload = (e) => processImport(e.target.result, 'file');
+  reader.onload = (e) => processImport(e.target.result);
   reader.onerror = () => uiStore.showMessage('讀取檔案失敗。', 'error');
   reader.readAsText(selectedFile.value, 'UTF-8');
 };
 
 const importFromText = () => {
-  if (!manualInput.value.trim()) {
+  const text = manualInput.value.trim();
+  if (!text) {
     uiStore.showMessage('請輸入要匯入的資料。', 'info');
     return;
   }
-  const dataWithHeader = `姓名,學號,卡號,棟別,標籤\n${manualInput.value.trim()}`;
-  processImport(dataWithHeader, 'manual');
+  // Add a header row for consistent parsing
+  const dataWithHeader = `姓名,學號,卡號,棟別,標籤\n${text}`;
+  processImport(dataWithHeader);
 };
 
-const processImport = async (csvText, source) => {
+const processImport = async (csvText) => {
   uiStore.setLoading(true);
+  importResult.value = null;
+
   try {
-    const lines = csvText.split('\n').slice(1);
+    const lines = csvText.split(/\r?\n/).filter(line => line.trim() !== '');
+    if (lines.length < 2) { // Must have header + at least one data row
+      throw new Error("沒有有效的資料可供匯入。");
+    }
+
     const personnelToProcess = [];
     const validationErrors = [];
 
-    lines.forEach((line, index) => {
-      line = line.trim();
-      if (!line) return;
+    // Start from 1 to skip header
+    for (let i = 1; i < lines.length; i++) {
+      const line = lines[i].trim();
+      if (!line) continue;
 
       const parts = line.match(/(".*?"|[^",]+)(?=\s*,|\s*$)/g) || [];
       const [name, code, cardNumber, building, tagsStr] = parts.map(p => (p || '').trim().replace(/^"|"$/g, ''));
       
-      // Basic validation
       if (!name || !code || !cardNumber) {
-        validationErrors.push(`第 ${index + 2} 行資料不完整。`);
-        return;
+        validationErrors.push(`第 ${i + 1} 行資料不完整 (姓名、學號、卡號為必填)。`);
+        continue;
       }
 
       const tags = tagsStr ? tagsStr.split(';').map(t => t.trim()).filter(Boolean) : [];
       personnelToProcess.push({ name, code, card_number: cardNumber, building: building || null, tags });
-    });
+    }
 
     if (validationErrors.length > 0) {
       throw new Error(validationErrors.join('<br>'));
     }
 
     if (personnelToProcess.length === 0) {
-      uiStore.showMessage('沒有可匯入的新資料。', 'info');
+      uiStore.showMessage('分析後沒有可匯入的新資料。', 'info');
       return;
     }
 
-    await api.upsertPersonnel(personnelToProcess);
+    const result = await api.upsertPersonnel(personnelToProcess);
+    importResult.value = result;
 
-    uiStore.showMessage(`成功匯入或更新 ${personnelToProcess.length} 筆資料。`, 'success');
+    uiStore.showMessage(`匯入處理完成！成功新增 ${result.successCount}, 更新 ${result.updateCount} 筆。`, 'success');
     
     // Clear input after success
-    if (source === 'manual') manualInput.value = '';
-    if (source === 'file') selectedFile.value = null;
+    manualInput.value = '';
+    selectedFile.value = null;
+    // Reset file input visually
+    const fileInput = document.getElementById('importFile');
+    if(fileInput) fileInput.value = '';
 
-    // Navigate to personnel list
-    router.push('/personnel');
 
   } catch (error) {
     uiStore.showMessage(`匯入失敗: ${error.message}`, 'error');
@@ -123,7 +165,8 @@ const downloadSample = () => {
   const link = document.createElement('a');
   link.href = URL.createObjectURL(blob);
   link.download = '人員匯入範例.csv';
+  document.body.appendChild(link);
   link.click();
-  URL.revokeObjectURL(link.href);
+  document.body.removeChild(link);
 };
 </script>

@@ -1,7 +1,7 @@
 // src/store/data.js
 
 import { defineStore } from 'pinia';
-import { ref } from 'vue';
+import { ref, computed } from 'vue';
 import * as api from '@/services/api';
 import { useUiStore } from './ui';
 
@@ -15,18 +15,33 @@ export const useDataStore = defineStore('data', () => {
   const roles = ref([]);
   const permissions = ref([]);
 
+  // --- Getters (as computed properties) ---
+  const getPersonnelById = computed(() => {
+    const personnelMap = new Map(personnel.value.map(p => [p.id, p]));
+    return (id) => personnelMap.get(id);
+  });
+  
+  const getEventById = computed(() => {
+    const eventMap = new Map(events.value.map(e => [e.id, e]));
+    return (id) => eventMap.get(id);
+  });
+
+
   // --- Actions for Personnel ---
 
   async function fetchAllPersonnel() {
     try {
       personnel.value = await api.fetchAllPersonnel();
+      return personnel.value;
     } catch (error) {
       uiStore.showMessage(`讀取人員資料失敗: ${error.message}`, 'error');
+      return [];
     }
   }
 
   async function savePerson(personData) {
     const isEditing = !!personData.id;
+    uiStore.setLoading(true);
     try {
       const savedPerson = isEditing
         ? await api.updatePersonnel(personData.id, personData)
@@ -39,20 +54,25 @@ export const useDataStore = defineStore('data', () => {
         personnel.value.push(savedPerson);
       }
       uiStore.showMessage('人員資料已儲存', 'success');
-      return true; // Indicate success
+      return true;
     } catch (error) {
       uiStore.showMessage(`儲存人員失敗: ${error.message}`, 'error');
-      return false; // Indicate failure
+      return false;
+    } finally {
+      uiStore.setLoading(false);
     }
   }
 
   async function batchDeletePersonnel(ids) {
+    uiStore.setLoading(true);
     try {
       await api.batchDeletePersonnel(ids);
       personnel.value = personnel.value.filter(p => !ids.includes(p.id));
       uiStore.showMessage(`已成功刪除 ${ids.length} 位人員`, 'success');
     } catch (error) {
       uiStore.showMessage(`批量刪除人員失敗: ${error.message}`, 'error');
+    } finally {
+      uiStore.setLoading(false);
     }
   }
 
@@ -61,13 +81,16 @@ export const useDataStore = defineStore('data', () => {
   async function fetchEvents() {
     try {
       events.value = await api.fetchEvents();
+      return events.value;
     } catch (error) {
       uiStore.showMessage(`讀取活動資料失敗: ${error.message}`, 'error');
+      return [];
     }
   }
   
   async function saveEvent(eventData) {
     const isEditing = !!eventData.id;
+    uiStore.setLoading(true);
     try {
       const savedEvent = isEditing 
         ? await api.updateEvent(eventData.id, eventData)
@@ -77,23 +100,28 @@ export const useDataStore = defineStore('data', () => {
         const index = events.value.findIndex(e => e.id === savedEvent.id);
         if (index !== -1) events.value[index] = savedEvent;
       } else {
-        events.value.unshift(savedEvent); // Add new events to the top
+        events.value.unshift(savedEvent);
       }
       uiStore.showMessage('活動資料已儲存', 'success');
       return true;
     } catch (error) {
       uiStore.showMessage(`儲存活動失敗: ${error.message}`, 'error');
       return false;
+    } finally {
+      uiStore.setLoading(false);
     }
   }
 
   async function deleteEvent(id) {
+    uiStore.setLoading(true);
     try {
       await api.deleteEvent(id);
       events.value = events.value.filter(e => e.id !== id);
       uiStore.showMessage('活動已刪除', 'success');
     } catch (error) {
       uiStore.showMessage(`刪除活動失敗: ${error.message}`, 'error');
+    } finally {
+      uiStore.setLoading(false);
     }
   }
 
@@ -116,13 +144,15 @@ export const useDataStore = defineStore('data', () => {
   }
 
   async function updateRolePermissions(roleId, permissionIds) {
+    uiStore.setLoading(true);
     try {
       await api.updateRolePermissions(roleId, permissionIds);
-      // Refresh local data after update
       await fetchRolesAndPermissions();
       uiStore.showMessage('權限已更新', 'success');
     } catch (error) {
       uiStore.showMessage(`更新權限失敗: ${error.message}`, 'error');
+    } finally {
+      uiStore.setLoading(false);
     }
   }
 
@@ -132,6 +162,8 @@ export const useDataStore = defineStore('data', () => {
     events,
     roles,
     permissions,
+    getPersonnelById,
+    getEventById,
     fetchAllPersonnel,
     savePerson,
     batchDeletePersonnel,

@@ -1,33 +1,34 @@
 <template>
   <div class="max-w-2xl mx-auto bg-white rounded-xl shadow-lg p-6 border border-indigo-200">
     <h2 class="text-3xl font-bold text-indigo-800 mb-2">匯入簽到記錄</h2>
-    <p class="text-gray-600 mb-6">從外部系統匯入名單，系統將自動比對人員並建立記錄。如果人員不存在，將會自動建立基本資料。</p>
+    <p class="text-gray-600 mb-6">從外部系統匯入名單，系統將自動比對人員並建立對應的簽到或簽退記錄。</p>
     
     <div class="space-y-6">
       <!-- Step 1: Select Event -->
       <div class="p-4 border border-gray-200 rounded-lg">
-        <label for="eventSelector" class="block text-lg font-semibold text-gray-800 mb-2">
-          <span class="bg-indigo-500 text-white rounded-full h-6 w-6 inline-flex items-center justify-center mr-2">1</span>
+        <label for="eventSelector" class="block text-lg font-semibold text-gray-800 mb-2 flex items-center">
+          <span class="bg-indigo-600 text-white rounded-full h-6 w-6 inline-flex items-center justify-center mr-2 text-sm">1</span>
           選擇關聯活動 (選填)
         </label>
-        <select id="eventSelector" v-model="selectedEventId" class="w-full pl-4 pr-10 py-3 border border-gray-300 rounded-lg bg-white">
-          <option :value="null">-- 不關聯任何活動 --</option>
-          <option v-for="event in events" :key="event.id" :value="event.id">{{ event.name }} ({{ formatDateTime(event.start_time) }})</option>
+        <p class="text-sm text-gray-500 mb-3">將匯入的記錄歸類到特定活動中。</p>
+        <select id="eventSelector" v-model="selectedEventId" class="w-full pl-4 pr-10 py-3 border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-indigo-400">
+          <option :value="null">-- 不關聯任何活動 (通用記錄) --</option>
+          <option v-for="event in dataStore.events" :key="event.id" :value="event.id">{{ event.name }} ({{ formatDateTime(event.start_time) }})</option>
         </select>
       </div>
       
       <!-- Step 2: Select Type -->
       <div class="p-4 border border-gray-200 rounded-lg">
-        <label class="block text-lg font-semibold text-gray-800 mb-2">
-          <span class="bg-indigo-500 text-white rounded-full h-6 w-6 inline-flex items-center justify-center mr-2">2</span>
+        <label class="block text-lg font-semibold text-gray-800 mb-2 flex items-center">
+          <span class="bg-indigo-600 text-white rounded-full h-6 w-6 inline-flex items-center justify-center mr-2 text-sm">2</span>
           選擇匯入類型
         </label>
         <div class="flex justify-center gap-4 mt-2">
-          <label class="inline-flex items-center cursor-pointer">
+          <label class="inline-flex items-center cursor-pointer p-3 border-2 rounded-lg" :class="actionType === '簽到' ? 'border-indigo-500 bg-indigo-50' : 'border-transparent'">
             <input type="radio" v-model="actionType" value="簽到" class="form-radio h-5 w-5 text-indigo-600">
             <span class="ml-2 text-lg font-medium text-gray-800">簽到</span>
           </label>
-          <label class="inline-flex items-center cursor-pointer">
+          <label class="inline-flex items-center cursor-pointer p-3 border-2 rounded-lg" :class="actionType === '簽退' ? 'border-indigo-500 bg-indigo-50' : 'border-transparent'">
             <input type="radio" v-model="actionType" value="簽退" class="form-radio h-5 w-5 text-indigo-600">
             <span class="ml-2 text-lg font-medium text-gray-800">簽退</span>
           </label>
@@ -37,19 +38,19 @@
       <!-- Step 3: Upload File -->
       <div class="p-4 border border-gray-200 rounded-lg">
         <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-3">
-          <label for="importCheckinFile" class="block text-lg font-semibold text-gray-800">
-            <span class="bg-indigo-500 text-white rounded-full h-6 w-6 inline-flex items-center justify-center mr-2">3</span>
+          <label for="importCheckinFile" class="block text-lg font-semibold text-gray-800 flex items-center">
+            <span class="bg-indigo-600 text-white rounded-full h-6 w-6 inline-flex items-center justify-center mr-2 text-sm">3</span>
             上傳 CSV 檔案
           </label>
           <a href="#" @click.prevent="downloadSample" class="text-indigo-600 hover:text-indigo-800 font-medium text-sm mt-2 sm:mt-0">下載範例檔</a>
         </div>
-        <input type="file" id="importCheckinFile" @change="handleFileSelect" accept=".csv" class="w-full text-gray-700 border border-gray-300 rounded-lg p-2">
+        <input type="file" id="importCheckinFile" @change="handleFileSelect" accept=".csv" class="w-full text-gray-700 border border-gray-300 rounded-lg p-2 focus:ring-2 focus:ring-indigo-400">
         <p v-if="selectedFile" class="text-gray-500 text-sm mt-2">已選擇檔案: {{ selectedFile.name }}</p>
       </div>
 
       <!-- Submit Button -->
-      <div class="text-center">
-        <button @click="processImport" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3 px-8 rounded-lg text-lg">
+      <div class="text-center pt-2">
+        <button @click="processImport" :disabled="!selectedFile" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3 px-8 rounded-lg text-lg transition shadow-lg hover:shadow-xl disabled:bg-gray-400 disabled:cursor-not-allowed">
           開始匯入
         </button>
       </div>
@@ -58,19 +59,23 @@
     <!-- Import Result Section -->
     <div v-if="importResult" class="mt-8 border-t border-gray-200 pt-6">
       <h3 class="text-2xl font-bold text-gray-800 mb-4">匯入結果</h3>
-      <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <div class="bg-green-50 p-4 rounded-lg">
-          <p class="text-sm text-green-700 font-medium">成功匯入記錄</p>
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div class="bg-green-50 p-4 rounded-lg text-center">
+          <p class="text-sm text-green-700 font-medium">成功筆數</p>
           <p class="text-3xl font-bold text-green-800">{{ importResult.successCount }}</p>
         </div>
-        <div class="bg-blue-50 p-4 rounded-lg">
+        <div class="bg-blue-50 p-4 rounded-lg text-center">
           <p class="text-sm text-blue-700 font-medium">自動建立人員</p>
           <p class="text-3xl font-bold text-blue-800">{{ importResult.autoCreatedCount }}</p>
+        </div>
+        <div class="bg-red-50 p-4 rounded-lg text-center">
+          <p class="text-sm text-red-700 font-medium">失敗筆數</p>
+          <p class="text-3xl font-bold text-red-800">{{ importResult.errors.length }}</p>
         </div>
       </div>
       <div v-if="importResult.errors.length > 0" class="mt-4">
         <h4 class="text-lg font-semibold text-red-700 mb-2">失敗詳情</h4>
-        <ul class="list-disc list-inside bg-red-50 p-4 rounded-lg text-red-800 text-sm space-y-1">
+        <ul class="list-disc list-inside bg-red-50 p-4 rounded-lg text-red-800 text-sm space-y-1 max-h-48 overflow-y-auto">
           <li v-for="(error, index) in importResult.errors" :key="index">{{ error }}</li>
         </ul>
       </div>
@@ -81,21 +86,21 @@
 <script setup>
 import { ref, onMounted } from 'vue';
 import { useUiStore } from '@/store/ui';
-import { api } from '@/services/api';
-import { formatDateTime } from '@/utils'; // Assuming you have this utility
+import { useDataStore } from '@/store/data';
+import * as api from '@/services/api';
+import { formatDateTime } from '@/utils/index';
 
 const uiStore = useUiStore();
-const events = ref([]);
+const dataStore = useDataStore();
+
 const selectedEventId = ref(null);
 const actionType = ref('簽到');
 const selectedFile = ref(null);
 const importResult = ref(null);
 
 onMounted(async () => {
-  try {
-    events.value = await api.fetchEvents();
-  } catch (error) {
-    uiStore.showMessage('無法載入活動列表', 'error');
+  if (dataStore.events.length === 0) {
+    await dataStore.fetchEvents();
   }
 });
 
@@ -111,34 +116,44 @@ const processImport = async () => {
   }
 
   uiStore.setLoading(true);
-  importResult.value = { successCount: 0, autoCreatedCount: 0, errors: [] };
+  importResult.value = null; // Clear previous results
 
   try {
     const csvText = await selectedFile.value.text();
-    // In a real-world scenario, you might need a library like papaparse
-    const lines = csvText.split('\n');
-    const headers = lines[0].trim().split(',').map(h => h.trim().replace(/^"|"$/g, ''));
+    // Using a simple regex to handle potentially quoted fields, better than split(',')
+    const lines = csvText.split(/\r?\n/).filter(line => line.trim() !== '');
+    if (lines.length < 2) {
+      throw new Error("CSV 檔案為空或只有標頭。");
+    }
+    const headers = lines[0].split(',').map(h => h.trim().replace(/^"|"$/g, ''));
     
-    // Auto-detect columns
+    // Auto-detect columns based on common names
     const nameIndex = headers.indexOf('姓名');
     const idIndex = headers.indexOf('學號/卡號') > -1 ? headers.indexOf('學號/卡號') : headers.indexOf('教職員生編號');
     const timeIndex = headers.indexOf('刷卡時間') > -1 ? headers.indexOf('刷卡時間') : headers.indexOf('IC靠卡時間');
 
     if (nameIndex === -1 || idIndex === -1 || timeIndex === -1) {
-      throw new Error("CSV 標頭格式不符。請確認欄位名稱。");
+      throw new Error("CSV 標頭格式不符。請確認欄位包含 '姓名', '學號/卡號', '刷卡時間' 或相似名稱。");
     }
 
-    const dataLines = lines.slice(1).filter(line => line.trim());
+    const dataLines = lines.slice(1);
     const importData = dataLines.map((line, index) => {
-      const parts = line.split(',').map(p => p.trim().replace(/^"|"$/g, ''));
+      // This regex helps with simple CSVs but is not fully robust.
+      const parts = line.match(/(".*?"|[^",]+)(?=\s*,|\s*$)/g) || [];
+      const cleanedParts = parts.map(p => (p || '').trim().replace(/^"|"$/g, ''));
+      
       return {
-        name: parts[nameIndex],
-        identifier: parts[idIndex],
-        timestamp: parts[timeIndex],
-        line: index + 2,
+        name: cleanedParts[nameIndex],
+        identifier: cleanedParts[idIndex],
+        timestamp: cleanedParts[timeIndex],
+        line: index + 2, // For error reporting
       };
-    });
+    }).filter(d => d.name && d.identifier && d.timestamp);
 
+    if (importData.length === 0) {
+        throw new Error("在檔案中找不到任何有效的資料列。");
+    }
+    
     const result = await api.importCheckinRecords({
       records: importData,
       eventId: selectedEventId.value,
@@ -146,7 +161,7 @@ const processImport = async () => {
     });
     
     importResult.value = result;
-    uiStore.showMessage('匯入處理完成。', 'success');
+    uiStore.showMessage('匯入處理完成，請查看下方結果。', 'success');
 
   } catch (error) {
     uiStore.showMessage(`匯入失敗: ${error.message}`, 'error');
@@ -156,12 +171,14 @@ const processImport = async () => {
 };
 
 const downloadSample = () => {
-  const csvContent = '姓名,學號/卡號,刷卡時間\n"張小明","A11312011","2025/07/26 09:00:00"\n"李華","1234567899","2025/07/26 09:05:30"';
+  const csvContent = '姓名,學號/卡號,刷卡時間\n"張小明","A11312011","2025-07-26 09:00:00"\n"李華","1234567899","2025-07-26 09:05:30"';
   const blob = new Blob([`\uFEFF${csvContent}`], { type: 'text/csv;charset=utf-8;' });
   const link = document.createElement('a');
   link.href = URL.createObjectURL(blob);
   link.download = '簽到匯入範例.csv';
+  document.body.appendChild(link);
   link.click();
+  document.body.removeChild(link);
   URL.revokeObjectURL(link.href);
 };
 </script>

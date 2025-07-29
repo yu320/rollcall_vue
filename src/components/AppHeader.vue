@@ -16,7 +16,16 @@ const userRoleName = computed(() => authStore.userRoleName);
 
 const handleLogout = () => {
   authStore.logout();
-  uiStore.showMessage('您已成功登出。', 'success');
+};
+
+// 新增：簡易的修改密碼功能
+const openChangePasswordModal = () => {
+    const newPassword = prompt("請輸入您的新密碼 (至少需要 6 個字元):");
+    if (newPassword && newPassword.length >= 6) {
+        authStore.changePassword(newPassword);
+    } else if (newPassword) {
+        uiStore.showMessage('密碼長度不足，更新失敗。', 'error');
+    }
 };
 </script>
 
@@ -32,11 +41,15 @@ const handleLogout = () => {
         </div>
       </div>
 
-      <div v_if="isLoggedIn" class="flex items-center gap-4 flex-wrap justify-center sm:justify-end w-full sm:w-auto">
+      <!-- [FIX] 修正 v-if 語法錯誤，並增加 user 存在檢查 -->
+      <div v-if="isLoggedIn && user" class="flex items-center gap-4 flex-wrap justify-center sm:justify-end w-full sm:w-auto">
         <span class="text-gray-700 font-medium px-3 py-1 bg-gray-100 rounded-full order-first sm:order-none">
           歡迎, {{ user.nickname }} ({{ userRoleName }})
         </span>
-        <!-- 這裡可以放修改密碼按鈕，但暫時省略以簡化 -->
+        <!-- [NEW] 新增修改密碼按鈕 -->
+        <button @click="openChangePasswordModal" class="bg-gray-500 hover:bg-gray-600 text-white font-medium py-2 px-4 rounded-lg transition duration-300 transform hover:scale-105 shadow-sm">
+          修改密碼
+        </button>
         <button @click="handleLogout" class="bg-red-500 hover:bg-red-600 text-white font-medium py-2 px-4 rounded-lg transition duration-300 transform hover:scale-105 shadow-sm">
           登出
         </button>
