@@ -7,13 +7,14 @@
       <div class="animated-bg-shape shape-3"></div>
     </div>
     
-    <!-- Login Card -->
     <!-- 
-      使用 v-if="!authStore.loading" 控制載入動畫和登入卡片的切換。
-      當 authStore.loading 為 false 時，登入卡片會被渲染。
-      現在使用 Vue 的 Transition 組件來管理進入和離開動畫。
+      使用 Transition 組件包裹兩個需要條件渲染的元素：
+      1. 登入卡片 (v-if)
+      2. 載入動畫 (v-else)
+      這樣 Vue 就能正確管理它們之間的切換動畫。
+      `mode="out-in"` 確保舊元素完全消失後新元素才開始進入，避免重疊。
     -->
-    <Transition name="login-card-fade">
+    <Transition name="login-card-fade" mode="out-in">
       <div v-if="!authStore.loading"
         class="login-card w-full max-w-md rounded-2xl p-8 md:p-10"
       >
@@ -60,7 +61,6 @@
           
           <div>
             <button type="submit" class="login-btn w-full flex justify-center py-3 px-4 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white items-center">
-              <!-- Login Icon (similar to a user/login symbol) replicated from old HTML -->
               <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                 <path stroke-linecap="round" stroke-linejoin="round" d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1" />
               </svg>
@@ -69,22 +69,22 @@
           </div>
         </form>
       </div>
-    </Transition>
 
-    <!-- Car Loading Animation, shown when authStore.loading is true -->
-    <div v-else class="car-loading-overlay">
-        <div class="road">
-            <div class="car">
-                <div class="wheel front"></div>
-                <div class="wheel back"></div>
-            </div>
-        </div>
-    </div>
+      <!-- Car Loading Animation, shown when authStore.loading is true -->
+      <div v-else class="car-loading-overlay">
+          <div class="road">
+              <div class="car">
+                  <div class="wheel front"></div>
+                  <div class="wheel back"></div>
+              </div>
+          </div>
+      </div>
+    </Transition>
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted } from 'vue'; 
+import { ref, onMounted, onUnmounted, watch } from 'vue';
 import { useAuthStore } from '@/store/auth';
 
 const authStore = useAuthStore();
@@ -95,9 +95,16 @@ const credentials = ref({
   password: ''
 });
 
+// Add console log to check loading state
+watch(() => authStore.loading, (newVal) => {
+  console.log('authStore.loading changed:', newVal);
+});
+
 // Method to handle login form submission
 const handleLogin = async () => {
+  console.log('Attempting login...');
   await authStore.login(credentials.value.email, credentials.value.password);
+  console.log('Login attempt finished. authStore.loading:', authStore.loading.value);
 };
 
 // Reactive state for current time display
@@ -115,12 +122,15 @@ const updateClock = () => {
 
 // Lifecycle hook: When component is mounted to the DOM
 onMounted(() => {
+  console.log('Login.vue mounted.');
   updateClock(); // Initial update
   clockInterval = setInterval(updateClock, 1000); // Update every second
+  console.log('Initial authStore.loading on mount:', authStore.loading.value);
 });
 
 // Lifecycle hook: When component is unmounted from the DOM
 onUnmounted(() => {
+  console.log('Login.vue unmounted.');
   clearInterval(clockInterval); // Clear the interval to prevent memory leaks
 });
 </script>
@@ -157,4 +167,3 @@ onUnmounted(() => {
   transform: scale(0.95);
 }
 </style>
-
