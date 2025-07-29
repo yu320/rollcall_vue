@@ -388,11 +388,19 @@ const deleteAllTodayRecords = () => {
     uiStore.showMessage('目前沒有任何報到記錄可刪除。', 'info');
     return;
   }
-  if (confirm('您確定要清除所有暫存記錄嗎？此操作不會刪除已儲存的資料。')) {
+  // [FIXED] 使用 uiStore 的確認彈窗
+  uiStore.showConfirmation(
+    '確認清除全部暫存記錄',
+    '您確定要清除所有暫存記錄嗎？此操作不會刪除已儲存的資料。',
+    '確認清除',
+    'bg-red-600 hover:bg-red-700'
+  ).then(() => {
     tempRecords.value = [];
     sessionStorage.removeItem(SS_TEMP_RECORDS_KEY);
     uiStore.showMessage('已清除所有暫存記錄。', 'success');
-  }
+  }).catch(() => {
+    // 使用者取消，不執行任何操作
+  });
 };
 
 /**
@@ -400,10 +408,23 @@ const deleteAllTodayRecords = () => {
  * @param {string} recordId - 要刪除的記錄 ID
  */
 const handleDeleteTempRecord = (recordId) => {
-  tempRecords.value = tempRecords.value.filter(record => record.id !== recordId);
-  sessionStorage.setItem(SS_TEMP_RECORDS_KEY, JSON.stringify(tempRecords.value));
-};
+  const record = tempRecords.value.find(r => r.id === recordId);
+  if (!record) return;
 
+  // [FIXED] 使用 uiStore 的確認彈窗
+  uiStore.showConfirmation(
+    '確認刪除暫存記錄',
+    `您確定要刪除 ${record.name_at_checkin || record.input} 的這筆暫存記錄嗎？`,
+    '確認刪除',
+    'bg-red-600 hover:bg-red-700'
+  ).then(() => {
+    tempRecords.value = tempRecords.value.filter(r => r.id !== recordId);
+    sessionStorage.setItem(SS_TEMP_RECORDS_KEY, JSON.stringify(tempRecords.value));
+    uiStore.showMessage('暫存記錄已刪除', 'success');
+  }).catch(() => {
+    // 使用者取消，不執行任何操作
+  });
+};
 </script>
 
 <style scoped>

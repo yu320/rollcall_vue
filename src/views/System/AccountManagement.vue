@@ -89,9 +89,17 @@
         </div>
         <div class="mb-6">
           <label for="accountRole" class="block text-gray-700 font-medium mb-2">角色</label>
-          <select id="accountRole" v-model="editableAccount.role_id" class="w-full px-4 py-2 border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-indigo-500">
+          <select 
+            id="accountRole" 
+            v-model="editableAccount.role_id" 
+            :disabled="isCurrentUserAdmin"  <!-- 新增：如果是 admin 角色，禁用此選擇框 -->
+            class="w-full px-4 py-2 border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-indigo-500 disabled:bg-gray-200 disabled:cursor-not-allowed"
+          >
             <option v-for="role in dataStore.roles" :key="role.id" :value="role.id">{{ role.name }}</option>
           </select>
+          <p v-if="isCurrentUserAdmin" class="text-sm text-gray-500 mt-2">
+            您當前為管理員角色，無法在此頁面修改其他使用者的身分組。請聯繫超級管理員進行此操作。
+          </p>
         </div>
         <div class="flex flex-col sm:flex-row-reverse gap-3">
           <button type="submit" class="w-full sm:w-auto bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-2 px-6 rounded-lg">儲存</button>
@@ -126,7 +134,16 @@ const selectedFile = ref(null); // 用於批次匯入的檔案
 const importResults = ref({ success: 0, failed: [] }); // 批次匯入的結果
 
 // 計算屬性：檢查用戶是否是管理員 (可以管理帳號)
+// 這個權限通常用於控制整個帳號管理頁面的可見性和大部分操作
 const canManageAccounts = computed(() => authStore.hasPermission('accounts:manage'));
+
+// <--- START NEW/MODIFIED CODE ---
+// 計算屬性：檢查當前登入使用者是否為 'admin' 角色
+const isCurrentUserAdmin = computed(() => {
+  return authStore.user?.roles?.name === 'admin';
+});
+// <--- END NEW/MODIFIED CODE ---
+
 
 onMounted(async () => {
   isLoading.value = true;
@@ -186,6 +203,7 @@ const getRoleClass = (roleName) => {
     case 'sdc': return 'px-2 py-1 text-xs font-semibold rounded-full bg-blue-100 text-blue-800';
     case 'operator': return 'px-2 py-1 text-xs font-semibold rounded-full bg-green-100 text-green-800';
     case 'sdsc': return 'px-2 py-1 text-xs font-semibold rounded-full bg-purple-100 text-purple-800'; // 新增 sdsc 角色樣式
+    case 'super_admin': return 'px-2 py-1 text-xs font-semibold rounded-full bg-yellow-100 text-yellow-800'; // 為 super_admin 添加樣式
     default: return 'px-2 py-1 text-xs font-semibold rounded-full bg-gray-100 text-gray-800';
   }
 };
@@ -243,6 +261,19 @@ const saveAccount = async () => {
     if (!payload.role_id) {
         throw new Error('請選擇一個角色。');
     }
+
+    // <--- START NEW/MODIFIED CODE ---
+    // 如果當前使用者是 'admin' 角色，並且在編輯現有帳號，不允許修改 role_id
+    if (isCurrentUserAdmin.value && isEditing.value) {
+      // 由於 select 已經被 disabled，這裡的檢查是作為後端保護的額外預防
+      // 實際上，editableAccount.value.role_id 不會因為 disabled 而改變
+      // 但如果有人繞過前端，這個判斷仍然有效
+      if (payload.role_id !== accounts.value.find(acc => acc.id === payload.id)?.roles?.id) {
+          // 如果嘗試修改了角色，拋出錯誤
+          throw new Error('管理員角色無法修改其他使用者的身分組。');
+      }
+    }
+    // <--- END NEW/MODIFIED CODE ---
 
     if (isEditing.value) {
       // 確保傳遞 id 給 updateAccount
