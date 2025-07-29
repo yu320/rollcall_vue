@@ -1,8 +1,8 @@
 -- ===================================================================
---            報到管理系統 - 完整資料庫設定與遷移腳本
+--           報到管理系統 - 完整資料庫設定與遷移腳本
 -- ===================================================================
 -- 作者: Hong & Gemini
--- 版本: 1.2.0 (結合安裝與遷移邏輯)
+-- 版本: 1.2.6 (修正 RLS 策略中 WITH CHECK 無法應用於 SELECT/DELETE 的問題)
 -- 描述: 這個 SQL 腳本為通用版本，可用於全新資料庫的初始化，
 --       或安全地更新現有資料庫以符合最新架構。
 --       它包含了所有資料表、角色、權限、輔助函數及安全策略。
@@ -41,42 +41,84 @@ CREATE TABLE IF NOT EXISTS public.role_permissions (
 );
 COMMENT ON TABLE public.role_permissions IS '將權限指派給角色的中介資料表';
 
+-- 2.2 profiles (使用者設定檔) 資料表 - 已移至此處，因為 audit_logs 引用它
+CREATE TABLE IF NOT EXISTS public.profiles (
+    id uuid NOT NULL,
+    email text NOT NULL,
+    nickname text NULL,
+    role_id uuid NULL,
+    CONSTRAINT profiles_pkey PRIMARY KEY (id),
+    CONSTRAINT profiles_id_fkey FOREIGN KEY (id) REFERENCES auth.users(id) ON DELETE CASCADE,
+    CONSTRAINT profiles_role_id_fkey FOREIGN KEY (role_id) REFERENCES public.roles(id) ON DELETE SET NULL
+);
+COMMENT ON TABLE public.profiles IS '儲存應用程式使用者的額外資訊，如角色和暱稱';
+
+-- 處理現有 profiles 表的遷移 - 已移至此處
+DO $$
+DECLARE
+    default_role_id uuid;
+BEGIN
+    -- 確保 'operator' 角色存在，否則創建它
+    INSERT INTO public.roles (name, description) VALUES ('operator', '操作員，僅能進行報到和查看記錄') ON CONFLICT (name) DO NOTHING;
+    SELECT id INTO default_role_id FROM public.roles WHERE name = 'operator';
+
+    -- 添加 `role_id` 欄位如果不存在
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'profiles' AND column_name = 'role_id') THEN
+        ALTER TABLE public.profiles ADD COLUMN role_id uuid NULL;
+        COMMENT ON COLUMN public.profiles.role_id IS '關聯到 roles 資料表的使用者角色 ID';
+        -- 為現有 `profiles` 記錄設定預設的 `role_id`
+        UPDATE public.profiles SET role_id = default_role_id WHERE role_id IS NULL;
+        -- 添加外鍵約束
+        ALTER TABLE public.profiles ADD CONSTRAINT profiles_role_id_fkey FOREIGN KEY (role_id) REFERENCES public.roles(id) ON DELETE SET NULL;
+    ELSE
+        -- 如果 role_id 已存在但為 NULL，也為其設定預設值
+        UPDATE public.profiles SET role_id = default_role_id WHERE role_id IS NULL;
+    END IF;
+
+    -- 確保 `email` 欄位存在且為 NOT NULL
+    IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'profiles' AND column_name = 'email' AND is_nullable = 'YES') THEN
+        UPDATE public.profiles SET email = auth.users.email FROM auth.users WHERE public.profiles.id = auth.users.id AND public.profiles.email IS NULL;
+        ALTER TABLE public.profiles ALTER COLUMN email SET NOT NULL;
+    END IF;
+
+END $$;
+
+
 CREATE TABLE IF NOT EXISTS public.audit_logs (
-  id uuid NOT NULL DEFAULT gen_random_uuid(),
-  created_at timestamp with time zone NOT NULL DEFAULT now(),
-  user_id uuid NULL,
-  user_email text NULL,
-  action_type text NOT NULL,
-  target_table text NULL,
-  target_id text NULL,
-  description text NOT NULL,
-  old_value jsonb NULL,
-  new_value jsonb NULL,
-  CONSTRAINT audit_logs_pkey PRIMARY KEY (id),
-  CONSTRAINT audit_logs_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.profiles(id) ON DELETE SET NULL
+    id uuid NOT NULL DEFAULT gen_random_uuid(),
+    created_at timestamp with time zone NOT NULL DEFAULT now(),
+    user_id uuid NULL,
+    user_email text NULL,
+    action_type text NOT NULL,
+    target_table text NULL,
+    target_id text NULL,
+    description text NOT NULL,
+    old_value jsonb NULL,
+    new_value jsonb NULL,
+    CONSTRAINT audit_logs_pkey PRIMARY KEY (id),
+    CONSTRAINT audit_logs_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.profiles(id) ON DELETE SET NULL -- 現在 public.profiles 已經存在
 );
 COMMENT ON TABLE public.audit_logs IS '記錄重要的系統操作，用於稽核和安全性追蹤';
-
 
 -- ========= 2. 應用程式核心資料表建立與遷移 =========
 
 -- 2.1 personnel (人員) 資料表
 CREATE TABLE IF NOT EXISTS public.personnel (
-  id uuid NOT NULL DEFAULT gen_random_uuid(),
-  created_at timestamp with time zone NOT NULL DEFAULT now(),
-  name text NOT NULL,
-  code text NOT NULL,
-  card_number text NOT NULL,
-  building text NULL,
-  tags text[] NULL,
-  updated_at timestamp with time zone NOT NULL DEFAULT now(),
-  CONSTRAINT personnel_pkey PRIMARY KEY (id),
-  CONSTRAINT personnel_card_number_key UNIQUE (card_number),
-  CONSTRAINT personnel_code_key UNIQUE (code)
+    id uuid NOT NULL DEFAULT gen_random_uuid(),
+    created_at timestamp with time zone NOT NULL DEFAULT now(),
+    name text NOT NULL,
+    code text NOT NULL,
+    card_number text NOT NULL,
+    building text NULL,
+    tags text[] NULL,
+    updated_at timestamp with time zone NOT NULL DEFAULT now(),
+    CONSTRAINT personnel_pkey PRIMARY KEY (id),
+    CONSTRAINT personnel_card_number_key UNIQUE (card_number),
+    CONSTRAINT personnel_code_key UNIQUE (code)
 );
 COMMENT ON TABLE public.personnel IS '儲存所有可報到人員的基本資料';
 
--- 處理現有 `personnel` 表的遷移 (例如添加新欄位或修改約束)
+-- 處理現有 personnel 表的遷移 (例如添加新欄位或修改約束)
 DO $$
 BEGIN
     -- 添加 'updated_at' 欄位如果不存在
@@ -121,72 +163,29 @@ BEGIN
 
 END $$;
 
-
--- 2.2 profiles (使用者設定檔) 資料表
-CREATE TABLE IF NOT EXISTS public.profiles (
-  id uuid NOT NULL,
-  email text NOT NULL,
-  nickname text NULL,
-  role_id uuid NULL,
-  CONSTRAINT profiles_pkey PRIMARY KEY (id),
-  CONSTRAINT profiles_id_fkey FOREIGN KEY (id) REFERENCES auth.users(id) ON DELETE CASCADE,
-  CONSTRAINT profiles_role_id_fkey FOREIGN KEY (role_id) REFERENCES public.roles(id) ON DELETE SET NULL
-);
-COMMENT ON TABLE public.profiles IS '儲存應用程式使用者的額外資訊，如角色和暱稱';
-
--- 處理現有 `profiles` 表的遷移
-DO $$
-DECLARE
-    default_role_id uuid;
-BEGIN
-    -- 確保 'operator' 角色存在，否則創建它
-    INSERT INTO public.roles (name, description) VALUES ('operator', '操作員，僅能進行報到和查看記錄') ON CONFLICT (name) DO NOTHING;
-    SELECT id INTO default_role_id FROM public.roles WHERE name = 'operator';
-
-    -- 添加 `role_id` 欄位如果不存在
-    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'profiles' AND column_name = 'role_id') THEN
-        ALTER TABLE public.profiles ADD COLUMN role_id uuid NULL;
-        COMMENT ON COLUMN public.profiles.role_id IS '關聯到 roles 資料表的使用者角色 ID';
-        -- 為現有 `profiles` 記錄設定預設的 `role_id`
-        UPDATE public.profiles SET role_id = default_role_id WHERE role_id IS NULL;
-        -- 添加外鍵約束
-        ALTER TABLE public.profiles ADD CONSTRAINT profiles_role_id_fkey FOREIGN KEY (role_id) REFERENCES public.roles(id) ON DELETE SET NULL;
-    ELSE
-        -- 如果 role_id 已存在但為 NULL，也為其設定預設值
-        UPDATE public.profiles SET role_id = default_role_id WHERE role_id IS NULL;
-    END IF;
-
-    -- 確保 `email` 欄位存在且為 NOT NULL
-    IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'profiles' AND column_name = 'email' AND is_nullable = 'YES') THEN
-        UPDATE public.profiles SET email = auth.users.email FROM auth.users WHERE public.profiles.id = auth.users.id AND public.profiles.email IS NULL;
-        ALTER TABLE public.profiles ALTER COLUMN email SET NOT NULL;
-    END IF;
-END $$;
-
-
 -- 2.3 events (活動) 資料表
 CREATE TABLE IF NOT EXISTS public.events (
-  id uuid NOT NULL DEFAULT gen_random_uuid(),
-  created_at timestamp with time zone NOT NULL DEFAULT now(),
-  name text NOT NULL,
-  start_time timestamp with time zone NOT NULL,
-  end_time timestamp with time zone NULL,
-  created_by uuid NULL,
-  CONSTRAINT events_pkey PRIMARY KEY (id),
-  CONSTRAINT events_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.profiles(id) ON DELETE SET NULL
+    id uuid NOT NULL DEFAULT gen_random_uuid(),
+    created_at timestamp with time zone NOT NULL DEFAULT now(),
+    name text NOT NULL,
+    start_time timestamp with time zone NOT NULL,
+    end_time timestamp with time zone NULL,
+    created_by uuid NULL,
+    CONSTRAINT events_pkey PRIMARY KEY (id),
+    CONSTRAINT events_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.profiles(id) ON DELETE SET NULL
 );
 COMMENT ON TABLE public.events IS '儲存所有活動的資訊';
 
--- 處理現有 `events` 表的遷移
+-- 處理現有 events 表的遷移
 DO $$
 BEGIN
-    -- 添加 `created_by` 欄位如果不存在
+    -- 添加 created_by 欄位如果不存在
     IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'events' AND column_name = 'created_by') THEN
         ALTER TABLE public.events ADD COLUMN created_by uuid NULL;
         COMMENT ON COLUMN public.events.created_by IS '創建此活動的使用者 ID';
         ALTER TABLE public.events ADD CONSTRAINT events_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.profiles(id) ON DELETE SET NULL;
     END IF;
-    
+
     -- 確保 `name` 和 `start_time` 為 NOT NULL
     IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'events' AND column_name = 'name' AND is_nullable = 'YES') THEN
         UPDATE public.events SET name = COALESCE(name, 'Unnamed Event ' || gen_random_uuid()::text) WHERE name IS NULL;
@@ -199,30 +198,29 @@ BEGIN
 
 END $$;
 
-
 -- 2.4 check_in_records (報到記錄) 資料表
 CREATE TABLE IF NOT EXISTS public.check_in_records (
-  id uuid NOT NULL DEFAULT gen_random_uuid(),
-  created_at timestamp with time zone NOT NULL DEFAULT now(),
-  input text NOT NULL,
-  input_type text NOT NULL,
-  success boolean NOT NULL,
-  name_at_checkin text NULL,
-  personnel_id uuid NULL,
-  device_id text NULL,
-  event_id uuid NULL,
-  status text NULL,
-  action_type text NOT NULL DEFAULT '簽到',
-  CONSTRAINT check_in_records_pkey PRIMARY KEY (id),
-  CONSTRAINT check_in_records_event_id_fkey FOREIGN KEY (event_id) REFERENCES public.events(id) ON DELETE SET NULL,
-  CONSTRAINT check_in_records_personnel_id_fkey FOREIGN KEY (personnel_id) REFERENCES public.personnel(id) ON DELETE SET NULL
+    id uuid NOT NULL DEFAULT gen_random_uuid(),
+    created_at timestamp with time zone NOT NULL DEFAULT now(),
+    input text NOT NULL,
+    input_type text NOT NULL,
+    success boolean NOT NULL,
+    name_at_checkin text NULL,
+    personnel_id uuid NULL,
+    device_id text NULL,
+    event_id uuid NULL,
+    status text NULL,
+    action_type text NOT NULL DEFAULT '簽到',
+    CONSTRAINT check_in_records_pkey PRIMARY KEY (id),
+    CONSTRAINT check_in_records_event_id_fkey FOREIGN KEY (event_id) REFERENCES public.events(id) ON DELETE SET NULL,
+    CONSTRAINT check_in_records_personnel_id_fkey FOREIGN KEY (personnel_id) REFERENCES public.personnel(id) ON DELETE SET NULL
 );
 COMMENT ON TABLE public.check_in_records IS '儲存所有報到和簽退的詳細記錄';
 
--- 處理現有 `check_in_records` 表的遷移
+-- 處理現有 check_in_records 表的遷移
 DO $$
 BEGIN
-    -- 添加 `status` 欄位如果不存在
+    -- 添加 status 欄位如果不存在
     IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'check_in_records' AND column_name = 'status') THEN
         ALTER TABLE public.check_in_records ADD COLUMN status text NULL;
         COMMENT ON COLUMN public.check_in_records.status IS '報到狀態 (例如：準時、遲到、失敗、簽退成功)';
@@ -260,7 +258,6 @@ BEGIN
 
 END $$;
 
-
 -- ========= 3. 初始資料填充 (安全執行) =========
 -- 使用 ON CONFLICT DO NOTHING 確保重複執行此腳本時不會出錯
 
@@ -289,7 +286,8 @@ INSERT INTO public.permissions (name, description) VALUES
 ('records:delete', '刪除報到記錄'),
 ('reports:view', '查看報表與儀錶板'),
 ('reports:personnel', '查看特定人員的詳細報表'),
-('accounts:manage', '管理所有使用者帳號')
+('accounts:manage_users', '管理所有使用者帳號 (新增、編輯、刪除使用者)'), -- 新增權限
+('accounts:manage', '管理所有使用者角色與權限分配') -- 修改描述，此權限將專用於權限管理
 ON CONFLICT (name) DO NOTHING;
 
 -- 3.3 為各角色指派權限
@@ -298,14 +296,42 @@ INSERT INTO public.role_permissions (role_id, permission_id)
 SELECT (SELECT id FROM public.roles WHERE name = 'superadmin'), p.id FROM public.permissions p
 ON CONFLICT (role_id, permission_id) DO NOTHING;
 
--- admin: 賦予所有權限
-INSERT INTO public.role_permissions (role_id, permission_id)
-SELECT (SELECT id FROM public.roles WHERE name = 'admin'), p.id FROM public.permissions p
-ON CONFLICT (role_id, permission_id) DO NOTHING;
+-- admin: 賦予所有權限，但排除 'accounts:manage' (權限管理)，並特別添加 'accounts:manage_users'
+DO $$
+DECLARE
+    admin_role_id uuid;
+    permissions_manage_id uuid; -- 舊的 accounts:manage，現在專指權限管理
+    accounts_manage_users_id uuid; -- 新的帳號管理權限
+BEGIN
+    SELECT id INTO admin_role_id FROM public.roles WHERE name = 'admin';
+    SELECT id INTO permissions_manage_id FROM public.permissions WHERE name = 'accounts:manage'; -- 權限管理
+    SELECT id INTO accounts_manage_users_id FROM public.permissions WHERE name = 'accounts:manage_users'; -- 帳號管理
 
--- sdc: 擁有大部分管理權限 (除了 accounts:manage)
+    IF admin_role_id IS NOT NULL THEN
+        -- 先刪除 admin 角色所有現有權限
+        DELETE FROM public.role_permissions
+        WHERE role_id = admin_role_id;
+
+        -- 重新指派所有權限，但排除 'accounts:manage' (即權限管理)
+        INSERT INTO public.role_permissions (role_id, permission_id)
+        SELECT admin_role_id, p.id
+        FROM public.permissions p
+        WHERE p.id <> permissions_manage_id -- 排除權限管理
+        ON CONFLICT (role_id, permission_id) DO NOTHING;
+
+        -- 特別為 admin 角色添加 'accounts:manage_users' (帳號管理)
+        INSERT INTO public.role_permissions (role_id, permission_id)
+        SELECT admin_role_id, accounts_manage_users_id
+        ON CONFLICT (role_id, permission_id) DO NOTHING;
+    END IF;
+
+END $$;
+
+-- sdc: 擁有大部分管理權限 (除了 accounts:manage_users 和 accounts:manage)
 INSERT INTO public.role_permissions (role_id, permission_id)
-SELECT (SELECT id FROM public.roles WHERE name = 'sdc'), p.id FROM public.permissions p WHERE p.name <> 'accounts:manage'
+SELECT (SELECT id FROM public.roles WHERE name = 'sdc'), p.id
+FROM public.permissions p
+WHERE p.name NOT IN ('accounts:manage_users', 'accounts:manage') -- 排除這兩個帳號/權限管理權限
 ON CONFLICT (role_id, permission_id) DO NOTHING;
 
 -- operator: 僅能進行報到和查看記錄
@@ -318,52 +344,70 @@ INSERT INTO public.role_permissions (role_id, permission_id)
 SELECT (SELECT id FROM public.roles WHERE name = 'sdsc'), p.id FROM public.permissions p WHERE p.name IN ('overview:view', 'reports:view')
 ON CONFLICT (role_id, permission_id) DO NOTHING;
 
-
 -- ========= 4. 自動化與輔助函數 =========
 
 -- 4.1 當新使用者註冊時，自動在 profiles 表中建立對應資料
+-- 先刪除觸發器，再刪除函數，最後重新建立
+DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
+DROP FUNCTION IF EXISTS public.handle_new_user();
 CREATE OR REPLACE FUNCTION public.handle_new_user()
 RETURNS TRIGGER AS $$
 DECLARE
-  default_role_id uuid;
+    default_role_id uuid;
 BEGIN
-  SELECT id INTO default_role_id FROM public.roles WHERE name = 'operator';
-  INSERT INTO public.profiles (id, email, nickname, role_id)
-  VALUES (NEW.id, NEW.email, NEW.email, default_role_id)
-  ON CONFLICT (id) DO UPDATE SET email = EXCLUDED.email; -- 如果已有 profile，則更新 email
-  RETURN NEW;
+    SELECT id INTO default_role_id FROM public.roles WHERE name = 'operator';
+    INSERT INTO public.profiles(id, email, nickname, role_id)
+    VALUES(NEW.id, NEW.email, NEW.email, default_role_id)
+    ON CONFLICT(id) DO UPDATE SET email = EXCLUDED.email; -- 如果已有profile，則更新email
+    RETURN NEW;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
 -- 建立觸發器
-DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
 CREATE TRIGGER on_auth_user_created
-  AFTER INSERT ON auth.users
-  FOR EACH ROW EXECUTE PROCEDURE public.handle_new_user();
+AFTER INSERT ON auth.users
+FOR EACH ROW EXECUTE PROCEDURE public.handle_new_user();
 
 -- 4.2 權限檢查輔助函數 (用於 RLS)
+-- 先刪除所有依賴此函數的 RLS 策略
+DROP POLICY IF EXISTS "Allow admin to manage all profiles" ON public.profiles;
+DROP POLICY IF EXISTS "Allow users to read their own profile" ON public.profiles; -- Keep this for re-creation later
+
+DROP POLICY IF EXISTS "Allow authorized users to manage personnel" ON public.personnel;
+
+DROP POLICY IF EXISTS "Allow authenticated users to read events" ON public.events; -- Keep this for re-creation later
+DROP POLICY IF EXISTS "Allow authorized users to manage events" ON public.events;
+
+DROP POLICY IF EXISTS "Allow authorized users to manage records" ON public.check_in_records;
+
+DROP POLICY IF EXISTS "Allow admin to read audit logs" ON public.audit_logs;
+DROP POLICY IF EXISTS "Disallow direct modification of audit logs" ON public.audit_logs;
+
+
+DROP FUNCTION IF EXISTS public.user_has_permission(uuid, text);
 CREATE OR REPLACE FUNCTION public.user_has_permission(p_user_id uuid, p_permission_name text)
 RETURNS boolean AS $$
 DECLARE
-  has_perm boolean;
+    has_perm boolean;
 BEGIN
-  -- 如果是 superadmin 角色，直接返回 TRUE (擁有所有權限)
-  IF EXISTS (
-      SELECT 1 FROM public.profiles pr
-      JOIN public.roles r ON pr.role_id = r.id
-      WHERE pr.id = p_user_id AND r.name = 'superadmin'
-  ) THEN
-      RETURN TRUE;
-  END IF;
+    -- 如果是 superadmin 角色，直接返回 TRUE (擁有所有權限)
+    IF EXISTS (
+        SELECT 1 FROM public.profiles pr
+        JOIN public.roles r ON pr.role_id = r.id
+        WHERE pr.id = p_user_id AND r.name = 'superadmin'
+    ) THEN
+        RETURN TRUE;
+    END IF;
 
-  SELECT EXISTS (
-    SELECT 1
-    FROM public.role_permissions rp
-    JOIN public.permissions p ON rp.permission_id = p.id
-    WHERE rp.role_id = (SELECT role_id FROM public.profiles WHERE id = p_user_id)
-      AND p.name = p_permission_name
-  ) INTO has_perm;
-  RETURN has_perm;
+    SELECT EXISTS (
+        SELECT 1
+        FROM public.role_permissions rp
+        JOIN public.permissions p ON rp.permission_id = p.id
+        WHERE rp.role_id = (SELECT role_id FROM public.profiles WHERE id = p_user_id)
+        AND p.name = p_permission_name
+    ) INTO has_perm;
+    RETURN has_perm;
+
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 COMMENT ON FUNCTION public.user_has_permission(uuid, text) IS '檢查特定使用者是否擁有指定的權限，superadmin 擁有所有權限';
@@ -371,28 +415,27 @@ COMMENT ON FUNCTION public.user_has_permission(uuid, text) IS '檢查特定使�
 -- 4.3 應用程式所需的 RPC 函數
 
 -- get_daily_record_stats
+DROP FUNCTION IF EXISTS public.get_daily_record_stats();
 CREATE OR REPLACE FUNCTION public.get_daily_record_stats()
 RETURNS TABLE (created_at timestamptz, total bigint, late bigint, fail bigint)
 LANGUAGE plpgsql
 AS $$
 BEGIN
-    RETURN QUERY
-    SELECT
-        date_trunc('day', cr.created_at)::timestamptz AS created_at,
-        COUNT(cr.id) AS total,
-        COUNT(CASE WHEN cr.status = '遲到' THEN 1 END) AS late,
-        COUNT(CASE WHEN cr.success = FALSE THEN 1 END) AS fail
-    FROM
-        public.check_in_records cr
-    GROUP BY
-        date_trunc('day', cr.created_at)
-    ORDER BY
-        created_at DESC;
+    RETURN QUERY
+    SELECT
+        date_trunc('day', cr.created_at)::timestamptz AS created_at,
+        COUNT(cr.id) AS total,
+        COUNT(CASE WHEN cr.status = '遲到' THEN 1 END) AS late,
+        COUNT(CASE WHEN cr.success = FALSE THEN 1 END) AS fail
+    FROM public.check_in_records cr
+    GROUP BY date_trunc('day', cr.created_at)
+    ORDER BY created_at DESC;
 END;
 $$;
 COMMENT ON FUNCTION public.get_daily_record_stats() IS '獲取每日報到記錄的統計資訊';
 
 -- import_checkin_records_with_personnel_creation
+DROP FUNCTION IF EXISTS public.import_checkin_records_with_personnel_creation(jsonb[], uuid, text);
 CREATE OR REPLACE FUNCTION public.import_checkin_records_with_personnel_creation(
     records_to_import jsonb[],
     eventid uuid DEFAULT NULL,
@@ -444,6 +487,17 @@ BEGIN
             IF person_id IS NOT NULL THEN
                 personnel_exists := TRUE;
             END IF;
+        ELSE
+            -- 如果 input_type 未知，則嘗試同時檢查學號和卡號
+            SELECT id INTO person_id FROM public.personnel WHERE code = person_code LIMIT 1;
+            IF person_id IS NOT NULL THEN
+                personnel_exists := TRUE;
+            ELSE
+                SELECT id INTO person_id FROM public.personnel WHERE card_number = person_card_number LIMIT 1;
+                IF person_id IS NOT NULL THEN
+                    personnel_exists := TRUE;
+                END IF;
+            END IF;
         END IF;
 
         IF person_id IS NULL THEN
@@ -458,7 +512,11 @@ BEGIN
                     VALUES (person_name, gen_random_uuid()::text, person_card_number, NOW(), NOW()) -- 隨機生成學號
                     RETURNING id INTO person_id;
                 ELSE
-                    RAISE EXCEPTION '未知的人員識別類型：%', person_input_type;
+                    -- 如果 input_type 是未知，預設以學號創建，卡號隨機
+                    INSERT INTO public.personnel (name, code, card_number, created_at, updated_at)
+                    VALUES (person_name, person_code, gen_random_uuid()::text, NOW(), NOW()) 
+                    RETURNING id INTO person_id;
+                    RAISE NOTICE '未知人員識別類型，預設以學號創建人員: %', person_code;
                 END IF;
                 
                 processed_auto_created_count := processed_auto_created_count + 1;
@@ -470,6 +528,12 @@ BEGIN
                         SELECT id INTO person_id FROM public.personnel WHERE code = person_code;
                     ELSIF person_input_type = '卡號' THEN
                         SELECT id INTO person_id FROM public.personnel WHERE card_number = person_card_number;
+                    ELSE
+                        -- 如果 input_type 未知，則嘗試查找
+                        SELECT id INTO person_id FROM public.personnel WHERE code = person_code LIMIT 1;
+                        IF person_id IS NULL THEN
+                            SELECT id INTO person_id FROM public.personnel WHERE card_number = person_card_number LIMIT 1;
+                        END IF;
                     END IF;
                     personnel_exists := TRUE;
                     RAISE NOTICE '人員自動創建遇到衝突，使用現有記錄。學號/卡號: %', person_code;
@@ -482,7 +546,8 @@ BEGIN
         -- 確定記錄狀態 (針對簽到)
         IF actiontype = '簽到' THEN
             IF eventid IS NOT NULL THEN
-                IF rec->>'timestamp'::timestamptz > COALESCE(event_end_time, event_start_time) THEN
+                -- 修正遲到判斷邏輯: 若報到時間晚於活動開始時間，則為遲到
+                IF (rec->>'timestamp')::timestamptz > event_start_time THEN
                     record_status := '遲到';
                 ELSE
                     record_status := '準時';
@@ -506,7 +571,7 @@ BEGIN
                 rec->>'timestamp'::timestamptz,
                 rec->>'identifier',
                 person_input_type,
-                personnel_exists, -- 如果人員存在，則標記成功
+                personnel_exists, -- 如果人員存在或已自動創建，則標記成功
                 person_name,
                 person_id,
                 rec->>'device_id', -- 假設前端會傳 device_id
@@ -519,15 +584,17 @@ BEGIN
             WHEN OTHERS THEN
                 processed_errors := array_append(processed_errors, format('插入記錄失敗 (%s, %s): %s', person_name, rec->>'identifier', SQLERRM));
         END;
+
     END LOOP;
 
     RETURN QUERY SELECT processed_success_count, processed_auto_created_count, processed_errors;
+
 END;
 $$;
 COMMENT ON FUNCTION public.import_checkin_records_with_personnel_creation(jsonb[], uuid, text) IS '批次匯入簽到記錄，如果人員不存在則自動創建，並根據活動時間計算狀態';
 
-
 -- get_event_dashboard_data
+DROP FUNCTION IF EXISTS public.get_event_dashboard_data(uuid);
 CREATE OR REPLACE FUNCTION public.get_event_dashboard_data(p_event_id uuid)
 RETURNS jsonb
 LANGUAGE plpgsql
@@ -573,7 +640,7 @@ BEGIN
         late_count
     FROM public.check_in_records
     WHERE event_id = p_event_id AND success = TRUE AND action_type = '簽到' AND personnel_id IS NOT NULL;
-    
+
     -- 確保 on_time_count 和 late_count 非 NULL
     on_time_count := COALESCE(on_time_count, 0);
     late_count := COALESCE(late_count, 0);
@@ -623,7 +690,7 @@ BEGIN
         ORDER BY created_at DESC
         LIMIT 1
     ) AS cr_checkout ON TRUE;
-    
+
     -- 7. 生成 timeline data
     -- 每 5 分鐘統計一次累積簽到人數
     WITH time_series AS (
@@ -671,10 +738,10 @@ BEGIN
             'timeline', COALESCE(timeline_data, '[]'::jsonb)
         )
     );
+
 END;
 $$;
 COMMENT ON FUNCTION public.get_event_dashboard_data(uuid) IS '獲取指定活動的儀錶板數據，包括總結、出席人員和圖表數據。';
-
 
 -- ========= 5. 啟用 RLS 並定義安全策略 =========
 ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
@@ -684,58 +751,73 @@ ALTER TABLE public.check_in_records ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.audit_logs ENABLE ROW LEVEL SECURITY;
 
 -- --- 策略: profiles ---
+-- Drop specific policies
 DROP POLICY IF EXISTS "Allow users to read their own profile" ON public.profiles;
-CREATE POLICY "Allow users to read their own profile" ON public.profiles FOR SELECT USING (auth.uid() = id);
+DROP POLICY IF EXISTS "Allow admin to manage all profiles_select" ON public.profiles;
+DROP POLICY IF EXISTS "Allow admin to manage all profiles_insert" ON public.profiles;
+DROP POLICY IF EXISTS "Allow admin to manage all profiles_update" ON public.profiles;
+DROP POLICY IF EXISTS "Allow admin to manage all profiles_delete" ON public.profiles;
 
-DROP POLICY IF EXISTS "Allow admin to manage all profiles" ON public.profiles;
-CREATE POLICY "Allow admin to manage all profiles" ON public.profiles FOR ALL
-  USING (public.user_has_permission(auth.uid(), 'accounts:manage'))
-  WITH CHECK (public.user_has_permission(auth.uid(), 'accounts:manage'));
+-- Recreate policies for profiles
+CREATE POLICY "Allow users to read their own profile" ON public.profiles FOR SELECT USING (auth.uid() = id);
+CREATE POLICY "Allow admin to manage all profiles_select" ON public.profiles FOR SELECT USING (public.user_has_permission(auth.uid(), 'accounts:manage_users'));
+CREATE POLICY "Allow admin to manage all profiles_insert" ON public.profiles FOR INSERT WITH CHECK (public.user_has_permission(auth.uid(), 'accounts:manage_users'));
+CREATE POLICY "Allow admin to manage all profiles_update" ON public.profiles FOR UPDATE USING (public.user_has_permission(auth.uid(), 'accounts:manage_users')) WITH CHECK (public.user_has_permission(auth.uid(), 'accounts:manage_users'));
+CREATE POLICY "Allow admin to manage all profiles_delete" ON public.profiles FOR DELETE USING (public.user_has_permission(auth.uid(), 'accounts:manage_users'));
+
 
 -- --- 策略: personnel ---
-DROP POLICY IF EXISTS "Allow authorized users to manage personnel" ON public.personnel;
-CREATE POLICY "Allow authorized users to manage personnel" ON public.personnel FOR ALL
-  USING (public.user_has_permission(auth.uid(), 'personnel:read'))
-  WITH CHECK (
-    (public.user_has_permission(auth.uid(), 'personnel:create')) OR
-    (public.user_has_permission(auth.uid(), 'personnel:update')) OR
-    (public.user_has_permission(auth.uid(), 'personnel:delete'))
-  );
+-- Drop specific policies
+DROP POLICY IF EXISTS "Allow authorized users to read personnel" ON public.personnel;
+DROP POLICY IF EXISTS "Allow authorized users to create personnel" ON public.personnel;
+DROP POLICY IF EXISTS "Allow authorized users to update personnel" ON public.personnel;
+DROP POLICY IF EXISTS "Allow authorized users to delete personnel" ON public.personnel;
+
+-- Recreate policies for personnel
+CREATE POLICY "Allow authorized users to read personnel" ON public.personnel FOR SELECT USING (public.user_has_permission(auth.uid(), 'personnel:read'));
+CREATE POLICY "Allow authorized users to create personnel" ON public.personnel FOR INSERT WITH CHECK (public.user_has_permission(auth.uid(), 'personnel:create'));
+CREATE POLICY "Allow authorized users to update personnel" ON public.personnel FOR UPDATE USING (public.user_has_permission(auth.uid(), 'personnel:update')) WITH CHECK (public.user_has_permission(auth.uid(), 'personnel:update'));
+CREATE POLICY "Allow authorized users to delete personnel" ON public.personnel FOR DELETE USING (public.user_has_permission(auth.uid(), 'personnel:delete'));
+
 
 -- --- 策略: events ---
+-- Drop specific policies
 DROP POLICY IF EXISTS "Allow authenticated users to read events" ON public.events;
-CREATE POLICY "Allow authenticated users to read events" ON public.events FOR SELECT USING (auth.role() = 'authenticated');
+DROP POLICY IF EXISTS "Allow authorized users to create events" ON public.events;
+DROP POLICY IF EXISTS "Allow authorized users to update events" ON public.events;
+DROP POLICY IF EXISTS "Allow authorized users to delete events" ON public.events;
 
-DROP POLICY IF EXISTS "Allow authorized users to manage events" ON public.events;
-CREATE POLICY "Allow authorized users to manage events" ON public.events FOR ALL
-  USING (auth.role() = 'authenticated')
-  WITH CHECK (
-    (public.user_has_permission(auth.uid(), 'events:create')) OR
-    (public.user_has_permission(auth.uid(), 'events:update')) OR
-    (public.user_has_permission(auth.uid(), 'events:delete'))
-  );
+-- Recreate policies for events
+CREATE POLICY "Allow authenticated users to read events" ON public.events FOR SELECT USING (auth.role() = 'authenticated');
+CREATE POLICY "Allow authorized users to create events" ON public.events FOR INSERT WITH CHECK (public.user_has_permission(auth.uid(), 'events:create'));
+CREATE POLICY "Allow authorized users to update events" ON public.events FOR UPDATE USING (public.user_has_permission(auth.uid(), 'events:update')) WITH CHECK (public.user_has_permission(auth.uid(), 'events:update'));
+CREATE POLICY "Allow authorized users to delete events" ON public.events FOR DELETE USING (public.user_has_permission(auth.uid(), 'events:delete'));
+
 
 -- --- 策略: check_in_records ---
-DROP POLICY IF EXISTS "Allow authorized users to manage records" ON public.check_in_records;
-CREATE POLICY "Allow authorized users to manage records" ON public.check_in_records FOR ALL
-  USING (public.user_has_permission(auth.uid(), 'records:view'))
-  WITH CHECK (
-    (public.user_has_permission(auth.uid(), 'records:create')) OR
-    (public.user_has_permission(auth.uid(), 'records:delete'))
-  );
+-- Drop specific policies
+DROP POLICY IF EXISTS "Allow authorized users to read records" ON public.check_in_records;
+DROP POLICY IF EXISTS "Allow authorized users to create records" ON public.check_in_records;
+DROP POLICY IF EXISTS "Allow authorized users to delete records" ON public.check_in_records;
+
+-- Recreate policies for check_in_records
+CREATE POLICY "Allow authorized users to read records" ON public.check_in_records FOR SELECT USING (public.user_has_permission(auth.uid(), 'records:view'));
+CREATE POLICY "Allow authorized users to create records" ON public.check_in_records FOR INSERT WITH CHECK (public.user_has_permission(auth.uid(), 'records:create'));
+CREATE POLICY "Allow authorized users to delete records" ON public.check_in_records FOR DELETE USING (public.user_has_permission(auth.uid(), 'records:delete'));
+
 
 -- --- 策略: audit_logs ---
+-- Drop specific policies
 DROP POLICY IF EXISTS "Allow admin to read audit logs" ON public.audit_logs;
-CREATE POLICY "Allow admin to read audit logs" ON public.audit_logs FOR SELECT
-  USING (public.user_has_permission(auth.uid(), 'accounts:manage'));
+-- The "Disallow direct modification of audit logs" policy is implicitly handled if no INSERT/UPDATE/DELETE policies are created.
+-- We only need a SELECT policy for admins.
 
-DROP POLICY IF EXISTS "Disallow direct modification of audit logs" ON public.audit_logs;
-CREATE POLICY "Disallow direct modification of audit logs" ON public.audit_logs FOR ALL
-  USING (false) WITH CHECK (false);
+-- Recreate policies for audit_logs
+CREATE POLICY "Allow admin to read audit logs" ON public.audit_logs FOR SELECT USING (public.user_has_permission(auth.uid(), 'accounts:manage'));
 
 
 -- 如果所有步驟都成功，提交事務
 COMMIT;
 
 -- 如果在測試過程中遇到錯誤，可以使用以下命令回滾所有變更：
--- ROLLBACK;
+-- ROLLBACK

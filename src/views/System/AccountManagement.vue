@@ -127,7 +127,8 @@ const editableAccount = ref({});
 const selectedFile = ref(null);
 const importResults = ref({ success: 0, failed: [] });
 
-const canManageAccounts = computed(() => authStore.hasPermission('accounts:manage'));
+// 將 canManageAccounts 權限檢查更改為 accounts:manage_users
+const canManageAccounts = computed(() => authStore.hasPermission('accounts:manage_users'));
 const currentUserRole = computed(() => authStore.user?.roles?.name);
 
 onMounted(async () => {
@@ -160,10 +161,11 @@ const availableRolesForAssignment = computed(() => {
     if (currentUserRole.value === 'superadmin') {
         return dataStore.roles;
     }
-    if (currentUserRole.value === 'admin') {
+    // 管理員不能建立超級管理員，但可以建立其他所有角色
+    if (currentUserRole.value === 'admin') { 
         return dataStore.roles.filter(role => role.name !== 'superadmin');
     }
-    return [];
+    return []; // 其他角色不能建立帳號
 });
 
 const selectAll = computed({
@@ -172,7 +174,7 @@ const selectAll = computed({
     return selectableAccounts.length > 0 && selectedAccounts.value.length === selectableAccounts.length;
   },
   set: (value) => {
-    if (!canManageAccounts.value) {
+    if (!canManageAccounts.value) { // 這裡仍使用 canManageAccounts 來判斷是否有權限進行批量選擇
         selectedAccounts.value = [];
         return;
     }
@@ -184,9 +186,12 @@ const selectAll = computed({
 const isCurrentUser = (id) => authStore.user?.id === id;
 
 const canEditAccount = (account) => {
-    if (!canManageAccounts.value || isCurrentUser(account.id)) {
+    // 這裡的邏輯與 api/update-account.js 的後端權限驗證保持一致
+    // 只有當前用戶有 manage_users 權限且不是修改自己或修改 superadmin 時才允許
+    if (!authStore.hasPermission('accounts:manage_users') || isCurrentUser(account.id)) {
         return false;
     }
+    // admin 不能編輯或刪除 superadmin
     if (currentUserRole.value === 'admin' && account.roles?.name === 'superadmin') {
         return false;
     }
@@ -207,7 +212,7 @@ const getRoleClass = (roleName) => {
 };
 
 const openModal = (account = null) => {
-  if (!canManageAccounts.value) {
+  if (!canManageAccounts.value) { // 使用新的權限檢查
     uiStore.showMessage('您沒有權限執行此操作。', 'error');
     return;
   }
@@ -280,7 +285,7 @@ const saveAccount = async () => {
 };
 
 const confirmSingleDelete = (account) => {
-  if (!canEditAccount(account)) {
+  if (!canEditAccount(account)) { // 使用 canEditAccount 判斷
     uiStore.showMessage('您沒有權限刪除此帳號。', 'error');
     return;
   }
@@ -297,7 +302,7 @@ const confirmSingleDelete = (account) => {
 const confirmBatchDelete = () => {
   const accountsToDelete = selectedAccounts.value.filter(id => {
       const acc = accounts.value.find(a => a.id === id);
-      return acc && canEditAccount(acc);
+      return acc && canEditAccount(acc); // 使用 canEditAccount 判斷
   });
 
   if (accountsToDelete.length === 0) {
@@ -380,7 +385,7 @@ const importAccounts = async () => {
             validationErrors.push(`第 ${i + 1} 行角色名稱 '${roleName}' 無效。`);
             continue;
         }
-        // Admin cannot create superadmin accounts via import
+        // Admin cannot create superadmin accounts via import (這裡的邏輯不變)
         if (currentUserRole.value === 'admin' && role.name === 'superadmin') {
             validationErrors.push(`第 ${i + 1} 行：管理員無權限建立超級管理員帳號。`);
             continue;

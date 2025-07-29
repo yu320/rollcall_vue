@@ -36,7 +36,7 @@
         </div>
 
         <!-- 資料管理下拉選單 -->
-        <div v-if="canView('personnel:read') || canView('events:create') || canView('accounts:manage')" class="relative" @mouseleave="closeDropdown('management')">
+        <div v-if="canView('personnel:read') || canView('events:create') || canView('accounts:manage_users') || canView('accounts:manage')" class="relative" @mouseleave="closeDropdown('management')">
             <button ref="managementButtonRef" @mouseover="openDropdown('management')" class="tab-button flex items-center" :class="{ 'tab-active': isRouteActive('/events') || isRouteActive('/personnel') || isRouteActive('/import') || isRouteActive('/system') }">
                 <span>資料管理</span>
                 <svg class="w-4 h-4 ml-1 transition-transform" :class="{'rotate-180': dropdowns.management}" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
@@ -46,8 +46,8 @@
                 <router-link v-if="canView('personnel:read')" to="/personnel" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">人員管理</router-link>
                 <router-link v-if="canView('personnel:create')" to="/import/personnel" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">人員資料匯入</router-link>
                 <router-link v-if="canView('records:create')" to="/import/checkin" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">簽到記錄匯入</router-link>
-                <router-link v-if="canView('accounts:manage')" to="/system/accounts" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">帳號管理</router-link>
-                <router-link v-if="canView('accounts:manage')" to="/system/permissions" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">權限管理</router-link>
+                <router-link v-if="canView('accounts:manage_users')" to="/system/accounts" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">帳號管理</router-link> <!-- 將權限從 accounts:manage 改為 accounts:manage_users -->
+                <router-link v-if="canView('accounts:manage')" to="/system/permissions" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">權限管理</router-link> <!-- 保持為 accounts:manage -->
             </div>
         </div>
 
@@ -71,7 +71,7 @@ const dropdowns = reactive({
   management: false,
 });
 
-// Vue 模板引用，用於直接訪問 DOM 元素
+// Vue 模板引用，用於直接訪問 DOM 元素 
 const dataAnalysisMenuRef = ref(null);
 const recordsMenuRef = ref(null);
 const managementMenuRef = ref(null);
@@ -130,8 +130,7 @@ const closeDropdown = (menu) => {
   dropdowns[menu] = false;
   // 由於使用 v-if，元素會在 dropdowns[menu] 變為 false 時從 DOM 中移除，
   // 因此不需要顯式設定 display: 'none'。
-  // 但為了安全，如果元素仍然存在 (例如因為動畫延遲)，可以設定。
-  // 不過在這裡，我們主要依賴 v-if 的移除行為。
+  // 但在這裡，我們主要依賴 v-if 的移除行為。
 };
 </script>
 
