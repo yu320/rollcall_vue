@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+  <head>
+    <meta charset="UTF-8">
+    <!-- 確保在行動裝置上有好的顯示效果 -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    
+    <!-- 網站的 favicon，會從 public 資料夾讀取 -->
+    <link rel="icon" href="/favicon.ico">
+    
+    <!-- SEO & 社群分享中繼標籤 (Open Graph) -->
+    <meta property="og:title" content="報到管理系統 (Vue版)" />
+    <meta property="og:description" content="一個使用 Vue.js 重構的高效簽到、簽退與分析系統。" />
+    <meta property="og:image" content="/images/logo.jpg" />
+    <meta property="og:url" content="https://rollcall.hyou.eu.org/" /> <!-- 這裡請換成您最終的網址 -->
+    <meta property="og:type" content="website" />
+    
+    <!-- 引入 Google Fonts，優化字體載入效能 -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
+    
+    <title>報到管理系統 (Vue)</title>
+  </head>
+  <body class="bg-gray-100 antialiased">
+    <!-- 
+      Vue 應用程式的掛載點。
+      整個 Vue 應用程式的內容，都會被渲染到這個 div 裡面。
+      原本 index.html 裡的所有內容，都會被拆分成 .vue 元件並動態插入到這裡。
+    -->
+    <div id="app"></div>
+    
+    <!-- 
+      應用程式的主要 JavaScript 檔案入口。
+      Vite 開發伺服器會處理這個檔案，並在瀏覽器中啟用熱模組替換 (HMR)。
+      在最終建置時，Vite 會自動將所有需要的 JavaScript 和 CSS 打包並注入到這裡。
+    -->
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>

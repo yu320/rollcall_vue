@@ -1,0 +1,153 @@
+/*
+  src/assets/styles/main.css
+
+  這個檔案用於存放全域自定義樣式。
+  我已經將您舊專案中的 style.css 和 login.css 裡重要的自定義樣式 (如動畫、狀態標籤、RWD 表格) 整合到這裡。
+*/
+
+/* --- :root 變數定義 (保留好的實踐) --- */
+:root {
+  --primary-color: #4f46e5;
+  --primary-light: #e0e7ff;
+  --primary-dark: #4338ca;
+  --success-color: #16a34a;
+  --success-light: #dcfce7;
+  --error-color: #dc2626;
+  --error-light: #fee2e2;
+  --warning-color: #d97706;
+  --warning-light: #fef3c7;
+  --info-color: #3b82f6;
+  --info-light: #eff6ff;
+}
+
+/* --- 全局樣式 --- */
+body {
+  font-family: 'Inter', 'Noto Sans TC', sans-serif;
+  color: #111827; /* gray-900 */
+}
+
+/* --- 登入頁面動畫 --- */
+.login-container {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+}
+
+.animated-bg-shape {
+    position: absolute;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.1);
+    animation: float 15s infinite ease-in-out;
+}
+.shape-1 { width: 400px; height: 400px; top: -100px; right: -100px; animation-duration: 18s; }
+.shape-2 { width: 300px; height: 300px; bottom: -50px; left: -50px; animation-duration: 20s; animation-direction: reverse; }
+.shape-3 { width: 200px; height: 200px; top: 50%; left: 50%; animation-duration: 22s; }
+
+@keyframes float {
+    0% { transform: translate(0, 0) rotate(0deg); }
+    50% { transform: translate(40px, -30px) rotate(180deg); }
+    100% { transform: translate(0, 0) rotate(360deg); }
+}
+
+.car-loading-overlay {
+    position: absolute;
+    inset: 0;
+    background: rgba(255, 255, 255, 0.95);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 1000;
+}
+.road { width: 80%; max-width: 400px; height: 100px; position: relative; overflow: hidden; background: #e0e7eb; border-radius: 10px; box-shadow: inset 0 0 10px rgba(0,0,0,0.1); }
+.car { width: 80px; height: 40px; background: #ff6f61; border-radius: 8px; position: absolute; bottom: 10px; animation: drive 2.5s linear infinite; box-shadow: 0 4px 0 #c62828; left: -100px; }
+.wheel { width: 16px; height: 16px; background: #333; border-radius: 50%; position: absolute; bottom: -8px; animation: spin 0.5s linear infinite; box-shadow: inset 0 0 5px rgba(0,0,0,0.3); }
+.wheel.front { left: 10px; }
+.wheel.back { right: 10px; }
+
+@keyframes drive {
+    0% { left: -100px; }
+    100% { left: calc(100% + 100px); }
+}
+@keyframes spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+
+
+/* --- 通用動畫 --- */
+.check-in-animation {
+  animation: bounce-in 0.8s cubic-bezier(0.68, -0.55, 0.27, 1.55) forwards;
+}
+@keyframes bounce-in {
+  0% { opacity: 0; transform: scale(0.3); }
+  50% { opacity: 1; transform: scale(1.1); }
+  70% { transform: scale(0.9); }
+  100% { transform: scale(1); }
+}
+
+/* --- 自定義元件樣式 --- */
+.tab-active {
+  color: var(--primary-color);
+  font-weight: 600;
+  border-color: var(--primary-color);
+}
+
+.status-badge { padding: 0.25rem 0.75rem; border-radius: 9999px; font-weight: 600; font-size: 0.8rem; }
+.type-badge { padding: 0.25rem 0.75rem; border-radius: 9999px; font-weight: 600; font-size: 0.8rem; }
+
+.type-badge[data-type="簽到"] { background-color: var(--info-light); color: var(--info-color); }
+.type-badge[data-type="簽退"] { background-color: #e5e7eb; color: #4b5563; }
+
+.status-badge[data-status="準時"], .status-badge[data-status="簽退成功"], .status-badge[data-status="成功"] { background-color: var(--success-light); color: var(--success-color); }
+.status-badge[data-status="遲到"], .status-badge[data-status="重複簽到"], .status-badge[data-status="重複簽退"] { background-color: var(--warning-light); color: var(--warning-color); }
+.status-badge[data-status*="失敗"], .status-badge[data-status*="異常"] { background-color: var(--error-light); color: var(--error-color); }
+
+/* --- 學號/卡號顏色 --- */
+.code-a { color: #047857; } .code-b { color: #0369a1; } .code-c { color: #7c3aed; }
+.code-d { color: #b45309; } .code-e { color: #be123c; } .code-f { color: #4338ca; }
+/* ... 其他顏色 ... */
+
+/* --- RWD 表格樣式 (手機版卡片式) --- */
+@media (max-width: 640px) {
+    .table-responsive table,
+    .table-responsive thead,
+    .table-responsive tbody,
+    .table-responsive th,
+    .table-responsive td,
+    .table-responsive tr {
+        display: block;
+    }
+
+    .table-responsive thead tr {
+        position: absolute;
+        top: -9999px;
+        left: -9999px;
+    }
+
+    .table-responsive tr {
+        border: 1px solid #e5e7eb;
+        margin-bottom: 1rem;
+        border-radius: 0.75rem;
+        overflow: hidden;
+        background-color: white;
+    }
+
+    .table-responsive td {
+        border: none;
+        border-bottom: 1px solid #f3f4f6;
+        padding: 0.875rem 1rem;
+        display: grid;
+        grid-template-columns: 35% 1fr;
+        grid-gap: 1rem;
+        align-items: center;
+    }
+
+    .table-responsive tr td:last-child {
+        border-bottom: none;
+    }
+
+    .table-responsive td:before {
+        content: attr(data-label);
+        text-align: left;
+        font-weight: 600;
+        color: #4b5563;
+    }
+}
