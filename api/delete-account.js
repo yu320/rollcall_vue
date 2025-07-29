@@ -2,9 +2,6 @@ import { createClient } from '@supabase/supabase-js';
 
 /**
  * 在 Serverless Function 中記錄稽核日誌。
- * @param {object} supabaseAdmin - 已初始化的 Supabase 管理員客戶端。
- * @param {string} adminUserId - 執行此操作的管理員使用者 ID。
- * @param {object} logDetails - 稽核日誌的詳細內容。
  */
 async function recordAdminAuditLog(supabaseAdmin, adminUserId, logDetails) {
   try {
@@ -31,6 +28,12 @@ async function recordAdminAuditLog(supabaseAdmin, adminUserId, logDetails) {
 }
 
 export default async function handler(req, res) {
+  // 確保請求方法是 POST
+  if (req.method !== 'POST') {
+    res.setHeader('Allow', ['POST']);
+    return res.status(405).json({ error: `請求方法 ${req.method} 不允許` });
+  }
+  
   if (!process.env.SUPABASE_URL || !process.env.SUPABASE_SERVICE_KEY) {
     return res.status(500).json({ error: '伺服器設定錯誤' });
   }
@@ -51,36 +54,32 @@ export default async function handler(req, res) {
     if (!adminUserId) {
       return res.status(401).json({ error: '需要管理員使用者 ID。' });
     }
-    // [修正] 以更穩健的兩步驟檢查管理員角色
+    
+    // 以更穩健的方式檢查管理員角色
     const { data: adminProfile, error: adminProfileError } = await supabaseAdmin
       .from('profiles')
-      .select('role_id')
+      .select('roles(name)')
       .eq('id', adminUserId)
       .single();
 
-    if (adminProfileError || !adminProfile?.role_id) {
+    if (adminProfileError || !adminProfile?.roles?.name) {
         return res.status(403).json({ error: '未授權的操作或未指派管理員角色。' });
     }
 
-    const { data: adminRoleData, error: adminRoleError } = await supabaseAdmin
-      .from('roles')
-      .select('name')
-      .eq('id', adminProfile.role_id)
-      .single();
-    
-    const adminRole = adminRoleData?.name;
-    if (adminRoleError || !adminRole || !['admin', 'superadmin'].includes(adminRole)) {
+    const adminRole = adminProfile.roles.name;
+    if (!['admin', 'superadmin'].includes(adminRole)) {
       return res.status(403).json({ error: '未授權的操作。' });
     }
 
     const successfulDeletes = [];
     const failedDeletes = [];
     
-    // [修正] 以更穩健的方式獲取待刪除的個人資料及其角色
+    // 獲取待刪除的個人資料及其角色，用於權限檢查和稽核
     const { data: profilesToDelete, error: fetchProfilesError } = await supabaseAdmin
         .from('profiles')
         .select('id, email, nickname, roles(name)')
         .in('id', ids);
+        
     if (fetchProfilesError) console.warn("刪除帳號前無法獲取舊資料用於稽核:", fetchProfilesError.message);
     const profileMap = new Map((profilesToDelete || []).map(p => [p.id, p]));
 
@@ -88,6 +87,7 @@ export default async function handler(req, res) {
       try {
         const profileToDelete = profileMap.get(id);
 
+        // 安全性規則：admin 不能刪除 superadmin
         if (adminRole === 'admin' && profileToDelete?.roles?.name === 'superadmin') {
             failedDeletes.push({ id: id, reason: '管理員無法刪除超級管理員帳號。' });
             continue;
@@ -95,7 +95,12 @@ export default async function handler(req, res) {
 
         const { error: authError } = await supabaseAdmin.auth.admin.deleteUser(id);
         if (authError) {
-          throw authError;
+          // 如果使用者在 auth 中不存在，但在 profiles 中存在，這是一個數據不一致的情況，但我們仍然應該繼續嘗試刪除 profiles 中的記錄
+          if (authError.message.includes('User not found')) {
+            console.warn(`Auth 中找不到使用者 ${id}，但將繼續刪除 profiles 中的對應記錄。`);
+          } else {
+            throw authError;
+          }
         }
 
         successfulDeletes.push(id);
@@ -105,7 +110,7 @@ export default async function handler(req, res) {
             target_table: 'profiles',
             target_id: id,
             description: `刪除帳號: ${profileToDelete?.email || id}`,
-            old_value: profileToDelete || null
+            old_value: profileToDelete || { id: id, note: "Profile data not found before deletion." }
         });
 
       } catch (error) {
@@ -115,7 +120,7 @@ export default async function handler(req, res) {
     }
     
     if (failedDeletes.length > 0) {
-      return res.status(500).json({ 
+      return res.status(207).json({ // 207 Multi-Status 表示部分成功
         success: false, 
         message: `成功刪除 ${successfulDeletes.length} 個帳號，但有 ${failedDeletes.length} 個失敗。`,
         failed: failedDeletes,

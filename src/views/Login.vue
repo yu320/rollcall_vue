@@ -97,14 +97,14 @@ const credentials = ref({
 
 // Add console log to check loading state
 watch(() => authStore.loading, (newVal) => {
-  console.log('authStore.loading changed:', newVal);
+  //console.log('authStore.loading changed:', newVal);
 });
 
 // Method to handle login form submission
 const handleLogin = async () => {
-  console.log('Attempting login...');
+  //console.log('Attempting login...');
   await authStore.login(credentials.value.email, credentials.value.password);
-  console.log('Login attempt finished. authStore.loading:', authStore.loading.value);
+  ////console.log('Login attempt finished. authStore.loading:', authStore.loading.value);
 };
 
 // Reactive state for current time display
@@ -122,15 +122,15 @@ const updateClock = () => {
 
 // Lifecycle hook: When component is mounted to the DOM
 onMounted(() => {
-  console.log('Login.vue mounted.');
+  //console.log('Login.vue mounted.');
   updateClock(); // Initial update
   clockInterval = setInterval(updateClock, 1000); // Update every second
-  console.log('Initial authStore.loading on mount:', authStore.loading.value);
+  //console.log('Initial authStore.loading on mount:', authStore.loading.value);
 });
 
 // Lifecycle hook: When component is unmounted from the DOM
 onUnmounted(() => {
-  console.log('Login.vue unmounted.');
+  //console.log('Login.vue unmounted.');
   clearInterval(clockInterval); // Clear the interval to prevent memory leaks
 });
 </script>

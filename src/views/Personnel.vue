@@ -279,24 +279,39 @@ const handleSave = async () => {
     }
 };
 
-// --- 單筆/批次刪除人員相關邏輯 ---
-const confirmDelete = async (person) => {
-    if(confirm(`確定要刪除 ${person.name} (${person.code}) 嗎？`)) {
-        await dataStore.batchDeletePersonnel([person.id]); // 調用 dataStore 的批次刪除方法
-        selectedPersonnel.value = selectedPersonnel.value.filter(id => id !== person.id); // 更新選取狀態
-    }
+// --- [MODIFIED] 單筆/批次刪除人員相關邏輯 ---
+const confirmDelete = (person) => {
+    uiStore.showConfirmation(
+        '確認刪除',
+        `確定要刪除 ${person.name} (${person.code}) 嗎？`,
+        '確定',
+        'bg-red-600 hover:bg-red-700'
+    ).then(async () => {
+        await dataStore.batchDeletePersonnel([person.id]);
+        selectedPersonnel.value = selectedPersonnel.value.filter(id => id !== person.id);
+    }).catch(() => {
+        // User cancelled, do nothing
+    });
 };
 
-const confirmBatchDelete = async () => {
-    if(selectedPersonnel.value.length === 0) {
+const confirmBatchDelete = () => {
+    if (selectedPersonnel.value.length === 0) {
         uiStore.showMessage('請至少選擇一位人員進行批量刪除。', 'info');
         return;
     }
-    if(confirm(`確定要刪除選取的 ${selectedPersonnel.value.length} 位人員嗎？此操作無法復原。`)) {
+    uiStore.showConfirmation(
+        '確認批次刪除',
+        `確定要刪除選取的 ${selectedPersonnel.value.length} 位人員嗎？此操作無法復原。`,
+        '確定刪除',
+        'bg-red-600 hover:bg-red-700'
+    ).then(async () => {
         await dataStore.batchDeletePersonnel(selectedPersonnel.value);
-        selectedPersonnel.value = []; // 清空選取狀態
-    }
+        selectedPersonnel.value = [];
+    }).catch(() => {
+        // User cancelled, do nothing
+    });
 };
+
 
 // --- 批量增加標籤 Modal 相關邏輯 ---
 const openBatchAddTagsModal = () => {

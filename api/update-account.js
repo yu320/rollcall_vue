@@ -61,14 +61,41 @@ export default async function handler(req, res) {
   }
 
   try {
-    // --- (可選但建議) 驗證管理員權限 ---
-    // 您可以重用 create-account.js 中的權限檢查邏輯
-    // 來確保執行操作的管理員擁有 'accounts:manage' 權限。
+    // --- 新增：驗證管理員權限 ---
+    const { data: adminProfile, error: adminProfileError } = await supabaseAdmin
+      .from('profiles')
+      .select('roles(name)') // 直接獲取角色名稱
+      .eq('id', adminUserId)
+      .single();
+
+    if (adminProfileError || !adminProfile?.roles?.name) {
+        return res.status(403).json({ error: '未經授權的操作或未指派管理員角色。' });
+    }
+
+    const adminRole = adminProfile.roles.name;
+    if (!['admin', 'superadmin'].includes(adminRole)) {
+      return res.status(403).json({ error: '未經授權：您沒有權限執行此操作。' });
+    }
+
+    // 安全性規則：admin 不能修改 superadmin
+    const { data: targetUser, error: targetUserError } = await supabaseAdmin
+        .from('profiles')
+        .select('roles(name)')
+        .eq('id', id)
+        .single();
+
+    if (targetUserError) {
+        console.warn(`更新目標使用者時找不到其設定檔: ${targetUserError.message}`);
+    }
+    
+    if (adminRole === 'admin' && targetUser?.roles?.name === 'superadmin') {
+        return res.status(403).json({ error: '管理員無法修改超級管理員帳號。' });
+    }
+    // --- 權限驗證結束 ---
 
     // 為了稽核日誌，先獲取更新前的舊資料
     const { data: oldData, error: fetchError } = await supabaseAdmin.from('profiles').select('*').eq('id', id).single();
     if (fetchError) {
-        // 如果找不到舊資料，這不是一個致命錯誤，但最好記錄下來。
         console.warn(`無法獲取用於稽核日誌的舊個人資料: ${fetchError.message}`);
     }
 
@@ -80,7 +107,15 @@ export default async function handler(req, res) {
 
     if (Object.keys(authUpdatePayload).length > 0) {
       const { error: authError } = await supabaseAdmin.auth.admin.updateUserById(id, authUpdatePayload);
-      if (authError) throw authError;
+      if (authError) {
+        // --- 新增：更具體的錯誤處理 ---
+        // 檢查是否為 Email 重複的錯誤
+        if (authError.message.includes('unique constraint') && authError.message.includes('users_email_key')) {
+            throw new Error('此 Email 已被其他帳號使用。');
+        }
+        // 若為其他錯誤，則直接拋出
+        throw authError;
+      }
     }
 
     // 2. 更新 Profile 表中的資訊 (如果前端有提供)
@@ -113,6 +148,7 @@ export default async function handler(req, res) {
 
   } catch (error) {
     console.error("更新帳號失敗:", error);
+    // 將更具體的錯誤訊息回傳給前端
     res.status(500).json({ error: error.message || '更新過程中發生未知錯誤。' });
   }
 }

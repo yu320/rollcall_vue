@@ -2,9 +2,6 @@ import { createClient } from '@supabase/supabase-js';
 
 /**
  * 在 Serverless Function 中記錄稽核日誌。
- * @param {object} supabaseAdmin - 已初始化的 Supabase 管理員客戶端。
- * @param {string} adminUserId - 執行此操作的管理員使用者 ID。
- * @param {object} logDetails - 稽核日誌的詳細內容。
  */
 async function recordAdminAuditLog(supabaseAdmin, adminUserId, logDetails) {
   try {
@@ -31,6 +28,12 @@ async function recordAdminAuditLog(supabaseAdmin, adminUserId, logDetails) {
 }
 
 export default async function handler(req, res) {
+  // 確保請求方法是 POST
+  if (req.method !== 'POST') {
+    res.setHeader('Allow', ['POST']);
+    return res.status(405).json({ error: `請求方法 ${req.method} 不允許` });
+  }
+
   if (!process.env.SUPABASE_URL || !process.env.SUPABASE_SERVICE_KEY) {
     console.error('伺服器設定錯誤: 環境變數中未設定 SUPABASE_URL 或 SUPABASE_SERVICE_KEY。');
     return res.status(500).json({ error: '伺服器設定錯誤' });
@@ -49,25 +52,19 @@ export default async function handler(req, res) {
       return res.status(401).json({ error: '此操作需要管理員使用者 ID。' });
     }
     
-    // 以更穩健的兩步驟檢查管理員角色
+    // 以更穩健的方式檢查管理員角色
     const { data: adminProfile, error: adminProfileError } = await supabaseAdmin
       .from('profiles')
-      .select('role_id')
+      .select('roles(name)')
       .eq('id', adminUserId)
       .single();
 
-    if (adminProfileError || !adminProfile?.role_id) {
+    if (adminProfileError || !adminProfile?.roles?.name) {
         return res.status(403).json({ error: '未經授權的操作或未指派管理員角色。' });
     }
 
-    const { data: adminRoleData, error: adminRoleError } = await supabaseAdmin
-      .from('roles')
-      .select('name')
-      .eq('id', adminProfile.role_id)
-      .single();
-    
-    const adminRole = adminRoleData?.name;
-    if (adminRoleError || !adminRole || !['admin', 'superadmin'].includes(adminRole)) {
+    const adminRole = adminProfile.roles.name;
+    if (!['admin', 'superadmin'].includes(adminRole)) {
       return res.status(403).json({ error: '未經授權：您沒有權限執行此操作。' });
     }
 
@@ -97,6 +94,8 @@ export default async function handler(req, res) {
       .upsert({ id: userData.user.id, email, role_id: roleData.id, nickname }, { onConflict: 'id' });
 
     if (profileError) {
+        // 如果 profile 更新失敗，最好將剛建立的 auth user 刪除以保持資料一致性
+        await supabaseAdmin.auth.admin.deleteUser(userData.user.id);
         throw profileError;
     }
 

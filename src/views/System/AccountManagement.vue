@@ -76,7 +76,8 @@
       <form @submit.prevent="saveAccount">
         <div class="mb-4">
           <label for="accountEmail" class="block text-gray-700 font-medium mb-2">使用者 Email</label>
-          <input type="email" id="accountEmail" v-model="editableAccount.email" required class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500">
+          <!-- [MODIFIED] Added @blur event to auto-complete the email domain -->
+          <input type="email" id="accountEmail" v-model="editableAccount.email" @blur="autoCompleteEmail" required class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500">
         </div>
         <div class="mb-4">
           <label for="accountNickname" class="block text-gray-700 font-medium mb-2">暱稱</label>
@@ -89,7 +90,9 @@
         <div class="mb-6">
           <label for="accountRole" class="block text-gray-700 font-medium mb-2">角色</label>
           <select id="accountRole" v-model="editableAccount.role_id" class="w-full px-4 py-2 border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-indigo-500">
-            <option v-for="role in availableRolesForAssignment" :key="role.id" :value="role.id">{{ role.name }}</option>
+            <option v-for="role in availableRolesForAssignment" :key="role.id" :value="role.id">
+              {{ getRoleDisplayName(role.name) }}
+            </option>
           </select>
         </div>
         <div class="flex flex-col sm:flex-row-reverse gap-3">
@@ -153,16 +156,14 @@ const filteredAccounts = computed(() => {
   );
 });
 
-// [NEW] Computed property to determine which roles can be assigned by the current user
 const availableRolesForAssignment = computed(() => {
     if (currentUserRole.value === 'superadmin') {
-        return dataStore.roles; // Superadmin can assign any role
+        return dataStore.roles;
     }
     if (currentUserRole.value === 'admin') {
-        // Admin cannot assign or see the superadmin role
         return dataStore.roles.filter(role => role.name !== 'superadmin');
     }
-    return []; // Other roles cannot assign roles
+    return [];
 });
 
 const selectAll = computed({
@@ -182,13 +183,12 @@ const selectAll = computed({
 
 const isCurrentUser = (id) => authStore.user?.id === id;
 
-// [NEW] Function to determine if the current user can edit a specific account
 const canEditAccount = (account) => {
     if (!canManageAccounts.value || isCurrentUser(account.id)) {
         return false;
     }
     if (currentUserRole.value === 'admin' && account.roles?.name === 'superadmin') {
-        return false; // Admin cannot edit a superadmin
+        return false;
     }
     return true;
 };
@@ -233,10 +233,19 @@ const closeModal = () => {
   isModalOpen.value = false;
 };
 
+// [NEW] Function to auto-complete the email domain on blur
+const autoCompleteEmail = () => {
+  if (editableAccount.value.email && !editableAccount.value.email.includes('@')) {
+    editableAccount.value.email += DEFAULT_EMAIL_DOMAIN;
+  }
+};
+
 const saveAccount = async () => {
   uiStore.setLoading(true);
   try {
     const payload = { ...editableAccount.value };
+    // The logic to append domain is now handled by autoCompleteEmail on blur,
+    // but we keep this as a fallback.
     if (payload.email && !payload.email.includes('@')) {
         payload.email = payload.email + DEFAULT_EMAIL_DOMAIN;
     }
@@ -249,7 +258,6 @@ const saveAccount = async () => {
     if (!payload.role_id) {
         throw new Error('請選擇一個角色。');
     }
-    // Convert role_id to role name for the backend API
     const selectedRole = dataStore.roles.find(r => r.id === payload.role_id);
     if (!selectedRole) throw new Error('無效的角色選擇。');
     payload.role = selectedRole.name;
