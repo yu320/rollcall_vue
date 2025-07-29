@@ -88,29 +88,32 @@ export const useDataStore = defineStore('data', () => {
     }
   }
   
-  async function saveEvent(eventData) {
-    const isEditing = !!eventData.id;
+  async function createEvent(eventData) {
     uiStore.setLoading(true);
     try {
-      const savedEvent = isEditing 
-        ? await api.updateEvent(eventData.id, eventData)
-        : await api.createEvent(eventData);
-
-      if (isEditing) {
-        const index = events.value.findIndex(e => e.id === savedEvent.id);
-        if (index !== -1) events.value[index] = savedEvent;
-      } else {
-        events.value.unshift(savedEvent);
-      }
-      uiStore.showMessage('活動資料已儲存', 'success');
-      return true;
+        await api.createEvent(eventData);
+        await fetchEvents(); // Re-fetch to get the latest list
+        uiStore.showMessage('活動已成功建立', 'success');
     } catch (error) {
-      uiStore.showMessage(`儲存活動失敗: ${error.message}`, 'error');
-      return false;
+        uiStore.showMessage(`建立活動失敗: ${error.message}`, 'error');
     } finally {
-      uiStore.setLoading(false);
+        uiStore.setLoading(false);
     }
   }
+
+  async function updateEvent(eventData) {
+    uiStore.setLoading(true);
+    try {
+        await api.updateEvent(eventData.id, eventData);
+        await fetchEvents(); // Re-fetch to update the list
+        uiStore.showMessage('活動已成功更新', 'success');
+    } catch (error) {
+        uiStore.showMessage(`更新活動失敗: ${error.message}`, 'error');
+    } finally {
+        uiStore.setLoading(false);
+    }
+  }
+
 
   async function deleteEvent(id) {
     uiStore.setLoading(true);
@@ -146,8 +149,9 @@ export const useDataStore = defineStore('data', () => {
   async function updateRolePermissions(roleId, permissionIds) {
     uiStore.setLoading(true);
     try {
-      await api.updateRolePermissions(roleId, permissionIds);
-      await fetchRolesAndPermissions();
+      // FIX: Correct function name is updatePermissionsForRole
+      await api.updatePermissionsForRole(roleId, permissionIds);
+      await fetchRolesAndPermissions(); // Refresh data after update
       uiStore.showMessage('權限已更新', 'success');
     } catch (error) {
       uiStore.showMessage(`更新權限失敗: ${error.message}`, 'error');
@@ -168,7 +172,8 @@ export const useDataStore = defineStore('data', () => {
     savePerson,
     batchDeletePersonnel,
     fetchEvents,
-    saveEvent,
+    createEvent,
+    updateEvent,
     deleteEvent,
     fetchRolesAndPermissions,
     fetchAllPermissions,

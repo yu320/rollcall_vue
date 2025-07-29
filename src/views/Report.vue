@@ -179,8 +179,8 @@ import { useDataStore } from '@/store/data';
 import { useAuthStore } from '@/store/auth';
 import * as api from '@/services/api';
 import Chart from 'chart.js/auto';
-// 關鍵修正：確保這裡的 import 語法是正確的
-import { formatDate, createSummaryCard } from '@/utils/index';
+// FIX: Removed incorrect import
+import { createSummaryCard } from '@/utils/index';
 
 // Store 初始化
 const uiStore = useUiStore();
@@ -243,6 +243,14 @@ watch([startDate, endDate, activityFilter, buildingFilter], () => {
 });
 
 // --- Methods ---
+
+const formatDate = (date) => {
+  const year = date.getFullYear();
+  const month = (date.getMonth() + 1).toString().padStart(2, '0');
+  const day = date.getDate().toString().padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
 
 onMounted(() => {
     initialize();

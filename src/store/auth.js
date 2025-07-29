@@ -13,7 +13,8 @@ export const useAuthStore = defineStore('auth', () => {
   // --- State ---
   const user = ref(null); // 存放使用者完整資料，包含角色和個人資訊
   const userPermissions = ref(new Set()); // 使用 Set 結構高效儲存和查詢權限
-  const loading = ref(true); // 用於追蹤初始 session 檢查狀態，防止頁面閃爍
+  const loading = ref(false); // 用於追蹤「操作中」的載入狀態，如登入、登出
+  const isInitialized = ref(false); // [FIX] 新增狀態，用於追蹤初始 session 檢查是否已完成
 
   // --- Getters ---
   const isLoggedIn = computed(() => !!user.value);
@@ -111,6 +112,7 @@ export const useAuthStore = defineStore('auth', () => {
       userPermissions.value.clear();
     } finally {
       loading.value = false;
+      isInitialized.value = true; // [FIX] 標記為已完成初始檢查
     }
   }
   
@@ -136,6 +138,7 @@ export const useAuthStore = defineStore('auth', () => {
   return {
     user,
     loading,
+    isInitialized, // [FIX] 導出狀態
     isLoggedIn,
     userRoleName,
     userPermissions,

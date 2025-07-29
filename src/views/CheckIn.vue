@@ -173,7 +173,8 @@ const saveTempRecords = async () => {
   }
   uiStore.setLoading(true);
   try {
-    await api.batchSaveRecords(tempRecords.value);
+    // FIX: Correct function name is saveRecords
+    await api.saveRecords(tempRecords.value);
     uiStore.showMessage('記錄已成功儲存至資料庫！', 'success');
     tempRecords.value = [];
     sessionStorage.removeItem('tempCheckInRecords');

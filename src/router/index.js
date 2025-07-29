@@ -2,6 +2,8 @@
 
 import { createRouter, createWebHashHistory } from 'vue-router';
 import { useAuthStore } from '@/store/auth';
+import { useUiStore } from '@/store/ui';
+
 
 // --- 路由元件引入 ---
 // 使用動態引入 (Lazy Loading) 可以優化初始載入速度
@@ -18,7 +20,6 @@ const PersonnelImport = () => import('@/views/DataImport/PersonnelImport.vue');
 const CheckInImport = () => import('@/views/DataImport/CheckInImport.vue');
 const AccountManagement = () => import('@/views/System/AccountManagement.vue');
 const Permissions = () => import('@/views/System/Permissions.vue');
-// [NEW] 引入 404 頁面
 const NotFound = () => import('@/views/NotFoundView.vue');
 
 // --- 路由定義 ---
@@ -29,17 +30,13 @@ const routes = [
   { path: '/dashboard', name: 'Dashboard', component: Dashboard, meta: { requiresAuth: true, permission: 'reports:view' } },
   { path: '/report', name: 'Report', component: Report, meta: { requiresAuth: true, permission: 'reports:view' } },
   { path: '/personnel', name: 'Personnel', component: Personnel, meta: { requiresAuth: true, permission: 'personnel:read' } },
-  { path: '/events', name: 'Events', component: Events, meta: { requiresAuth: true, permission: 'events:create' } }, // 假設有 create 就有 read
+  { path: '/events', name: 'Events', component: Events, meta: { requiresAuth: true, permission: 'events:create' } }, 
   { path: '/records/daily', name: 'DailyRecords', component: DailyRecords, meta: { requiresAuth: true, permission: 'records:view' } },
   { path: '/records/activity', name: 'ActivityRecords', component: ActivityRecords, meta: { requiresAuth: true, permission: 'records:view' } },
   { path: '/import/personnel', name: 'PersonnelImport', component: PersonnelImport, meta: { requiresAuth: true, permission: 'personnel:create' } },
   { path: '/import/checkin', name: 'CheckInImport', component: CheckInImport, meta: { requiresAuth: true, permission: 'records:create' } },
   { path: '/system/accounts', name: 'AccountManagement', component: AccountManagement, meta: { requiresAuth: true, permission: 'accounts:manage' } },
   { path: '/system/permissions', name: 'Permissions', component: Permissions, meta: { requiresAuth: true, permission: 'accounts:manage' } },
-
-  // [NEW] 萬用路由規則
-  // 這條規則必須放在所有路由的最後面。
-  // 它會匹配所有未被前面規則捕獲的路徑。
   { path: '/:pathMatch(.*)*', name: 'NotFound', component: NotFound },
 ];
 
@@ -50,12 +47,11 @@ const router = createRouter({
 });
 
 // --- 導航守衛 (Navigation Guard) ---
-// 這是前端權限控制的核心。
-// 在每次路由切換之前，都會執行此函式。
 router.beforeEach(async (to, from, next) => {
   const authStore = useAuthStore();
+  const uiStore = useUiStore();
 
-  // 確保在檢查權限前，已經從 Supabase 獲取了使用者狀態
+  // [FIX] 確保在檢查權限前，已經從 Supabase 獲取了使用者狀態
   if (!authStore.isInitialized) {
     await authStore.checkInitialAuth();
   }
@@ -77,8 +73,7 @@ router.beforeEach(async (to, from, next) => {
       next();
     } else {
       // 使用者沒有權限，顯示提示訊息並導向到首頁
-      const { showMessage } = useUiStore();
-      showMessage('您沒有權限訪問此頁面。', 'error');
+      uiStore.showMessage('您沒有權限訪問此頁面。', 'error');
       next({ name: 'Overview' });
     }
   } else {
