@@ -509,13 +509,16 @@ input:focus, textarea:focus, select:focus {
     height: 100%;
     z-index: 50;
 }
+/* IMPORTANT: 移除初始的 opacity 和 transform 屬性，交由 Vue Transition 管理 */
 .login-card {
     backdrop-filter: blur(10px);
     background-color: rgba(255, 255, 255, 0.9);
     box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
-    transform: scale(0.95);
-    opacity: 0;
-    transition: transform 0.3s ease-out, opacity 0.3s ease-out;
+    /* 移除以下兩行，交由 Vue Transition 的 enter-from 類別來設定 */
+    /* transform: scale(0.95); */
+    /* opacity: 0; */
+    /* 移除以下一行，過渡由 Vue Transition 的 enter-active 類別來設定 */
+    /* transition: transform 0.3s ease-out, opacity 0.3s ease-out; */
 }
 .form-input:focus {
     border-color: #4f46e5;
@@ -627,3 +630,4 @@ input:focus, textarea:focus, select:focus {
     from { transform: rotate(0deg); }
     to { transform: rotate(360deg); }
 }
+
