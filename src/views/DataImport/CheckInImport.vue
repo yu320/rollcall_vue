@@ -215,10 +215,9 @@ const processImport = async () => {
 
       if (actionType.value === '簽到') {
           status = '成功';
-          const selectedEvent = selectedEventId.value ? dataStore.events.find(e => e.id === selectedEventId.value) : null;
-          if (selectedEvent) {
-              // [FIX] 確保使用 .value 存取 Pinia store 中的響應式陣列
-              const eventInfo = dataStore.events.value.find(e => e.id === selectedEventId.value);
+          // [FIX] 確保 eventInfo 在使用前被正確地定義和檢查
+          const eventInfo = selectedEventId.value ? dataStore.events.value.find(e => e.id === selectedEventId.value) : null;
+          if (eventInfo) { // 只有當 eventInfo 存在時才進行時間比較
               const eventTime = eventInfo.end_time ? new Date(eventInfo.end_time) : new Date(eventInfo.start_time);
               status = checkinTime > eventTime ? '遲到' : '準時';
           }
@@ -267,12 +266,12 @@ const processImport = async () => {
     });
     
     // 匯入成功後，設置結果並顯示訊息
-    // [FIX] 確保從 RPC 返回的陣列中取出第一個物件來存取屬性
+    // [FIX] 確保從 RPC 返回的陣列中取出第一個物件來存取屬性，並對 errors 進行防禦性處理
     if (result && result.length > 0) {
         importResult.value = {
             successCount: result[0].success_count || 0,
             autoCreatedCount: result[0].auto_created_count || 0,
-            errors: result[0].errors || [],
+            errors: result[0].errors || [], // 確保 errors 即使為 null/undefined 也能 fallback 到空陣列
         };
     } else {
         // 如果 result 為空或格式不符，則顯示預設值
