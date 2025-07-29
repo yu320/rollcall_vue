@@ -23,29 +23,27 @@
   <LoadingOverlay />
   <MessageBox />
 
-  <!-- [MODIFIED] Edit Profile Modal -->
-  <!-- Renamed from Change Password Modal -->
-  <Modal :show="isEditProfileModalOpen" @close="closeEditProfileModal">
+  <!-- Personal Profile / Change Password Modal -->
+  <Modal :show="isProfileModalOpen" @close="closeProfileModal">
     <template #header>修改個人資料</template>
-    <form @submit.prevent="handleEditProfile" class="p-6">
+    <form @submit.prevent="handleUpdateProfile" class="p-6">
         <div class="mb-4">
-            <label for="profileNickname" class="block text-gray-700 font-medium mb-2">暱稱</label>
-            <input type="text" id="profileNickname" v-model="profileData.nickname" required class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-400">
-            <p v-if="errors.nickname" class="text-red-600 text-sm mt-1">{{ errors.nickname }}</p>
+            <label for="nickname" class="block text-gray-700 font-medium mb-2">暱稱</label>
+            <input type="text" id="nickname" v-model="profileData.nickname" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-400">
         </div>
         <div class="mb-4">
-            <label for="profileNewPassword" class="block text-gray-700 font-medium mb-2">新密碼 (留空表示不修改)</label>
-            <input type="password" id="profileNewPassword" v-model="profileData.newPassword" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-400">
-            <p v-if="errors.weakPassword" class="text-red-600 text-sm mt-1">{{ errors.weakPassword }}</p>
+            <label for="newPassword" class="block text-sm font-medium text-gray-700">新密碼 <span class="text-sm text-gray-500">(留空表示不修改)</span></label>
+            <input type="password" id="newPassword" v-model="profileData.newPassword" minlength="6" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-400" placeholder="至少6位數">
+            <p v-if="errors.weak" class="text-red-600 text-sm mt-1">{{ errors.weak }}</p>
         </div>
         <div class="mb-6">
-            <label for="profileConfirmNewPassword" class="block text-gray-700 font-medium mb-2">確認新密碼</label>
-            <input type="password" id="profileConfirmNewPassword" v-model="profileData.confirmPassword" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-400">
-            <p v-if="errors.passwordMismatch" class="text-red-600 text-sm mt-1">{{ errors.passwordMismatch }}</p>
+            <label for="confirmNewPassword" class="block text-sm font-medium text-gray-700">確認新密碼</label>
+            <input type="password" id="confirmNewPassword" v-model="profileData.confirmPassword" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-400">
+            <p v-if="errors.mismatch" class="text-red-600 text-sm mt-1">{{ errors.mismatch }}</p>
         </div>
         <div class="flex flex-col sm:flex-row-reverse gap-3">
             <button type="submit" class="w-full sm:w-auto bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-2 px-6 rounded-lg transition duration-300 shadow-sm">儲存</button>
-            <button type="button" @click="closeEditProfileModal" class="w-full sm:w-auto bg-gray-200 hover:bg-gray-300 text-gray-800 font-medium py-2 px-6 rounded-lg transition duration-300 shadow-sm">取消</button>
+            <button type="button" @click="closeProfileModal" class="w-full sm:w-auto bg-gray-200 hover:bg-gray-300 text-gray-800 font-medium py-2 px-6 rounded-lg transition duration-300 shadow-sm">取消</button>
         </div>
     </form>
   </Modal>
@@ -68,10 +66,30 @@
     </div>
   </Modal>
 
+  <!-- Inactivity Warning Modal (Vue version of the HTML one) -->
+  <Transition name="modal-fade">
+    <div v-if="isWarningModalOpen" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[1001]">
+      <div class="bg-white rounded-xl shadow-2xl w-full max-w-md mx-4 overflow-hidden transform transition-all duration-300" 
+           :class="{ 'scale-95 opacity-0': !isWarningModalOpen, 'scale-100 opacity-100': isWarningModalOpen }">
+        <div class="p-6 text-center">
+            <svg xmlns="http://www.w3.org/2000/svg" class="mx-auto h-16 w-16 text-yellow-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <h3 class="text-2xl font-bold text-gray-900 mt-4 mb-2">您還在嗎？</h3>
+            <p class="text-gray-700 mb-4">由於您已閒置一段時間，系統將在 <span class="font-bold">{{ inactivityCountdown }}</span> 秒後自動將您登出。</p>
+            <div class="flex flex-col sm:flex-row-reverse gap-3">
+                <button type="button" @click="handleStayLoggedIn" class="w-full sm:w-auto bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-2 px-6 rounded-lg transition duration-300 shadow-sm">繼續留在此頁</button>
+                <button type="button" @click="handleLogoutNow" class="w-full sm:w-auto bg-gray-200 hover:bg-gray-300 text-gray-800 font-medium py-2 px-6 rounded-lg transition duration-300 shadow-sm">立即登出</button>
+            </div>
+        </div>
+      </div>
+    </div>
+  </Transition>
+
 </template>
 
 <script setup>
-import { ref, reactive, onMounted, onUnmounted } from 'vue';
+import { ref, reactive, onMounted, onUnmounted, watch } from 'vue';
 import { useAuthStore } from '@/store/auth';
 import { useUiStore } from '@/store/ui';
 import AppHeader from '@/components/AppHeader.vue';
@@ -79,125 +97,218 @@ import AppNav from '@/components/AppNav.vue';
 import LoadingOverlay from '@/components/LoadingOverlay.vue';
 import MessageBox from '@/components/MessageBox.vue';
 import Modal from '@/components/Modal.vue';
-import * as api from '@/services/api'; // [NEW] Import api for profile update
+import { INACTIVITY_LOGOUT_TIME, INACTIVITY_WARNING_TIME } from '@/utils/constants'; // Import constants
 
 const authStore = useAuthStore();
 const uiStore = useUiStore();
 
-// State for the edit profile modal
-// [MODIFIED] Renamed from isChangePasswordModalOpen
-const isEditProfileModalOpen = ref(false);
-// [MODIFIED] Renamed from passwords, now includes nickname
-const profileData = reactive({
+// State for the personal profile modal
+const isProfileModalOpen = ref(false); // Renamed from isChangePasswordModalOpen
+const profileData = reactive({ // Renamed from passwords
   nickname: '',
   newPassword: '',
   confirmPassword: ''
 });
-// [MODIFIED] Renamed and adjusted error messages
 const errors = reactive({
-  nickname: '',
-  weakPassword: '',
-  passwordMismatch: ''
+  weak: '',
+  mismatch: ''
 });
 
-// [MODIFIED] Renamed from openChangePasswordModal
-const openEditProfileModal = () => {
-    // Reset fields and errors
-    profileData.nickname = authStore.user?.nickname || ''; // Load current nickname
-    profileData.newPassword = '';
-    profileData.confirmPassword = '';
-    Object.assign(errors, { nickname: '', weakPassword: '', passwordMismatch: '' });
-    isEditProfileModalOpen.value = true;
-};
+// Inactivity timers and warning modal
+let logoutTimer = null;
+let warningTimer = null;
+let countdownInterval = null; // For the countdown display
+const isWarningModalOpen = ref(false); // Controls visibility of the warning modal
+const inactivityCountdown = ref(INACTIVITY_WARNING_TIME / 1000); // Initial countdown value
+const isInteractionLocked = ref(false); // NEW: Controls if background activity can reset timers
 
-// [MODIFIED] Renamed from closeChangePasswordModal
-const closeEditProfileModal = () => {
-    isEditProfileModalOpen.value = false;
-};
 
-// [MODIFIED] Renamed from handleChangePassword, now handles nickname and password
-const handleEditProfile = async () => {
-    // Reset errors
-    Object.assign(errors, { nickname: '', weakPassword: '', passwordMismatch: '' });
-    let isValid = true;
-
-    // Nickname validation (simple check for now)
-    if (!profileData.nickname.trim()) {
-        errors.nickname = '暱稱不能為空';
-        isValid = false;
+const resetTimers = () => {
+    // Only reset if interaction is not locked (i.e., warning modal is NOT open)
+    if (isInteractionLocked.value) {
+        // console.log('[App.vue] Interaction locked, ignoring activity.'); // Debugging: Confirming it ignores
+        return; 
     }
 
-    // Password validation (only if newPassword is provided)
-    if (profileData.newPassword) {
+    // console.log('[App.vue] Resetting timers...'); // Keep for debugging
+    clearTimeout(logoutTimer);
+    clearTimeout(warningTimer);
+    clearInterval(countdownInterval); // Clear countdown
+    isWarningModalOpen.value = false; // Ensure warning modal is closed
+    inactivityCountdown.value = INACTIVITY_WARNING_TIME / 1000; // Reset countdown
+
+    // Set the logout timer
+    logoutTimer = setTimeout(() => {
+        if (authStore.isLoggedIn) {
+            console.log('[App.vue] Logout timer triggered. Attempting logout...'); // Keep for debugging
+            authStore.logout();
+        }
+    }, INACTIVITY_LOGOUT_TIME);
+
+    // Set the warning timer (triggers before logout)
+    const timeUntilWarning = INACTIVITY_LOGOUT_TIME - INACTIVITY_WARNING_TIME;
+    // console.log(`[App.vue] Warning set to trigger in ${timeUntilWarning / 1000} seconds.`); // Keep for debugging
+
+    // Ensure timeUntilWarning is non-negative
+    if (timeUntilWarning >= 0) {
+        warningTimer = setTimeout(() => {
+            if (authStore.isLoggedIn && !isWarningModalOpen.value) { // Ensure warning is not already open
+                console.log('[App.vue] Warning timer triggered. Showing warning modal...'); // Keep for debugging
+                isWarningModalOpen.value = true; // Open the warning modal
+                isInteractionLocked.value = true; // NEW: Lock interaction when warning is shown
+
+                // Start countdown inside modal
+                countdownInterval = setInterval(() => {
+                    if (inactivityCountdown.value > 0) {
+                        inactivityCountdown.value--;
+                    } else {
+                        clearInterval(countdownInterval);
+                    }
+                }, 1000);
+            }
+        }, timeUntilWarning); 
+    } else {
+        console.warn('[App.vue] INACTIVITY_WARNING_TIME is greater than INACTIVITY_LOGOUT_TIME. Warning will not be shown.');
+    }
+};
+
+// Activity event listeners
+const setupActivityListeners = () => {
+    //console.log('[App.vue] Setting up activity listeners.'); // Keep for debugging
+    window.addEventListener('mousemove', resetTimers);
+    window.addEventListener('mousedown', resetTimers);
+    window.addEventListener('keypress', resetTimers);
+    window.addEventListener('scroll', resetTimers);
+    window.addEventListener('touchstart', resetTimers); // For touch devices
+};
+
+const removeActivityListeners = () => {
+    //console.log('[App.vue] Removing activity listeners.'); // Keep for debugging
+    window.removeEventListener('mousemove', resetTimers);
+    window.removeEventListener('mousedown', resetTimers);
+    window.removeEventListener('keypress', resetTimers);
+    window.removeEventListener('scroll', resetTimers);
+    window.removeEventListener('touchstart', resetTimers);
+};
+
+// Handle "Stay Logged In" button click inside the warning modal
+const handleStayLoggedIn = () => {
+    //console.log('[App.vue] User chose to stay logged in. Resetting timers...'); // Keep for debugging
+    isInteractionLocked.value = false; // NEW: Unlock interaction
+    resetTimers(); // User clicks "保持登入", reset timers and close modal
+};
+
+// Handle "Logout Now" button click inside the warning modal
+const handleLogoutNow = () => {
+    //console.log('[App.vue] User chose to logout now. Initiating logout process...'); // Keep for debugging
+    clearTimeout(logoutTimer); // Clear pending automatic logout
+    clearInterval(countdownInterval); // Clear countdown
+    isWarningModalOpen.value = false; // Close the warning modal immediately
+    isInteractionLocked.value = false; // NEW: Unlock interaction
+
+    // Call authStore.logout to perform actual logout and redirection
+    // authStore.logout handles its own loading state, messages, and redirection.
+    authStore.logout()
+        .then(() => {
+            //console.log('[App.vue] authStore.logout() resolved successfully. User should be redirected.');
+        })
+        .catch(error => {
+            console.error('[App.vue] authStore.logout() rejected with error:', error);
+            uiStore.showMessage(`登出失敗: ${error.message}`, 'error');
+        });
+};
+
+// Listen for auth state changes to start/stop timers
+watch(() => authStore.isLoggedIn, (newVal) => {
+    if (newVal) {
+        //console.log('[App.vue] User logged in. Starting timers.'); // Keep for debugging
+        setupActivityListeners();
+        resetTimers(); // Start timers on login
+    } else {
+        //console.log('[App.vue] User logged out. Stopping timers.'); // Keep for debugging
+        removeActivityListeners();
+        clearTimeout(logoutTimer);
+        clearTimeout(warningTimer);
+        clearInterval(countdownInterval); // Clear countdown
+        isWarningModalOpen.value = false; // Ensure warning modal is closed
+        isInteractionLocked.value = false; // NEW: Ensure interaction is unlocked on logout
+    }
+}, { immediate: true }); // Run immediately on mount to set initial state
+
+
+// Personal Profile Modal Logic
+const openProfileModal = () => { // Renamed from openChangePasswordModal
+    // Populate profile data with current user's nickname
+    profileData.nickname = authStore.user?.nickname || '';
+    profileData.newPassword = '';
+    profileData.confirmPassword = '';
+    Object.assign(errors, { weak: '', mismatch: '' });
+    isProfileModalOpen.value = true;
+};
+
+const closeProfileModal = () => { // Renamed from closeChangePasswordModal
+    isProfileModalOpen.value = false;
+};
+
+const handleUpdateProfile = async () => { // Renamed from handleChangePassword
+    Object.assign(errors, { weak: '', mismatch: '' });
+    let isValid = true;
+
+    if (profileData.newPassword) { // Only validate password if a new one is provided
         if (profileData.newPassword.length < 6) {
-            errors.weakPassword = '密碼至少需要6位';
+            errors.weak = '新密碼長度至少需要6位';
             isValid = false;
         }
         if (profileData.newPassword !== profileData.confirmPassword) {
-            errors.passwordMismatch = '新密碼與確認密碼不符';
+            errors.mismatch = '新密碼與確認密碼不符';
             isValid = false;
-        }
-    } else {
-        // If newPassword is empty but confirmPassword is not, it's a mismatch
-        if (profileData.confirmPassword) {
-             errors.passwordMismatch = '請輸入新密碼，或將確認密碼留空';
-             isValid = false;
         }
     }
 
     if (!isValid) return;
 
-    uiStore.setLoading(true);
-    try {
-        const payload = {
-            nickname: profileData.nickname,
-        };
-        if (profileData.newPassword) { // Only add password to payload if provided
-            payload.password = profileData.newPassword;
-        }
-        
-        // [NEW] Call the API to update profile
-        const success = await api.updateUserProfile(authStore.user.id, payload);
-
-        if (success) {
-            // Re-fetch user profile to update the store with new nickname
-            await authStore.fetchUserProfile(authStore.user.id); 
-            uiStore.showMessage('個人資料已成功更新！', 'success');
-            closeEditProfileModal();
-        } else {
-            // API call might return false or throw an error, error message would be handled by api.js
-            // If api.js throws, it will be caught by the outer catch block
-            // If it returns false, show a generic error message
-            uiStore.showMessage('更新個人資料失敗，請稍後再試。', 'error');
-        }
-    } catch (e) {
-        uiStore.showMessage(`更新個人資料失敗: ${e.message}`, 'error');
-    } finally {
-        uiStore.setLoading(false);
+    // Call authStore to update profile
+    const success = await authStore.updateUserProfile(profileData.nickname, profileData.newPassword);
+    if (success) {
+        closeProfileModal();
     }
 };
 
-// Listen for the custom event dispatched from AppHeader
+// Listen for the custom event dispatched from AppHeader (for opening profile modal)
 onMounted(() => {
-    // [MODIFIED] Event listener name changed
-    window.addEventListener('open-edit-profile-modal', openEditProfileModal);
+    window.addEventListener('open-profile-modal', openProfileModal); // Renamed event
 });
 
 onUnmounted(() => {
-    // [MODIFIED] Event listener name changed
-    window.removeEventListener('open-edit-profile-modal', openEditProfileModal);
+    window.removeEventListener('open-profile-modal', openProfileModal); // Renamed event
 });
 </script>
 
 <style>
-.fade-enter-active,
-.fade-leave-active {
+/* CSS transition for Vue's <transition name="modal-fade"> */
+.modal-fade-enter-active,
+.modal-fade-leave-active {
   transition: opacity 0.3s ease;
 }
 
-.fade-enter-from,
-.fade-leave-to {
+.modal-fade-enter-from,
+.modal-fade-leave-to {
+  opacity: 0;
+}
+
+/* CSS for the modal card's transform transition (when used with <Transition name="modal-fade"> directly on the outer div) */
+/* This ensures the scale/opacity transition works for the modal content as well */
+.modal-fade-enter-active > div,
+.modal-fade-leave-active > div {
+  transition: transform 0.3s ease-out, opacity 0.3s ease-out;
+}
+
+.modal-fade-enter-from > div {
+  transform: scale(0.95);
+  opacity: 0;
+}
+.modal-fade-leave-to > div {
+  transform: scale(0.95);
   opacity: 0;
 }
 </style>
-
