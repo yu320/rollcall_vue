@@ -2,15 +2,18 @@
 
 import { defineStore } from 'pinia';
 import { ref, computed } from 'vue';
-// [FIX] 使用 `import * as api` 來將所有導出的函式集合到 `api` 物件中
 import * as api from '@/services/api';
 import router from '@/router';
+import { useUiStore } from './ui';
 
 export const useAuthStore = defineStore('auth', () => {
+  // --- Stores ---
+  const uiStore = useUiStore();
+
   // --- State ---
-  const user = ref(null);
-  const userPermissions = ref(new Set());
-  const loading = ref(true); // 用於追蹤初始 session 檢查狀態
+  const user = ref(null); // 存放使用者完整資料，包含角色和個人資訊
+  const userPermissions = ref(new Set()); // 使用 Set 結構高效儲存和查詢權限
+  const loading = ref(true); // 用於追蹤初始 session 檢查狀態，防止頁面閃爍
 
   // --- Getters ---
   const isLoggedIn = computed(() => !!user.value);
@@ -28,56 +31,76 @@ export const useAuthStore = defineStore('auth', () => {
   // --- Actions ---
 
   /**
-   * 登入
+   * 處理使用者登入
    * @param {string} email
    * @param {string} password
    */
   async function login(email, password) {
-    // [FIX] 使用 api.login
-    const { user: authUser } = await api.login(email, password);
-    if (authUser) {
-      await fetchUserProfile(authUser.id);
-      router.push('/'); // 登入成功後導向首頁
+    uiStore.setLoading(true);
+    try {
+      const { user: authUser } = await api.login(email, password);
+      if (authUser) {
+        await fetchUserProfile(authUser.id);
+        router.push('/'); // 登入成功後導向首頁
+        uiStore.showMessage('登入成功！', 'success');
+      }
+    } catch (error) {
+      uiStore.showMessage(`登入失敗: ${error.message}`, 'error');
+    } finally {
+      uiStore.setLoading(false);
     }
   }
 
   /**
-   * 登出
+   * 處理使用者登出
    */
   async function logout() {
-    // [FIX] 使用 api.logout
-    await api.logout();
-    user.value = null;
-    userPermissions.value.clear();
-    router.push('/login'); // 登出後導向登入頁
+    uiStore.setLoading(true);
+    try {
+      await api.logout();
+      user.value = null;
+      userPermissions.value.clear();
+      router.push('/login'); // 登出後導向登入頁
+      uiStore.showMessage('您已成功登出。');
+    } catch (error) {
+      uiStore.showMessage(`登出時發生錯誤: ${error.message}`, 'error');
+    } finally {
+      uiStore.setLoading(false);
+    }
   }
 
   /**
-   * 獲取並設定使用者資料及權限
+   * 從資料庫獲取使用者完整的個人資料，包含角色和所有權限
    * @param {string} userId
    */
   async function fetchUserProfile(userId) {
-    // [FIX] 使用 api.getUserProfile
-    const profile = await api.getUserProfile(userId);
-    user.value = profile;
+    try {
+        const profile = await api.getUserProfile(userId);
+        user.value = profile;
 
-    // 解析並設定權限
-    const permissions = new Set();
-    if (profile?.roles?.role_permissions) {
-      profile.roles.role_permissions.forEach(rp => {
-        permissions.add(rp.permissions.name);
-      });
+        // 解析並設定權限
+        const permissions = new Set();
+        if (profile?.roles?.role_permissions) {
+          profile.roles.role_permissions.forEach(rp => {
+            if (rp.permissions?.name) {
+                permissions.add(rp.permissions.name);
+            }
+          });
+        }
+        userPermissions.value = permissions;
+    } catch (error) {
+        console.error('無法獲取使用者資料:', error);
+        // 如果獲取失敗，則強制登出，避免使用者處於不確定的登入狀態
+        await logout();
     }
-    userPermissions.value = permissions;
   }
 
   /**
-   * 檢查初始登入狀態
+   * 在應用程式啟動時，檢查使用者是否仍保有有效的 session
    */
   async function checkInitialAuth() {
     try {
       loading.value = true;
-      // [FIX] 使用 api.getSession
       const session = await api.getSession();
       if (session) {
         await fetchUserProfile(session.user.id);
@@ -90,17 +113,36 @@ export const useAuthStore = defineStore('auth', () => {
       loading.value = false;
     }
   }
+  
+  /**
+   * 處理修改密碼
+   * @param {string} newPassword
+   */
+  async function changePassword(newPassword) {
+    uiStore.setLoading(true);
+    try {
+        await api.updateUserPassword(newPassword);
+        uiStore.showMessage('密碼已成功更新！', 'success');
+        return true;
+    } catch (error) {
+        uiStore.showMessage(`密碼更新失敗: ${error.message}`, 'error');
+        return false;
+    } finally {
+        uiStore.setLoading(false);
+    }
+  }
+
 
   return {
     user,
     loading,
     isLoggedIn,
     userRoleName,
+    userPermissions,
     hasPermission,
     login,
     logout,
     checkInitialAuth,
+    changePassword,
   };
-}, {
-  persist: true, // 使用 pinia-plugin-persistedstate 將狀態儲存在 localStorage
 });
