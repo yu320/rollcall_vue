@@ -1,17 +1,20 @@
-import { defineConfig } from 'vite'
-import vue from '@vitejs/plugin-vue'
+// vite.config.js
+
+import { defineConfig } from 'vite';
+import vue from '@vitejs/plugin-vue';
+import path from 'path'; // [NEW] 引入 Node.js 的 path 模組
 
 // https://vitejs.dev/config/
 export default defineConfig({
   plugins: [vue()],
-  server: {
-    // 這裡是為了讓前端開發伺服器能正確地代理到後端的 serverless functions
-    // 這樣在開發時，前端呼叫 /api/... 就會被轉發到 Vercel 的開發環境
-    proxy: {
-      '/api': {
-        target: 'http://localhost:3000', // 假設 Vercel CLI 在 3000 port 運行
-        changeOrigin: true,
-      },
+
+  // [NEW] 新增 resolve.alias 設定
+  // 這個設定會告訴 Vite (以及底層的 Rollup)
+  // 如何解析路徑別名 '@'。
+  resolve: {
+    alias: {
+      // 將 '@' 別名指向專案的 'src' 資料夾
+      '@': path.resolve(__dirname, 'src'),
     },
   },
-})
+});
