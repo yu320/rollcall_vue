@@ -83,8 +83,8 @@ let clockInterval = null;
 // --- Logic ---
 const handleLogin = async () => {
   if (authStore.isLoading) return;
-  // [修復] 將 credentials 物件拆分為 email 和 password 兩個獨立參數傳入
-  await authStore.login(credentials.value.email, credentials.value.password);
+  // [修復] 直接使用 credentials.email，因為它是用 reactive 創建的，不需要 .value
+  await authStore.login(credentials.email, credentials.password);
 };
 
 const togglePasswordVisibility = () => {
