@@ -468,7 +468,7 @@ input:focus, textarea:focus, select:focus {
         justify-content: flex-end;
     }
     
-    .device-id-content {
+.device-id-content {
         word-break: break-all;
         text-align: right;
         line-height: 1.4;
