@@ -25,7 +25,7 @@
         <select id="eventSelector" v-model="selectedEventId" class="w-full pl-4 pr-10 py-3 border border-gray-300 rounded-lg text-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white">
           <option :value="null">-- 不選擇活動 (測試用) --</option>
           <option v-for="event in sortedEvents" :key="event.id" :value="event.id" :class="{'text-gray-500': isEventEnded(event.end_time)}">
-            {{ event.name }} ({{ formatDateTime(event.start_time) }}) <span v-if="isEventEnded(event.end_time)">(已結束)</span>
+            {{ formatDateTime(event.start_time, 'yyyy-MM-dd HH:mm') }} - {{ event.name }} <span v-if="isEventEnded(event.end_time)">(已結束)</span>
           </option>
         </select>
       </div>
@@ -47,6 +47,7 @@
             <!-- 將 checkInResult.colorBase 用於設定內部動畫圓的背景顏色 -->
             <div class="check-in-animation inline-flex items-center justify-center w-16 h-16 rounded-full text-white mb-4"
                  :class="checkInResult.colorBase ? `bg-${checkInResult.colorBase}-500` : 'bg-gray-500'">
+                <!-- 使用 <component :is="..."> 動態渲染 SVG 圖標 -->
                 <component :is="checkInResult.statusIcon" class="h-10 w-10"></component>
             </div>
             <!-- h3 的文字顏色現在也動態綁定 -->
@@ -146,37 +147,38 @@ import { formatDateTime } from '@/utils';
 import { isPast, parseISO } from 'date-fns';
 
 // SVG 圖標組件，用於動態渲染
+// 每個圖標都是一個簡單的 Vue 元件，可以在模板中使用 <component :is="ComponentName"> 來渲染
 const CheckCircleIcon = { template: `<svg xmlns="http://www.w3.org/2000/svg" class="h-10 w-10" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" /></svg>` };
 const XCircleIcon = { template: `<svg xmlns="http://www.w3.org/2000/svg" class="h-10 w-10" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>` };
 const ClockIcon = { template: `<svg xmlns="http://www.w3.org/2000/svg" class="h-10 w-10" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>` };
 const WarningIcon = { template: `<svg xmlns="http://www.w3.org/2000/svg" class="h-10 w-10" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>` };
 const RepeatIcon = { template: `<svg xmlns="http://www.w3.org/2000/svg" class="h-10 w-10" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.228 9.247a4.998 4.998 0 00-.776 2.343M11.603 16.03a6.002 6.002 0 00.99 1.139M15 14l-3-3m0 0l-3-3m3 3l3 3m0 0l3-3m0 0a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>` };
 
-// Pinia Stores
+// Pinia Store 實例
 const uiStore = useUiStore();
 const dataStore = useDataStore();
 
-// Component State
-const checkInInput = ref('');
-const selectedEventId = ref(null);
-const actionType = ref('簽到'); // 預設為簽到
+// 元件響應式狀態
+const checkInInput = ref(''); // 簽到輸入框內容
+const selectedEventId = ref(null); // 當前選擇的活動 ID
+const actionType = ref('簽到'); // 簽到/簽退模式，預設為簽到
 const checkInResult = ref({
-  isVisible: false,
-  statusClass: '', // 外層卡片的背景和文字顏色
-  colorBase: '', // 內部動畫圓的基礎顏色，例如 'green', 'yellow'
-  statusIcon: null,
-  statusText: '',
-  person: null,
-  event: null,
-  input: '',
-  inputType: ''
+  isVisible: false, // 控制簽到結果區塊是否顯示
+  statusClass: '',  // 用於簽到結果區塊的 Tailwind CSS 背景和文字顏色 class (例如: 'bg-green-100 text-green-800')
+  colorBase: '',    // 用於內部動畫圓的基礎顏色名稱 (例如: 'green', 'yellow')
+  statusIcon: null, // 動態渲染的 SVG 圖標元件
+  statusText: '',   // 顯示在結果區塊的狀態文字
+  person: null,     // 匹配到的人員資料
+  event: null,      // 關聯的活動資料
+  input: '',        // 用戶輸入的原始值
+  inputType: ''     // 輸入類型 (學號/卡號)
 });
 
-// 使用 localStorage 或 sessionStorage 儲存今日暫存記錄
+// 使用 localStorage 儲存今日暫存記錄的鍵
 const TODAY_RECORDS_KEY = 'todayCheckInRecords';
-const todayRecords = ref([]);
+const todayRecords = ref([]); // 今日暫存的簽到記錄列表
 
-// Computed properties
+// 計算屬性：將活動列表按開始時間降序排序，用於選擇器
 const sortedEvents = computed(() => {
   return [...dataStore.events].sort((a, b) => new Date(b.start_time) - new Date(a.start_time));
 });
@@ -187,37 +189,39 @@ const isEventEnded = (endTime) => {
     return isPast(parseISO(endTime));
 };
 
-// --- Lifecycle Hooks ---
+// --- 生命週期鉤子 (Lifecycle Hooks) ---
 onMounted(async () => {
-  uiStore.setLoading(true);
+  uiStore.setLoading(true); // 顯示全域載入指示器
   try {
-    // 確保人員和活動資料已載入，供報到邏輯使用
+    // 確保人員和活動資料已從 Supabase 載入，供後續邏輯使用
     await Promise.all([
       dataStore.fetchAllPersonnel(),
       dataStore.fetchEvents()
     ]);
     
-    // 載入 localStorage 中的暫存記錄
+    // 從 localStorage 載入之前暫存的記錄
     loadTodayRecordsFromLocalStorage();
     
-    // 預設選擇第一個活動 (如果有的話)
+    // 如果有活動，預設選擇列表中的第一個活動
     if (dataStore.events.length > 0) {
       selectedEventId.value = dataStore.events[0].id;
     }
   } catch (error) {
     uiStore.showMessage(`初始化報到頁面失敗: ${error.message}`, 'error');
   } finally {
-    uiStore.setLoading(false);
+    uiStore.setLoading(false); // 隱藏全域載入指示器
   }
 });
 
-// 監聽 todayRecords 變化，自動儲存到 localStorage
+// 監聽 `todayRecords` 列表的變化，並自動儲存到 `localStorage`
+// `deep: true` 確保當陣列內的物件內容改變時也能觸發監聽
 watch(todayRecords, (newRecords) => {
     localStorage.setItem(TODAY_RECORDS_KEY, JSON.stringify(newRecords));
 }, { deep: true });
 
-// --- Methods ---
+// --- 方法 (Methods) ---
 
+// 從 `localStorage` 載入今日暫存記錄
 const loadTodayRecordsFromLocalStorage = () => {
     try {
         const storedRecords = localStorage.getItem(TODAY_RECORDS_KEY);
@@ -228,6 +232,7 @@ const loadTodayRecordsFromLocalStorage = () => {
     }
 };
 
+// 處理簽到或簽退操作
 const handleCheckIn = async () => {
   const input = checkInInput.value.trim();
   if (!input) {
@@ -235,49 +240,49 @@ const handleCheckIn = async () => {
     return;
   }
 
-  const allPersonnel = dataStore.personnel;
+  const allPersonnel = dataStore.personnel; // 從 Pinia Store 獲取所有人員資料
   const currentEvent = selectedEventId.value ? dataStore.events.find(e => e.id === selectedEventId.value) : null;
-  const selectedMode = actionType.value; // 直接使用 actionType ref 的值
+  const selectedMode = actionType.value; // 當前選擇的操作模式 (簽到/簽退)
 
   let person = null;
   let inputType = '';
 
-  // 判斷輸入類型並查找人員
-  if (/^\d+$/.test(input)) { // 判斷是否為純數字 (卡號)
+  // 判斷輸入內容是學號還是卡號，並嘗試匹配人員
+  if (/^\d+$/.test(input)) { // 如果是純數字，判斷為卡號
     inputType = '卡號';
     person = allPersonnel.find(p => String(p.card_number) === input);
-  } else { // 否則視為學號
+  } else { // 否則判斷為學號
     inputType = '學號';
     person = allPersonnel.find(p => String(p.code).toLowerCase() === input.toLowerCase());
   }
 
-  let recordStatus = '';
-  let isSuccess = false;
+  let recordStatus = ''; // 記錄的最終狀態文字
+  let isSuccess = false; // 操作是否被認為成功
 
-  // 檢查是否已存在重複的簽到/簽退記錄
+  // 檢查是否已存在重複的簽到/簽退記錄 (針對同一個人同一活動的成功記錄)
   const existingRecord = todayRecords.value.find(
-    r => r.personnel_id === (person ? person.id : null) &&
-        r.event_id === selectedEventId.value &&
-        r.action_type === selectedMode &&
-        r.success // 只檢查成功的記錄
+    r => r.personnel_id === (person ? person.id : null) && // 檢查人員ID
+        r.event_id === selectedEventId.value &&             // 檢查活動ID
+        r.action_type === selectedMode &&                   // 檢查操作類型
+        r.success                                           // 只考慮成功的記錄
   );
 
-  if (!person) {
+  if (!person) { // 如果找不到對應人員
     recordStatus = `${selectedMode}失敗 - 查無此人`;
     isSuccess = false;
-  } else if (existingRecord) {
+  } else if (existingRecord) { // 如果找到重複的成功記錄
       recordStatus = `重複${selectedMode}`;
       isSuccess = false; // 重複操作不視為成功
-  } else {
+  } else { // 找到人員且無重複記錄
     isSuccess = true;
     if (selectedMode === '簽到') {
-        if (currentEvent) {
+        if (currentEvent) { // 如果有選擇活動，判斷準時/遲到
             const eventTime = currentEvent.end_time ? parseISO(currentEvent.end_time) : parseISO(currentEvent.start_time);
             recordStatus = (new Date() > eventTime) ? '遲到' : '準時';
-        } else {
-            recordStatus = '成功'; // 未選擇活動
+        } else { // 未選擇活動，默認為成功
+            recordStatus = '成功';
         }
-    } else { // 簽退
+    } else { // 簽退模式
         // 檢查是否有對應活動的「簽到」記錄
         const hasCheckedIn = todayRecords.value.some(
             r => r.personnel_id === person.id && 
@@ -288,7 +293,7 @@ const handleCheckIn = async () => {
 
         if (!hasCheckedIn && selectedEventId.value) { // 如果有選定活動但沒有簽到記錄
             recordStatus = '異常(未簽到)';
-            isSuccess = true; // 視為簽退操作成功，但帶有異常狀態
+            isSuccess = true; // 視為簽退操作本身成功，但帶有異常狀態
         } else {
             recordStatus = '簽退成功';
             isSuccess = true;
@@ -296,32 +301,36 @@ const handleCheckIn = async () => {
     }
   }
 
+  // 構建新的報到記錄物件
   const newRecord = {
-    id: crypto.randomUUID(), // 生成唯一 ID
-    created_at: new Date().toISOString(),
+    id: crypto.randomUUID(), // 生成唯一的記錄 ID
+    created_at: new Date().toISOString(), // 記錄當前時間 (ISO 格式)
     input: input,
     input_type: inputType,
     success: isSuccess,
-    name_at_checkin: person ? person.name : null,
+    name_at_checkin: person ? person.name : null, // 記錄當時人員姓名，即使人員被刪除也能保留
     personnel_id: person ? person.id : null,
-    device_id: getDeviceId(), // 假設 getDeviceId 函數存在於 utils
-    event_id: selectedEventId.value || null,
-    status: recordStatus,
-    action_type: selectedMode, // 儲存操作類型
+    device_id: getDeviceId(), // 獲取設備唯一 ID
+    event_id: selectedEventId.value || null, // 關聯的活動 ID
+    status: recordStatus, // 最終的記錄狀態
+    action_type: selectedMode, // 操作類型 (簽到/簽退)
   };
 
-  todayRecords.value.unshift(newRecord); // 新增到列表頂部
+  todayRecords.value.unshift(newRecord); // 將新記錄添加到暫存列表的頂部
 
+  // 顯示簽到結果區塊並清空輸入框
   displayCheckInResult(newRecord, person, currentEvent);
-  checkInInput.value = ''; // 清空輸入框
+  checkInInput.value = ''; 
 };
 
+// 顯示簽到結果的詳細資訊和動畫
 const displayCheckInResult = (record, person, event) => {
-  let colorBase = ''; // 基礎顏色，例如 'green', 'yellow', 'red', 'blue'
-  let statusIconComponent = null;
-  let messageBoxType = 'info';
-  let statusTextDisplay = record.status; // 用於顯示的狀態文本
+  let colorBase = ''; // 基礎顏色，用於動態綁定 Tailwind CSS class (例如 'green', 'yellow')
+  let statusIconComponent = null; // 用於動態渲染的 SVG 圖標元件
+  let messageBoxType = 'info'; // 用於 uiStore.showMessage 的訊息類型
+  let statusTextDisplay = record.status; // 最終顯示給用戶的狀態文字
 
+  // 根據記錄的狀態設定對應的顏色和圖標
   switch (record.status) {
     case '準時':
       colorBase = 'green';
@@ -349,10 +358,10 @@ const displayCheckInResult = (record, person, event) => {
       statusIconComponent = RepeatIcon;
       messageBoxType = 'warning';
       break;
-    case '異常(未簽到)':
-      colorBase = 'red'; // 異常情況，使用紅色或警告色
+    case '異常(未簽到)': // 簽退時如果沒有簽到記錄
+      colorBase = 'red'; 
       statusIconComponent = WarningIcon;
-      messageBoxType = 'warning'; // 雖然是異常，但操作成功
+      messageBoxType = 'warning'; 
       break;
     case '報到失敗 - 查無此人':
     case '簽退失敗 - 查無此人':
@@ -360,18 +369,18 @@ const displayCheckInResult = (record, person, event) => {
       statusIconComponent = XCircleIcon;
       messageBoxType = 'error';
       break;
-    default: // 預設失敗情況
+    default: // 預設處理未知或一般失敗情況
       colorBase = 'gray';
       statusIconComponent = XCircleIcon;
       messageBoxType = 'error';
       break;
   }
 
+  // 更新 `checkInResult` 響應式物件的所有屬性
   checkInResult.value = {
     isVisible: true,
-    // 外層卡片的背景和文字顏色 (例如 bg-green-100 text-green-800)
-    statusClass: `bg-${colorBase}-100 text-${colorBase}-800`,
-    colorBase: colorBase, // 內部動畫圓的基礎顏色 (例如 'green')
+    statusClass: `bg-${colorBase}-100 text-${colorBase}-800`, // 外層背景和文字顏色
+    colorBase: colorBase, // 內部動畫圓的基礎顏色
     statusIcon: statusIconComponent,
     statusText: statusTextDisplay,
     person: person,
@@ -380,36 +389,38 @@ const displayCheckInResult = (record, person, event) => {
     inputType: record.input_type
   };
   
-  // 顯示訊息框
+  // 透過 uiStore 顯示一個訊息提示框
   const msgText = `${statusTextDisplay}：${person ? person.name : record.input}`;
   uiStore.showMessage(msgText, messageBoxType);
 };
 
-
+// 重置簽到頁面的結果顯示區塊，準備下一次簽到
 const resetCheckIn = () => {
-  checkInResult.value.isVisible = false;
-  checkInInput.value = '';
-  // 可以重新聚焦到輸入框，但 Vue 通常會自動處理
+  checkInResult.value.isVisible = false; // 隱藏結果區塊
+  checkInInput.value = ''; // 清空輸入框
+  // 當結果區塊隱藏後，Vue 會自動清理 DOM，動畫也會停止。
 };
 
+// 將今日暫存的報到記錄儲存到資料庫
 const saveTodayRecords = async () => {
   if (todayRecords.value.length === 0) {
     uiStore.showMessage('目前沒有可儲存的報到記錄。', 'info');
     return;
   }
   
-  uiStore.setLoading(true);
+  uiStore.setLoading(true); // 顯示全域載入指示器
   try {
-    await api.saveRecords(todayRecords.value); // 調用 API 服務儲存
+    await api.saveRecords(todayRecords.value); // 調用 API 服務儲存記錄
     uiStore.showMessage('今日報到記錄已成功儲存至資料庫。', 'success');
-    todayRecords.value = []; // 清空暫存記錄
-  } catch (error) { // Corrected: `)` was missing before `(error)`
+    todayRecords.value = []; // 儲存成功後清空暫存記錄
+  } catch (error) { 
     uiStore.showMessage(`儲存今日記錄失敗: ${error.message}`, 'error');
   } finally {
-    uiStore.setLoading(false);
+    uiStore.setLoading(false); // 隱藏全域載入指示器
   }
 };
 
+// 刪除所有今日暫存的報到記錄
 const deleteAllTodayRecords = async () => {
   if (todayRecords.value.length === 0) {
     uiStore.showMessage('目前沒有任何報到記錄可刪除。', 'info');
@@ -417,19 +428,21 @@ const deleteAllTodayRecords = async () => {
   }
   
   try {
+    // 顯示確認對話框，詢問用戶是否確定清除
     const confirmed = await uiStore.showConfirmation('確認清除全部暫存記錄', '此操作不會刪除已儲存的資料。');
     if (confirmed) {
-      todayRecords.value = []; // 清空暫存記錄
+      todayRecords.value = []; // 如果用戶確認，則清空暫存記錄
       uiStore.showMessage('已清除所有暫存記錄。', 'success');
     }
   } catch (error) {
-    // 使用者取消，不執行任何操作
+    // 如果用戶取消操作，這裡會捕獲到拒絕的 Promise，不執行任何操作
     console.log("清除操作已取消");
   }
 };
 
+// 從暫存列表中刪除單筆報到記錄
 const handleDeleteTempRecord = (id) => {
-  todayRecords.value = todayRecords.value.filter(record => record.id !== id);
+  todayRecords.value = todayRecords.value.filter(record => record.id !== id); // 過濾掉要刪除的記錄
   uiStore.showMessage('記錄已從暫存列表移除。', 'info');
 };
 
@@ -437,20 +450,22 @@ const handleDeleteTempRecord = (id) => {
 function getDeviceId() {
   let deviceId = localStorage.getItem('uniqueDeviceId');
   if (!deviceId) {
+    // 優先使用加密安全的 randomUUID，否則使用備用方案
     if (typeof crypto !== 'undefined' && crypto.randomUUID) {
       deviceId = crypto.randomUUID();
     } else {
+      // 後備方案：生成一個偽隨機 UUID
       deviceId = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
         const r = Math.random() * 16 | 0, v = c === 'x' ? r : (r & 0x3 | 0x8);
         return v.toString(16);
       });
     }
-    localStorage.setItem('uniqueDeviceId', deviceId);
+    localStorage.setItem('uniqueDeviceId', deviceId); // 將設備 ID 儲存到 localStorage
   }
   return deviceId;
 }
 
-// 輔助函數：判斷是否為有效卡號 (從舊專案的 utils.js 遷移)
+// 輔助函數：判斷是否為有效卡號 (判斷是否為純數字字串) (從舊專案的 utils.js 遷移)
 function isValidCardNumber(cardNumber) {
     return /^\d+$/.test(cardNumber);
 }
@@ -458,6 +473,6 @@ function isValidCardNumber(cardNumber) {
 </script>
 
 <style scoped>
-/* 數據表格樣式 */
-/* 這裡的樣式應該已經在 main.css 中，確保響應式表格正常工作 */
+/* 數據表格的樣式通常已在 `src/assets/styles/main.css` 中定義，以實現響應式效果。 */
+/* 此處保留針對此組件的特定樣式調整。 */
 </style>
