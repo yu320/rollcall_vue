@@ -26,9 +26,46 @@ body {
   color: #111827; /* gray-900 */
 }
 
-/* --- 登入頁面動畫 --- */
+/* --- 登入頁面樣式與動畫 (from login.css) --- */
 .login-container {
+    min-height: 100vh;
     background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 50;
+}
+
+.login-card {
+    backdrop-filter: blur(10px);
+    background-color: rgba(255, 255, 255, 0.9);
+    box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+}
+
+.form-input:focus {
+    border-color: #4f46e5;
+    box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.2);
+}
+
+.login-btn {
+    background: linear-gradient(to right, #4f46e5, #6366f1);
+    transition: all 0.3s ease;
+}
+
+.login-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(79, 70, 229, 0.3);
+}
+
+.animated-bg {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
 }
 
 .animated-bg-shape {
@@ -47,28 +84,8 @@ body {
     100% { transform: translate(0, 0) rotate(360deg); }
 }
 
-.car-loading-overlay {
-    position: absolute;
-    inset: 0;
-    background: rgba(255, 255, 255, 0.95);
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    z-index: 1000;
-}
-.road { width: 80%; max-width: 400px; height: 100px; position: relative; overflow: hidden; background: #e0e7eb; border-radius: 10px; box-shadow: inset 0 0 10px rgba(0,0,0,0.1); }
-.car { width: 80px; height: 40px; background: #ff6f61; border-radius: 8px; position: absolute; bottom: 10px; animation: drive 2.5s linear infinite; box-shadow: 0 4px 0 #c62828; left: -100px; }
-.wheel { width: 16px; height: 16px; background: #333; border-radius: 50%; position: absolute; bottom: -8px; animation: spin 0.5s linear infinite; box-shadow: inset 0 0 5px rgba(0,0,0,0.3); }
-.wheel.front { left: 10px; }
-.wheel.back { right: 10px; }
-
-@keyframes drive {
-    0% { left: -100px; }
-    100% { left: calc(100% + 100px); }
-}
-@keyframes spin {
-    from { transform: rotate(0deg); }
-    to { transform: rotate(360deg); }
+.clock {
+    font-variant-numeric: tabular-nums;
 }
 
 
