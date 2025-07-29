@@ -1,6 +1,6 @@
 // src/utils/index.js
 
-import { format } from 'date-fns';
+import { format, parse } from 'date-fns';
 
 /**
  * 通用輔助函數模組
@@ -27,12 +27,56 @@ export function formatDateTime(dateInput, formatString = 'yyyy-MM-dd HH:mm:ss') 
  * @param {Date} date - Date 物件。
  * @returns {string} - 格式化後的日期字串。
  */
-export function formatDate(date) { // 新增此函數的導出
+export function formatDate(date) {
     if (!date) return '';
     const year = date.getFullYear();
     const month = String(date.getMonth() + 1).padStart(2, '0');
     const day = String(date.getDate()).padStart(2, '0');
     return `${year}-${month}-${day}`;
+}
+
+/**
+ * [NEW] 彈性解析日期時間字串。
+ * 嘗試多種常見的日期時間格式進行解析。
+ * @param {string} dateTimeStr - 日期時間字串。
+ * @returns {Date} - 解析後的 Date 物件。
+ */
+export function parseFlexibleDateTime(dateTimeStr) {
+    if (!dateTimeStr) return new Date(NaN);
+
+    const formats = [
+        'yyyy-MM-dd HH:mm:ss',
+        'yyyy/MM/dd HH:mm:ss',
+        'yyyy-MM-dd HH:mm',
+        'yyyy/MM/dd HH:mm',
+        'yyyy-MM-dd',
+        'yyyy/MM/dd',
+        'MM-dd-yyyy HH:mm:ss',
+        'MM/dd/yyyy HH:mm:ss',
+        'MM-dd-yyyy HH:mm',
+        'MM/dd/yyyy HH:mm',
+        'MM-dd-yyyy',
+        'MM/dd/yyyy',
+        // 可以根據實際需要添加更多格式
+    ];
+
+    for (const fmt of formats) {
+        const parsedDate = parse(dateTimeStr, fmt, new Date());
+        if (!isNaN(parsedDate.getTime())) {
+            return parsedDate;
+        }
+    }
+    return new Date(NaN); // 如果所有格式都無法解析，返回無效日期
+}
+
+
+/**
+ * [NEW] 檢查是否為有效的卡號 (純數字)。
+ * @param {string} cardNumber - 卡號字串。
+ * @returns {boolean} - 如果是純數字且非空，則為 true。
+ */
+export function isValidCardNumber(cardNumber) {
+    return typeof cardNumber === 'string' && cardNumber.length > 0 && /^\d+$/.test(cardNumber);
 }
 
 

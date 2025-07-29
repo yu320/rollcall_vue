@@ -78,15 +78,10 @@ export async function upsertPersonnel(personnelData) {
     const errors = [];
 
     // Fetch existing personnel to distinguish between inserts and updates
-    const { data: existingPersonnel, error: fetchExistingError } = await supabase.from('personnel').select('code, card_number, id');
-    if (fetchExistingError) {
-      console.error("Error fetching existing personnel for upsert:", fetchExistingError);
-      throw fetchExistingError; // Propagate critical errors
-    }
-
-    const existingCodes = new Set(existingPersonnel.map(p => p.code));
-    const existingCardNumbers = new Set(existingPersonnel.map(p => p.card_number));
-    const existingPersonnelMap = new Map(existingPersonnel.map(p => [p.code, p]));
+    const existingPersonnel = await supabase.from('personnel').select('code, card_number, id');
+    const existingCodes = new Set(existingPersonnel.data.map(p => p.code));
+    const existingCardNumbers = new Set(existingPersonnel.data.map(p => p.card_number));
+    const existingPersonnelMap = new Map(existingPersonnel.data.map(p => [p.code, p]));
 
 
     const inserts = personnelData.filter(p => !existingCodes.has(p.code) && !existingCardNumbers.has(p.card_number));
@@ -108,7 +103,7 @@ export async function upsertPersonnel(personnelData) {
     for (let i = 0; i < updates.length; i += BATCH_SIZE) {
         const chunk = updates.slice(i, i + BATCH_SIZE);
         const updatePromises = chunk.map(async (item) => {
-            const existingPerson = existingPersonnelMap.get(item.code) || existingPersonnel.find(p => p.card_number === item.card_number);
+            const existingPerson = existingPersonnelMap.get(item.code) || existingPersonnel.data.find(p => p.card_number === item.card_number);
             if (existingPerson) {
                 const { error } = await supabase.from('personnel').update(item).eq('id', existingPerson.id);
                 if (error) {
@@ -189,7 +184,8 @@ export async function updatePersonnelTags(id, tags) { // Removed the duplicate '
 // --- Events API ---
 
 export async function fetchEvents() {
-    const { data, error } = await supabase // [MODIFIED] Use 'supabase' directly
+    const supabase = getSupabase();
+    const { data, error } = await supabase
         .from('events')
         .select(`
             *,
@@ -204,7 +200,8 @@ export async function fetchEvents() {
 }
 
 export async function createEvent(eventData) {
-    const { data, error } = await supabase.from('events').insert([eventData]).select(); // [MODIFIED] Use 'supabase' directly
+    const supabase = getSupabase();
+    const { data, error } = await supabase.from('events').insert([eventData]).select();
     if (error) throw error;
     // [NEW] 記錄稽核日誌
     if (data && data.length > 0) {
@@ -220,11 +217,12 @@ export async function createEvent(eventData) {
 }
 
 export async function updateEvent(id, eventData) {
+    const supabase = getSupabase();
     // [NEW] 獲取舊值以便記錄
-    const { data: oldData, error: fetchError } = await supabase.from('events').select('*').eq('id', id).single(); // [MODIFIED] Use 'supabase' directly
+    const { data: oldData, error: fetchError } = await supabase.from('events').select('*').eq('id', id).single();
     if (fetchError) console.warn("更新活動前無法獲取舊資料用於稽核:", fetchError.message);
 
-    const { data, error } = await supabase.from('events').update(eventData).eq('id', id).select(); // [MODIFIED] Use 'supabase' directly
+    const { data, error } = await supabase.from('events').update(eventData).eq('id', id).select();
     if (error) throw error;
     // [NEW] 記錄稽核日誌
     if (data && data.length > 0) {
@@ -241,11 +239,12 @@ export async function updateEvent(id, eventData) {
 }
 
 export async function deleteEvent(id) {
+    const supabase = getSupabase();
     // [NEW] 獲取舊值以便記錄
-    const { data: oldData, error: fetchError } = await supabase.from('events').select('*').eq('id', id).single(); // [MODIFIED] Use 'supabase' directly
+    const { data: oldData, error: fetchError } = await supabase.from('events').select('*').eq('id', id).single();
     if (fetchError) console.warn("刪除活動前無法獲取舊資料用於稽核:", fetchError.message);
 
-    const { error } = await supabase.from('events').delete().eq('id', id); // [MODIFIED] Use 'supabase' directly
+    const { error } = await supabase.from('events').delete().eq('id', id);
     if (error) throw error;
     // [NEW] 記錄稽核日誌
     if (oldData) {

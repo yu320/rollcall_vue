@@ -39,8 +39,7 @@ export const useAuthStore = defineStore('auth', () => {
         finalEmail = email + DEFAULT_EMAIL_DOMAIN;
       }
 
-      // [MODIFIED] Corrected destructuring for user object
-      const { data: { user: authUser } } = await api.login(finalEmail, password); 
+      const { user: authUser } = await api.login(finalEmail, password);
       if (authUser) {
         await fetchUserProfile(authUser.id);
         router.push('/');
