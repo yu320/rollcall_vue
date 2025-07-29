@@ -18,6 +18,7 @@ export const INACTIVITY_WARNING_TIME = 1 * 60 * 1000;
 
 // 使用者角色的顯示名稱
 export const USER_ROLE_NAMES = {
+    superadmin: '超級管理員',
     admin: '管理員',
     operator: '操作員',
     sdc: '宿委會',
