@@ -52,15 +52,14 @@
           </tr>
         </thead>
         <tbody class="bg-white divide-y divide-gray-100">
-          <!-- Added data-label attributes for responsive view -->
           <tr v-for="account in filteredAccounts" :key="account.id" class="hover:bg-gray-50">
-            <td data-label="選取" class="px-4 py-4"><input type="checkbox" v-model="selectedAccounts" :value="account.id" :disabled="!canManageAccounts || isCurrentUser(account.id)" class="h-4 w-4 text-indigo-600 rounded disabled:bg-gray-300"></td>
+            <td data-label="選取" class="px-4 py-4"><input type="checkbox" v-model="selectedAccounts" :value="account.id" :disabled="!canEditAccount(account)" class="h-4 w-4 text-indigo-600 rounded disabled:bg-gray-300"></td>
             <td data-label="電子郵件" class="px-6 py-4 text-sm font-medium text-gray-900 break-all">{{ account.email }}</td>
             <td data-label="暱稱" class="px-6 py-4 text-sm text-gray-500">{{ account.nickname || '—' }}</td>
-            <td data-label="角色" class="px-6 py-4 text-sm"><span :class="getRoleClass(account.roles?.name)">{{ account.roles?.name || '未知' }}</span></td>
+            <td data-label="角色" class="px-6 py-4 text-sm"><span :class="getRoleClass(account.roles?.name)">{{ getRoleDisplayName(account.roles?.name) }}</span></td>
             <td data-label="操作" class="px-6 py-4 text-right text-sm font-medium">
-              <button v-if="canManageAccounts" @click="openModal(account)" class="text-indigo-600 hover:text-indigo-800 mr-4">編輯</button>
-              <button v-if="canManageAccounts" @click="confirmSingleDelete(account)" class="text-red-600 hover:text-red-800 disabled:text-gray-400 disabled:cursor-not-allowed" :disabled="isCurrentUser(account.id)">刪除</button>
+              <button v-if="canEditAccount(account)" @click="openModal(account)" class="text-indigo-600 hover:text-indigo-800 mr-4">編輯</button>
+              <button v-if="canEditAccount(account)" @click="confirmSingleDelete(account)" class="text-red-600 hover:text-red-800 disabled:text-gray-400 disabled:cursor-not-allowed" :disabled="isCurrentUser(account.id)">刪除</button>
               <span v-else class="text-gray-400">—</span>
             </td>
           </tr>
@@ -90,7 +89,7 @@
         <div class="mb-6">
           <label for="accountRole" class="block text-gray-700 font-medium mb-2">角色</label>
           <select id="accountRole" v-model="editableAccount.role_id" class="w-full px-4 py-2 border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-indigo-500">
-            <option v-for="role in dataStore.roles" :key="role.id" :value="role.id">{{ role.name }}</option>
+            <option v-for="role in availableRolesForAssignment" :key="role.id" :value="role.id">{{ role.name }}</option>
           </select>
         </div>
         <div class="flex flex-col sm:flex-row-reverse gap-3">
@@ -103,55 +102,50 @@
 </template>
 
 <script setup>
-import { ref, onMounted, computed, watch } from 'vue';
+import { ref, onMounted, computed } from 'vue';
 import { useUiStore } from '@/store/ui';
 import { useAuthStore } from '@/store/auth';
-import { useDataStore } from '@/store/data'; // 引入 dataStore
+import { useDataStore } from '@/store/data';
 import * as api from '@/services/api';
 import Modal from '@/components/Modal.vue';
-import { DEFAULT_EMAIL_DOMAIN } from '@/utils/constants'; // 引入預設 Email 網域
+import { DEFAULT_EMAIL_DOMAIN, USER_ROLE_NAMES } from '@/utils/constants';
 
 const uiStore = useUiStore();
 const authStore = useAuthStore();
-const dataStore = useDataStore(); // 獲取 dataStore 實例
+const dataStore = useDataStore();
 
 const isLoading = ref(true);
-const accounts = ref([]); // 存放從後端獲取的帳號列表
+const accounts = ref([]);
 const searchTerm = ref('');
-const selectedAccounts = ref([]); // 存放被選中的帳號 ID
+const selectedAccounts = ref([]);
 const isModalOpen = ref(false);
 const isEditing = ref(false);
-const editableAccount = ref({}); // 用於新增/編輯模態框的數據
-const selectedFile = ref(null); // 用於批次匯入的檔案
-const importResults = ref({ success: 0, failed: [] }); // 批次匯入的結果
+const editableAccount = ref({});
+const selectedFile = ref(null);
+const importResults = ref({ success: 0, failed: [] });
 
-// 計算屬性：檢查用戶是否是管理員 (可以管理帳號)
 const canManageAccounts = computed(() => authStore.hasPermission('accounts:manage'));
+const currentUserRole = computed(() => authStore.user?.roles?.name);
 
 onMounted(async () => {
   isLoading.value = true;
   await Promise.all([
-    refreshAccounts(), // 載入帳號列表
-    dataStore.fetchRolesAndPermissions() // 載入角色列表
+    refreshAccounts(),
+    dataStore.fetchRolesAndPermissions()
   ]);
   isLoading.value = false;
 });
 
-// 重新整理帳號列表
 const refreshAccounts = async () => {
   try {
-    // api.fetchAllAccounts 應該會返回包含 roles(id, name) 的數據
     accounts.value = await api.fetchAllAccounts();
   } catch(error) {
     uiStore.showMessage(`讀取帳號列表失敗: ${error.message}`, 'error');
   }
 };
 
-// 根據搜尋詞過濾帳號
 const filteredAccounts = computed(() => {
-  if (!searchTerm.value) {
-    return accounts.value;
-  }
+  if (!searchTerm.value) return accounts.value;
   const lowercasedFilter = searchTerm.value.toLowerCase();
   return accounts.value.filter(acc => 
     acc.email.toLowerCase().includes(lowercasedFilter) ||
@@ -159,38 +153,59 @@ const filteredAccounts = computed(() => {
   );
 });
 
-// 控制全選 checkbox 的狀態
+// [NEW] Computed property to determine which roles can be assigned by the current user
+const availableRolesForAssignment = computed(() => {
+    if (currentUserRole.value === 'superadmin') {
+        return dataStore.roles; // Superadmin can assign any role
+    }
+    if (currentUserRole.value === 'admin') {
+        // Admin cannot assign or see the superadmin role
+        return dataStore.roles.filter(role => role.name !== 'superadmin');
+    }
+    return []; // Other roles cannot assign roles
+});
+
 const selectAll = computed({
   get: () => {
-    // 可選中的帳號是過濾後的帳號中，非當前用戶且用戶有權限管理的帳號
-    const selectableAccounts = filteredAccounts.value.filter(acc => !isCurrentUser(acc.id) && canManageAccounts.value);
+    const selectableAccounts = filteredAccounts.value.filter(acc => canEditAccount(acc));
     return selectableAccounts.length > 0 && selectedAccounts.value.length === selectableAccounts.length;
   },
   set: (value) => {
-    if (!canManageAccounts.value) { // 如果沒有管理權限，不允許全選
+    if (!canManageAccounts.value) {
         selectedAccounts.value = [];
         return;
     }
-    const selectableAccounts = filteredAccounts.value.filter(acc => !isCurrentUser(acc.id));
-    selectedAccounts.value = value ? selectableAccounts.map(acc => acc.id) : [];
+    const selectableAccountIds = filteredAccounts.value.filter(acc => canEditAccount(acc)).map(acc => acc.id);
+    selectedAccounts.value = value ? selectableAccountIds : [];
   }
 });
 
-// 檢查是否為當前登入用戶
 const isCurrentUser = (id) => authStore.user?.id === id;
 
-// 根據角色名稱返回 Tailwind CSS 類別，用於表格中的角色標籤
+// [NEW] Function to determine if the current user can edit a specific account
+const canEditAccount = (account) => {
+    if (!canManageAccounts.value || isCurrentUser(account.id)) {
+        return false;
+    }
+    if (currentUserRole.value === 'admin' && account.roles?.name === 'superadmin') {
+        return false; // Admin cannot edit a superadmin
+    }
+    return true;
+};
+
+const getRoleDisplayName = (roleName) => USER_ROLE_NAMES[roleName] || roleName || '未知';
+
 const getRoleClass = (roleName) => {
   switch (roleName) {
+    case 'superadmin': return 'px-2 py-1 text-xs font-semibold rounded-full bg-yellow-100 text-yellow-800';
     case 'admin': return 'px-2 py-1 text-xs font-semibold rounded-full bg-red-100 text-red-800';
     case 'sdc': return 'px-2 py-1 text-xs font-semibold rounded-full bg-blue-100 text-blue-800';
     case 'operator': return 'px-2 py-1 text-xs font-semibold rounded-full bg-green-100 text-green-800';
-    case 'sdsc': return 'px-2 py-1 text-xs font-semibold rounded-full bg-purple-100 text-purple-800'; // 新增 sdsc 角色樣式
+    case 'sdsc': return 'px-2 py-1 text-xs font-semibold rounded-full bg-purple-100 text-purple-800';
     default: return 'px-2 py-1 text-xs font-semibold rounded-full bg-gray-100 text-gray-800';
   }
 };
 
-// 開啟新增/編輯帳號模態框
 const openModal = (account = null) => {
   if (!canManageAccounts.value) {
     uiStore.showMessage('您沒有權限執行此操作。', 'error');
@@ -200,59 +215,54 @@ const openModal = (account = null) => {
   if (account) {
     editableAccount.value = { 
         ...account, 
-        password: '', // 編輯時密碼預設為空，不修改則不傳
-        role_id: account.roles?.id // 綁定 role_id
+        password: '',
+        role_id: account.roles?.id
     };
   } else {
     editableAccount.value = { 
         email: '', 
         nickname: '', 
         password: '', 
-        role_id: dataStore.roles[0]?.id || null // 預設選擇第一個角色
+        role_id: availableRolesForAssignment.value[0]?.id || null
     };
   }
   isModalOpen.value = true;
 };
 
-// 關閉模態框
 const closeModal = () => {
   isModalOpen.value = false;
 };
 
-// 儲存帳號 (新增或編輯)
 const saveAccount = async () => {
   uiStore.setLoading(true);
   try {
     const payload = { ...editableAccount.value };
-
-    // 處理 Email 格式：如果沒有 @ 符號，自動加上預設網域
     if (payload.email && !payload.email.includes('@')) {
         payload.email = payload.email + DEFAULT_EMAIL_DOMAIN;
     }
-
-    // 只有在編輯模式下且密碼為空時才刪除密碼字段，確保不修改密碼
     if (isEditing.value && !payload.password) {
       delete payload.password;
     }
-    // 檢查密碼長度（新增或有輸入密碼時）
     if (payload.password && payload.password.length < 6) {
         throw new Error('密碼長度至少需要6位。');
     }
-    
-    // 確保 role_id 被正確傳遞，而不是 role name
     if (!payload.role_id) {
         throw new Error('請選擇一個角色。');
     }
+    // Convert role_id to role name for the backend API
+    const selectedRole = dataStore.roles.find(r => r.id === payload.role_id);
+    if (!selectedRole) throw new Error('無效的角色選擇。');
+    payload.role = selectedRole.name;
+
 
     if (isEditing.value) {
-      // 確保傳遞 id 給 updateAccount
       await api.updateAccount({ id: payload.id, ...payload });
       uiStore.showMessage('帳號更新成功', 'success');
     } else {
       await api.createAccount(payload);
       uiStore.showMessage('帳號建立成功', 'success');
     }
-    await refreshAccounts(); // 重新載入帳號列表
+    await refreshAccounts();
     closeModal();
   } catch (error) {
     uiStore.showMessage(`操作失敗: ${error.message}`, 'error');
@@ -261,15 +271,10 @@ const saveAccount = async () => {
   }
 };
 
-// 確認單筆刪除帳號
 const confirmSingleDelete = (account) => {
-  if (!canManageAccounts.value) {
-    uiStore.showMessage('您沒有權限執行此操作。', 'error');
+  if (!canEditAccount(account)) {
+    uiStore.showMessage('您沒有權限刪除此帳號。', 'error');
     return;
-  }
-  if (isCurrentUser(account.id)) {
-      uiStore.showMessage('您不能刪除自己的帳號。', 'warning');
-      return;
   }
   uiStore.showConfirmation(
     '確認刪除帳號',
@@ -278,20 +283,17 @@ const confirmSingleDelete = (account) => {
     'bg-red-600 hover:bg-red-700'
   ).then(() => {
     deleteAccounts([account.id]);
-  }).catch(() => {
-    // 用戶取消刪除
   });
 };
 
-// 確認批次刪除帳號
 const confirmBatchDelete = () => {
-  if (!canManageAccounts.value) {
-    uiStore.showMessage('您沒有權限執行此操作。', 'error');
-    return;
-  }
-  const accountsToDelete = selectedAccounts.value.filter(id => !isCurrentUser(id));
+  const accountsToDelete = selectedAccounts.value.filter(id => {
+      const acc = accounts.value.find(a => a.id === id);
+      return acc && canEditAccount(acc);
+  });
+
   if (accountsToDelete.length === 0) {
-      uiStore.showMessage('請至少選擇一個帳號進行刪除，且不能包含您自己的帳號。', 'info');
+      uiStore.showMessage('沒有可刪除的選取帳號。', 'info');
       return;
   }
   uiStore.showConfirmation(
@@ -301,19 +303,16 @@ const confirmBatchDelete = () => {
     'bg-red-600 hover:bg-red-700'
   ).then(() => {
     deleteAccounts(accountsToDelete);
-  }).catch(() => {
-    // 用戶取消刪除
   });
 };
 
-// 執行刪除帳號 (單筆或批次)
 const deleteAccounts = async (ids) => {
   uiStore.setLoading(true);
   try {
-    const result = await api.deleteAccounts(ids); // deleteAccounts 返回一個結果對象
+    const result = await api.deleteAccounts(ids);
     uiStore.showMessage(result.message, 'success');
-    await refreshAccounts(); // 重新載入帳號列表
-    selectedAccounts.value = []; // 清空選取狀態
+    await refreshAccounts();
+    selectedAccounts.value = [];
   } catch (error) {
     uiStore.showMessage(`刪除失敗: ${error.message}`, 'error');
   } finally {
@@ -321,35 +320,27 @@ const deleteAccounts = async (ids) => {
   }
 };
 
-// 處理檔案選擇 (批次匯入)
 const handleFileSelect = (event) => {
   selectedFile.value = event.target.files[0];
-  importResults.value = { success: 0, failed: [] }; // 清空之前的匯入結果
+  importResults.value = { success: 0, failed: [] };
 };
 
-// 執行批次匯入帳號
 const importAccounts = async () => {
   if (!selectedFile.value) {
     uiStore.showMessage('請先選擇檔案', 'info');
     return;
   }
-
   uiStore.setLoading(true);
-  importResults.value = { success: 0, failed: [] }; // 重置匯入結果
-
+  importResults.value = { success: 0, failed: [] };
   try {
     const csvText = await selectedFile.value.text();
     const lines = csvText.split(/\r?\n/).filter(line => line.trim() !== '');
-    
-    if (lines.length < 2) { // 至少需要標頭和一行數據
-        throw new Error('檔案中沒有有效資料。');
-    }
+    if (lines.length < 2) throw new Error('檔案中沒有有效資料。');
 
     const headers = lines[0].split(',').map(h => h.trim());
     const accountsToCreate = [];
     const validationErrors = [];
 
-    // 預期 CSV 格式: email,password,nickname,role_name
     const emailIndex = headers.indexOf('email');
     const passwordIndex = headers.indexOf('password');
     const nicknameIndex = headers.indexOf('nickname');
@@ -363,62 +354,46 @@ const importAccounts = async () => {
         const line = lines[i].trim();
         if (!line) continue;
         const parts = line.split(',').map(p => p.trim());
-
         const email = parts[emailIndex];
         const password = parts[passwordIndex];
         const nickname = parts[nicknameIndex];
         const roleName = parts[roleNameIndex];
 
         if (!email || !password || !roleName) {
-            validationErrors.push(`第 ${i + 1} 行資料不完整 (Email, 密碼, 角色為必填)。`);
+            validationErrors.push(`第 ${i + 1} 行資料不完整。`);
             continue;
         }
         if (password.length < 6) {
-            validationErrors.push(`第 ${i + 1} 行密碼長度不足 (至少6位)。`);
+            validationErrors.push(`第 ${i + 1} 行密碼長度不足。`);
             continue;
         }
-
-        // 查找對應 role_id
         const role = dataStore.roles.find(r => r.name === roleName);
         if (!role) {
             validationErrors.push(`第 ${i + 1} 行角色名稱 '${roleName}' 無效。`);
             continue;
         }
+        // Admin cannot create superadmin accounts via import
+        if (currentUserRole.value === 'admin' && role.name === 'superadmin') {
+            validationErrors.push(`第 ${i + 1} 行：管理員無權限建立超級管理員帳號。`);
+            continue;
+        }
 
-        accountsToCreate.push({ 
-            email, 
-            password, 
-            nickname: nickname || '', 
-            role_id: role.id, // 傳遞 role_id
-            originalEmail: email // 儲存原始 Email 以便錯誤報告
-        });
+        accountsToCreate.push({ email, password, nickname: nickname || '', role: role.name, originalEmail: email });
     }
 
-    if (validationErrors.length > 0) {
-        throw new Error(validationErrors.join('<br>'));
-    }
-
+    if (validationErrors.length > 0) throw new Error(validationErrors.join('<br>'));
     if (accountsToCreate.length === 0) {
         uiStore.showMessage('檔案中沒有可匯入的有效帳號資料。', 'info');
         return;
     }
 
-    const results = await api.batchCreateAccounts(accountsToCreate); // api.batchCreateAccounts 處理多個帳號的創建
-
+    const results = await api.batchCreateAccounts(accountsToCreate);
     let successCount = 0;
     const failedAccounts = [];
-
     results.forEach(res => {
-        if (res.success) {
-            successCount++;
-        } else {
-            failedAccounts.push({ 
-                email: res.email || res.originalEmail || '未知', // 使用 originalEmail 確保錯誤報告中包含
-                error: res.error || '未知錯誤' 
-            });
-        }
+        if (res.success) successCount++;
+        else failedAccounts.push({ email: res.email || res.originalEmail, error: res.error });
     });
-
     importResults.value.success = successCount;
     importResults.value.failed = failedAccounts;
 
@@ -428,10 +403,10 @@ const importAccounts = async () => {
         uiStore.showMessage(`所有 ${successCount} 筆帳號已成功建立。`, 'success');
     }
     
-    await refreshAccounts(); // 重新載入帳號列表
-    selectedFile.value = null; // 清空檔案選擇
+    await refreshAccounts();
+    selectedFile.value = null;
     const fileInput = document.getElementById('importAccountFile');
-    if(fileInput) fileInput.value = ''; // 清空檔案輸入框的顯示
+    if(fileInput) fileInput.value = '';
 
   } catch (error) {
     uiStore.showMessage(`批次匯入失敗: ${error.message}`, 'error');
@@ -440,7 +415,6 @@ const importAccounts = async () => {
   }
 };
 
-// 下載範例 CSV 檔案
 const downloadSample = () => {
   const csvContent = 'email,password,nickname,role_name\nuser1@example.com,password123,使用者一,operator\nuser2@example.com,password456,使用者二,sdc';
   const blob = new Blob([`\uFEFF${csvContent}`], { type: 'text/csv;charset=utf-8;' });
@@ -453,4 +427,3 @@ const downloadSample = () => {
   URL.revokeObjectURL(link.href);
 };
 </script>
-

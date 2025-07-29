@@ -118,8 +118,6 @@ export async function upsertPersonnel(personnelData) {
         await Promise.all(updatePromises);
     }
     
-    // Audit log for upsert is complex due to mixed create/update.
-    // A simplified log can be made, or detailed logs for each individual operation if needed.
     recordAuditLog({ 
         action_type: 'UPSERT', 
         target_table: 'personnel', 
@@ -155,8 +153,7 @@ export async function batchDeletePersonnel(ids) {
     }
 }
 
-// [NEW] Function to update personnel tags
-export async function updatePersonnelTags(id, tags) { // Removed the duplicate 'export'
+export async function updatePersonnelTags(id, tags) {
     const { data: oldData, error: fetchError } = await supabase.from('personnel').select('id, name, code, tags').eq('id', id).single();
     if (fetchError) console.warn("更新人員標籤前無法獲取舊資料用於稽核:", fetchError.message);
 
@@ -184,7 +181,7 @@ export async function updatePersonnelTags(id, tags) { // Removed the duplicate '
 // --- Events API ---
 
 export async function fetchEvents() {
-    const supabase = getSupabase();
+    // [FIXED] Removed `const supabase = getSupabase();` and now using the imported `supabase` client directly.
     const { data, error } = await supabase
         .from('events')
         .select(`
@@ -200,10 +197,9 @@ export async function fetchEvents() {
 }
 
 export async function createEvent(eventData) {
-    const supabase = getSupabase();
+    // [FIXED] Removed `const supabase = getSupabase();`
     const { data, error } = await supabase.from('events').insert([eventData]).select();
     if (error) throw error;
-    // [NEW] 記錄稽核日誌
     if (data && data.length > 0) {
         recordAuditLog({
             action_type: 'CREATE',
@@ -217,14 +213,12 @@ export async function createEvent(eventData) {
 }
 
 export async function updateEvent(id, eventData) {
-    const supabase = getSupabase();
-    // [NEW] 獲取舊值以便記錄
+    // [FIXED] Removed `const supabase = getSupabase();`
     const { data: oldData, error: fetchError } = await supabase.from('events').select('*').eq('id', id).single();
     if (fetchError) console.warn("更新活動前無法獲取舊資料用於稽核:", fetchError.message);
 
     const { data, error } = await supabase.from('events').update(eventData).eq('id', id).select();
     if (error) throw error;
-    // [NEW] 記錄稽核日誌
     if (data && data.length > 0) {
         recordAuditLog({
             action_type: 'UPDATE',
@@ -239,14 +233,12 @@ export async function updateEvent(id, eventData) {
 }
 
 export async function deleteEvent(id) {
-    const supabase = getSupabase();
-    // [NEW] 獲取舊值以便記錄
+    // [FIXED] Removed `const supabase = getSupabase();`
     const { data: oldData, error: fetchError } = await supabase.from('events').select('*').eq('id', id).single();
     if (fetchError) console.warn("刪除活動前無法獲取舊資料用於稽核:", fetchError.message);
 
     const { error } = await supabase.from('events').delete().eq('id', id);
     if (error) throw error;
-    // [NEW] 記錄稽核日誌
     if (oldData) {
         recordAuditLog({
             action_type: 'DELETE',
@@ -319,7 +311,6 @@ export async function batchDeleteRecords(ids) {
     }
 }
 
-// [NEW] Function for Overview page
 export async function fetchRecentRecords(hours = 24) {
     const since = new Date(Date.now() - hours * 60 * 60 * 1000).toISOString();
     const { data, error } = await supabase
@@ -331,14 +322,12 @@ export async function fetchRecentRecords(hours = 24) {
     return data;
 }
 
-// [NEW] Function for Daily Records page
 export async function fetchAllSavedDatesWithStats() {
     const { data, error } = await supabase.rpc('get_daily_record_stats');
     if (error) throw error;
     return data;
 }
 
-// [NEW] Function for Check-in Import page
 export async function importCheckinRecords(importData) {
     const { data, error } = await supabase.rpc('import_checkin_records_with_personnel_creation', { records_to_import: importData });
     if (error) throw error;
@@ -442,7 +431,6 @@ export async function fetchPermissionsForRole(roleId) {
     return data;
 }
 
-// [NEW] Function needed by data.js
 export async function fetchAllRolesAndPermissions() {
     const { data, error } = await supabase
         .from('roles')
@@ -457,7 +445,6 @@ export async function fetchAllPermissions() {
     return data;
 }
 
-// [NEW] Function needed by data.js and Permissions.vue
 export async function updatePermissionsForRole(roleId, permissionIds) {
     const { data: oldPerms } = await supabase.from('role_permissions').select('permission_id').eq('role_id', roleId);
     

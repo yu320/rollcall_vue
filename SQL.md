@@ -1,23 +1,18 @@
 -- ===================================================================
---            報到管理系統 - 現有資料庫修改與資料遷移腳本
+--            報到管理系統 - 完整資料庫設定與遷移腳本
 -- ===================================================================
 -- 作者: Hong & Gemini
--- 描述: 這個 SQL 腳本用於修改您現有的資料庫結構以匹配新的設計，
---       並嘗試保留所有舊有資料，同時填充新的基礎數據。
---
--- **此腳本設計為通用型：**
--- - 如果資料表或欄位不存在，它將會建立。
--- - 如果資料表或欄位已存在，它會嘗試修改或確保其符合新架構。
--- - 初始數據的填充也會檢查是否已存在，避免重複插入。
---   這使得腳本無論是在全新資料庫或現有資料庫上執行，都能安全地達成目標。
+-- 版本: 1.2.0 (結合安裝與遷移邏輯)
+-- 描述: 這個 SQL 腳本為通用版本，可用於全新資料庫的初始化，
+--       或安全地更新現有資料庫以符合最新架構。
+--       它包含了所有資料表、角色、權限、輔助函數及安全策略。
 -- ===================================================================
 
 -- 啟動一個事務，確保所有操作的原子性
 BEGIN;
 
--- 1. 建立新的 RBAC (Role-Based Access Control) 資料表
---    這些表假定為全新，如果已存在，則不會重新建立。
---    Supabase 的 `public` schema 是預設的，所以通常不需要指定 `public.`
+-- ========= 1. 核心 RBAC 與稽核日誌資料表建立 =========
+-- 如果資料表不存在，則建立它們。
 CREATE TABLE IF NOT EXISTS public.roles (
     id uuid NOT NULL DEFAULT gen_random_uuid(),
     name text NOT NULL UNIQUE,
@@ -63,10 +58,9 @@ CREATE TABLE IF NOT EXISTS public.audit_logs (
 COMMENT ON TABLE public.audit_logs IS '記錄重要的系統操作，用於稽核和安全性追蹤';
 
 
--- 2. 修改現有的應用程式核心資料表 (ALTER TABLE)
+-- ========= 2. 應用程式核心資料表建立與遷移 =========
 
--- 2.1 修改 `personnel` (人員) 資料表
---     首先，確保 personnel 表存在，如果不存在則創建它，包括所有新欄位和約束。
+-- 2.1 personnel (人員) 資料表
 CREATE TABLE IF NOT EXISTS public.personnel (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
   created_at timestamp with time zone NOT NULL DEFAULT now(),
@@ -80,21 +74,24 @@ CREATE TABLE IF NOT EXISTS public.personnel (
   CONSTRAINT personnel_card_number_key UNIQUE (card_number),
   CONSTRAINT personnel_code_key UNIQUE (code)
 );
-COMMENT ON TABLE public.personnel IS '儲存所有可報到人員的基本資料'; -- 如果表是新創建的，這會應用註釋
+COMMENT ON TABLE public.personnel IS '儲存所有可報到人員的基本資料';
 
--- 然後，處理可能需要修改現有表的欄位和約束（針對已存在的表）
+-- 處理現有 `personnel` 表的遷移 (例如添加新欄位或修改約束)
 DO $$
 BEGIN
-    -- 對於現有的資料，確保 updated_at 被填充並且 NOT NULL
-    -- 這處理了在 updated_at 欄位添加或預設值設定之前就存在的表
+    -- 添加 'updated_at' 欄位如果不存在
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'personnel' AND column_name = 'updated_at') THEN
+        ALTER TABLE public.personnel ADD COLUMN updated_at timestamp with time zone;
+        COMMENT ON COLUMN public.personnel.updated_at IS '資料最後更新時間';
+    END IF;
+    -- 為現有資料填充 updated_at 並設定 NOT NULL
     IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'personnel' AND column_name = 'updated_at' AND is_nullable = 'YES') THEN
         UPDATE public.personnel SET updated_at = COALESCE(updated_at, created_at, NOW()) WHERE updated_at IS NULL;
         ALTER TABLE public.personnel ALTER COLUMN updated_at SET NOT NULL;
         ALTER TABLE public.personnel ALTER COLUMN updated_at SET DEFAULT now();
     END IF;
 
-    -- 對於現有的資料，確保 name, code, card_number 為 NOT NULL
-    -- (CREATE TABLE IF NOT EXISTS 語句已經為新表處理了這些約束)
+    -- 確保 'name', 'code', 'card_number' 為 NOT NULL
     IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'personnel' AND column_name = 'name' AND is_nullable = 'YES') THEN
         UPDATE public.personnel SET name = COALESCE(name, 'Unnamed_' || gen_random_uuid()::text) WHERE name IS NULL;
         ALTER TABLE public.personnel ALTER COLUMN name SET NOT NULL;
@@ -108,48 +105,58 @@ BEGIN
         ALTER TABLE public.personnel ALTER COLUMN card_number SET NOT NULL;
     END IF;
 
-    -- 如果 'tags' 欄位在舊表存在但不是 text[] 類型，或需要添加註釋
-    -- (此處假設 CREATE TABLE IF NOT EXISTS 已處理，僅為示範舊的邏輯可以放在這裡)
+    -- 添加 'tags' 欄位如果不存在
     IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'personnel' AND column_name = 'tags') THEN
         ALTER TABLE public.personnel ADD COLUMN tags text[] NULL;
         COMMENT ON COLUMN public.personnel.tags IS '人員的標籤，用陣列儲存';
     END IF;
 
+    -- 添加 UNIQUE 約束如果不存在 (僅針對已存在但沒有約束的表)
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conrelid = 'public.personnel'::regclass AND conname = 'personnel_card_number_key') THEN
+        ALTER TABLE public.personnel ADD CONSTRAINT personnel_card_number_key UNIQUE (card_number);
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conrelid = 'public.personnel'::regclass AND conname = 'personnel_code_key') THEN
+        ALTER TABLE public.personnel ADD CONSTRAINT personnel_code_key UNIQUE (code);
+    END IF;
+
 END $$;
 
 
--- 2.2 修改 `profiles` (使用者設定檔) 資料表
---     首先，確保 profiles 表存在，如果不存在則創建它，包括所有新欄位和約束。
+-- 2.2 profiles (使用者設定檔) 資料表
 CREATE TABLE IF NOT EXISTS public.profiles (
   id uuid NOT NULL,
   email text NOT NULL,
   nickname text NULL,
+  role_id uuid NULL,
   CONSTRAINT profiles_pkey PRIMARY KEY (id),
-  CONSTRAINT profiles_id_fkey FOREIGN KEY (id) REFERENCES auth.users(id) ON DELETE CASCADE
+  CONSTRAINT profiles_id_fkey FOREIGN KEY (id) REFERENCES auth.users(id) ON DELETE CASCADE,
+  CONSTRAINT profiles_role_id_fkey FOREIGN KEY (role_id) REFERENCES public.roles(id) ON DELETE SET NULL
 );
 COMMENT ON TABLE public.profiles IS '儲存應用程式使用者的額外資訊，如角色和暱稱';
 
--- 然後，處理可能需要修改現有表的欄位和約束（針對已存在的表）
+-- 處理現有 `profiles` 表的遷移
 DO $$
 DECLARE
     default_role_id uuid;
 BEGIN
-    -- 獲取 'operator' 角色的 ID，用於設定預設值
+    -- 確保 'operator' 角色存在，否則創建它
+    INSERT INTO public.roles (name, description) VALUES ('operator', '操作員，僅能進行報到和查看記錄') ON CONFLICT (name) DO NOTHING;
     SELECT id INTO default_role_id FROM public.roles WHERE name = 'operator';
 
-    -- 添加 `role_id` 欄位 (如果不存在)
+    -- 添加 `role_id` 欄位如果不存在
     IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'profiles' AND column_name = 'role_id') THEN
         ALTER TABLE public.profiles ADD COLUMN role_id uuid NULL;
         COMMENT ON COLUMN public.profiles.role_id IS '關聯到 roles 資料表的使用者角色 ID';
-
         -- 為現有 `profiles` 記錄設定預設的 `role_id`
         UPDATE public.profiles SET role_id = default_role_id WHERE role_id IS NULL;
-
         -- 添加外鍵約束
         ALTER TABLE public.profiles ADD CONSTRAINT profiles_role_id_fkey FOREIGN KEY (role_id) REFERENCES public.roles(id) ON DELETE SET NULL;
+    ELSE
+        -- 如果 role_id 已存在但為 NULL，也為其設定預設值
+        UPDATE public.profiles SET role_id = default_role_id WHERE role_id IS NULL;
     END IF;
 
-    -- 確保 `email` 欄位存在且為 NOT NULL (如果 CREATE TABLE IF NOT EXISTS 沒有自動處理)
+    -- 確保 `email` 欄位存在且為 NOT NULL
     IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'profiles' AND column_name = 'email' AND is_nullable = 'YES') THEN
         UPDATE public.profiles SET email = auth.users.email FROM auth.users WHERE public.profiles.id = auth.users.id AND public.profiles.email IS NULL;
         ALTER TABLE public.profiles ALTER COLUMN email SET NOT NULL;
@@ -157,31 +164,30 @@ BEGIN
 END $$;
 
 
--- 2.3 修改 `events` (活動) 資料表
---     首先，確保 events 表存在，如果不存在則創建它，包括所有新欄位和約束。
+-- 2.3 events (活動) 資料表
 CREATE TABLE IF NOT EXISTS public.events (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
   created_at timestamp with time zone NOT NULL DEFAULT now(),
   name text NOT NULL,
   start_time timestamp with time zone NOT NULL,
   end_time timestamp with time zone NULL,
-  CONSTRAINT events_pkey PRIMARY KEY (id)
+  created_by uuid NULL,
+  CONSTRAINT events_pkey PRIMARY KEY (id),
+  CONSTRAINT events_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.profiles(id) ON DELETE SET NULL
 );
 COMMENT ON TABLE public.events IS '儲存所有活動的資訊';
 
--- 然後，處理可能需要修改現有表的欄位和約束（針對已存在的表）
+-- 處理現有 `events` 表的遷移
 DO $$
 BEGIN
+    -- 添加 `created_by` 欄位如果不存在
     IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'events' AND column_name = 'created_by') THEN
         ALTER TABLE public.events ADD COLUMN created_by uuid NULL;
         COMMENT ON COLUMN public.events.created_by IS '創建此活動的使用者 ID';
-        -- 如果需要，可以更新現有活動的 created_by 欄位，例如指向一個管理員 ID 或 null
-        -- UPDATE public.events SET created_by = (SELECT id FROM public.profiles WHERE email = 'admin@example.com') WHERE created_by IS NULL;
-
         ALTER TABLE public.events ADD CONSTRAINT events_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.profiles(id) ON DELETE SET NULL;
     END IF;
     
-    -- 確保 `name` 和 `start_time` 為 NOT NULL (如果 CREATE TABLE IF NOT EXISTS 沒有自動處理)
+    -- 確保 `name` 和 `start_time` 為 NOT NULL
     IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'events' AND column_name = 'name' AND is_nullable = 'YES') THEN
         UPDATE public.events SET name = COALESCE(name, 'Unnamed Event ' || gen_random_uuid()::text) WHERE name IS NULL;
         ALTER TABLE public.events ALTER COLUMN name SET NOT NULL;
@@ -194,8 +200,7 @@ BEGIN
 END $$;
 
 
--- 2.4 修改 `check_in_records` (報到記錄) 資料表
---     首先，確保 check_in_records 表存在，如果不存在則創建它，包括所有新欄位和約束。
+-- 2.4 check_in_records (報到記錄) 資料表
 CREATE TABLE IF NOT EXISTS public.check_in_records (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
   created_at timestamp with time zone NOT NULL DEFAULT now(),
@@ -206,32 +211,36 @@ CREATE TABLE IF NOT EXISTS public.check_in_records (
   personnel_id uuid NULL,
   device_id text NULL,
   event_id uuid NULL,
+  status text NULL,
+  action_type text NOT NULL DEFAULT '簽到',
   CONSTRAINT check_in_records_pkey PRIMARY KEY (id),
   CONSTRAINT check_in_records_event_id_fkey FOREIGN KEY (event_id) REFERENCES public.events(id) ON DELETE SET NULL,
   CONSTRAINT check_in_records_personnel_id_fkey FOREIGN KEY (personnel_id) REFERENCES public.personnel(id) ON DELETE SET NULL
 );
 COMMENT ON TABLE public.check_in_records IS '儲存所有報到和簽退的詳細記錄';
 
--- 然後，處理可能需要修改現有表的欄位和約束（針對已存在的表）
+-- 處理現有 `check_in_records` 表的遷移
 DO $$
 BEGIN
+    -- 添加 `status` 欄位如果不存在
     IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'check_in_records' AND column_name = 'status') THEN
         ALTER TABLE public.check_in_records ADD COLUMN status text NULL;
         COMMENT ON COLUMN public.check_in_records.status IS '報到狀態 (例如：準時、遲到、失敗、簽退成功)';
-        -- 為現有記錄設定預設狀態或根據現有數據推斷
+        -- 為現有記錄設定預設狀態
         UPDATE public.check_in_records SET status = '未知' WHERE status IS NULL;
     END IF;
 
+    -- 添加 `action_type` 欄位如果不存在
     IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'check_in_records' AND column_name = 'action_type') THEN
         ALTER TABLE public.check_in_records ADD COLUMN action_type text NULL;
         COMMENT ON COLUMN public.check_in_records.action_type IS '操作類型 (簽到/簽退)';
-        -- 為現有記錄設定預設操作類型
-        UPDATE public.check_in_records SET action_type = '簽到' WHERE action_type IS NULL;
+        -- 為現有記錄設定預設操作類型並設定 NOT NULL
+        UPDATE public.check_in_records SET action_type = COALESCE(action_type, '簽到') WHERE action_type IS NULL;
         ALTER TABLE public.check_in_records ALTER COLUMN action_type SET NOT NULL;
         ALTER TABLE public.check_in_records ALTER COLUMN action_type SET DEFAULT '簽到';
     END IF;
 
-    -- 確保 `created_at`, `input`, `input_type`, `success` 為 NOT NULL (如果 CREATE TABLE IF NOT EXISTS 沒有自動處理)
+    -- 確保其他核心欄位為 NOT NULL
     IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'check_in_records' AND column_name = 'created_at' AND is_nullable = 'YES') THEN
         UPDATE public.check_in_records SET created_at = COALESCE(created_at, NOW()) WHERE created_at IS NULL;
         ALTER TABLE public.check_in_records ALTER COLUMN created_at SET NOT NULL;
@@ -252,11 +261,12 @@ BEGIN
 END $$;
 
 
--- 3. 填充初始資料 (角色與權限)
---    使用 ON CONFLICT DO NOTHING 確保重複執行時不會出錯
+-- ========= 3. 初始資料填充 (安全執行) =========
+-- 使用 ON CONFLICT DO NOTHING 確保重複執行此腳本時不會出錯
 
 -- 3.1 插入角色
 INSERT INTO public.roles (name, description) VALUES
+('superadmin', '超級管理員，擁有所有權限且不可被修改'),
 ('admin', '管理員，擁有所有權限'),
 ('sdc', '宿委會，擁有大部分管理權限'),
 ('operator', '操作員，僅能進行報到和查看記錄'),
@@ -283,116 +293,101 @@ INSERT INTO public.permissions (name, description) VALUES
 ON CONFLICT (name) DO NOTHING;
 
 -- 3.3 為各角色指派權限
--- admin
+-- superadmin: 賦予所有權限
 INSERT INTO public.role_permissions (role_id, permission_id)
-SELECT r.id, p.id
-FROM public.roles r, public.permissions p
-WHERE r.name = 'admin'
+SELECT (SELECT id FROM public.roles WHERE name = 'superadmin'), p.id FROM public.permissions p
 ON CONFLICT (role_id, permission_id) DO NOTHING;
 
--- sdc
+-- admin: 賦予所有權限
 INSERT INTO public.role_permissions (role_id, permission_id)
-SELECT r.id, p.id
-FROM public.roles r, public.permissions p
-WHERE r.name = 'sdc' AND p.name <> 'accounts:manage'
+SELECT (SELECT id FROM public.roles WHERE name = 'admin'), p.id FROM public.permissions p
 ON CONFLICT (role_id, permission_id) DO NOTHING;
 
--- operator
+-- sdc: 擁有大部分管理權限 (除了 accounts:manage)
 INSERT INTO public.role_permissions (role_id, permission_id)
-SELECT r.id, p.id
-FROM public.roles r, public.permissions p
-WHERE r.name = 'operator' AND p.name IN (
-    'overview:view', 'checkin:use', 'personnel:read', 'records:create', 'records:view'
-)
+SELECT (SELECT id FROM public.roles WHERE name = 'sdc'), p.id FROM public.permissions p WHERE p.name <> 'accounts:manage'
 ON CONFLICT (role_id, permission_id) DO NOTHING;
 
--- sdsc
+-- operator: 僅能進行報到和查看記錄
 INSERT INTO public.role_permissions (role_id, permission_id)
-SELECT r.id, p.id
-FROM public.roles r, public.permissions p
-WHERE r.name = 'sdsc' AND p.name IN (
-    'overview:view', 'reports:view'
-)
+SELECT (SELECT id FROM public.roles WHERE name = 'operator'), p.id FROM public.permissions p WHERE p.name IN ('overview:view', 'checkin:use', 'personnel:read', 'records:create', 'records:view')
 ON CONFLICT (role_id, permission_id) DO NOTHING;
 
--- NEW: 創建 'super_admin' 角色並賦予所有權限
--- ========= 1. 創建 'super_admin' 角色 =========
--- 插入新的 'super_admin' 角色到 public.roles 資料表
-INSERT INTO public.roles (name, description) VALUES
-('super_admin', '擁有所有權限的最高管理員，包括角色與權限管理')
-ON CONFLICT (name) DO NOTHING; -- 如果角色已存在則不做任何事
-
--- ========= 2. 賦予所有現有權限給 'super_admin' 角色 =========
--- 這將確保 'super_admin' 角色擁有系統中所有當前和未來定義的權限
+-- sdsc: 僅能查看報表和總覽
 INSERT INTO public.role_permissions (role_id, permission_id)
-SELECT
-    (SELECT id FROM public.roles WHERE name = 'super_admin'),
-    p.id
-FROM public.permissions p
-ON CONFLICT (role_id, permission_id) DO NOTHING; -- 如果權限已賦予則不做任何事
+SELECT (SELECT id FROM public.roles WHERE name = 'sdsc'), p.id FROM public.permissions p WHERE p.name IN ('overview:view', 'reports:view')
+ON CONFLICT (role_id, permission_id) DO NOTHING;
 
 
--- 4. 自動化與輔助函數建立
+-- ========= 4. 自動化與輔助函數 =========
+
 -- 4.1 當新使用者註冊時，自動在 profiles 表中建立對應資料
---     這會為任何在 `auth.users` 中新增的用戶自動在 `public.profiles` 中創建條目並分配預設角色。
 CREATE OR REPLACE FUNCTION public.handle_new_user()
 RETURNS TRIGGER AS $$
 DECLARE
-  default_role_id uuid;
+  default_role_id uuid;
 BEGIN
-  -- 找到 'operator' 角色的 ID
-  SELECT id INTO default_role_id FROM public.roles WHERE name = 'operator';
-  -- 插入新使用者資料，並設定預設角色
-  INSERT INTO public.profiles (id, email, nickname, role_id)
-  VALUES (NEW.id, NEW.email, NEW.email, default_role_id)
+  SELECT id INTO default_role_id FROM public.roles WHERE name = 'operator';
+  INSERT INTO public.profiles (id, email, nickname, role_id)
+  VALUES (NEW.id, NEW.email, NEW.email, default_role_id)
   ON CONFLICT (id) DO UPDATE SET email = EXCLUDED.email; -- 如果已有 profile，則更新 email
-  RETURN NEW;
+  RETURN NEW;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
 -- 建立觸發器
 DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
 CREATE TRIGGER on_auth_user_created
-  AFTER INSERT ON auth.users
-  FOR EACH ROW EXECUTE PROCEDURE public.handle_new_user();
+  AFTER INSERT ON auth.users
+  FOR EACH ROW EXECUTE PROCEDURE public.handle_new_user();
 
 -- 4.2 權限檢查輔助函數 (用於 RLS)
 CREATE OR REPLACE FUNCTION public.user_has_permission(p_user_id uuid, p_permission_name text)
 RETURNS boolean AS $$
 DECLARE
-  has_perm boolean;
+  has_perm boolean;
 BEGIN
-  SELECT EXISTS (
-    SELECT 1
-    FROM public.role_permissions rp
-    JOIN public.permissions p ON rp.permission_id = p.id
-    WHERE rp.role_id = (SELECT role_id FROM public.profiles WHERE id = p_user_id)
-      AND p.name = p_permission_name
-  ) INTO has_perm;
-  RETURN has_perm;
+  -- 如果是 superadmin 角色，直接返回 TRUE (擁有所有權限)
+  IF EXISTS (
+      SELECT 1 FROM public.profiles pr
+      JOIN public.roles r ON pr.role_id = r.id
+      WHERE pr.id = p_user_id AND r.name = 'superadmin'
+  ) THEN
+      RETURN TRUE;
+  END IF;
+
+  SELECT EXISTS (
+    SELECT 1
+    FROM public.role_permissions rp
+    JOIN public.permissions p ON rp.permission_id = p.id
+    WHERE rp.role_id = (SELECT role_id FROM public.profiles WHERE id = p_user_id)
+      AND p.name = p_permission_name
+  ) INTO has_perm;
+  RETURN has_perm;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
-COMMENT ON FUNCTION public.user_has_permission(uuid, text) IS '檢查特定使用者是否擁有指定的權限';
+COMMENT ON FUNCTION public.user_has_permission(uuid, text) IS '檢查特定使用者是否擁有指定的權限，superadmin 擁有所有權限';
 
--- 4.3 新增的 RPC 函數 (從您的 `api.js` 中推斷)
+-- 4.3 應用程式所需的 RPC 函數
+
 -- get_daily_record_stats
 CREATE OR REPLACE FUNCTION public.get_daily_record_stats()
-RETURNS TABLE (created_at timestamptz, total bigint, late bigint, success boolean)
+RETURNS TABLE (created_at timestamptz, total bigint, late bigint, fail bigint)
 LANGUAGE plpgsql
 AS $$
 BEGIN
-    RETURN QUERY
-    SELECT
-        date_trunc('day', cr.created_at) AS created_at,
-        COUNT(cr.id) AS total,
-        COUNT(CASE WHEN cr.status = '遲到' THEN 1 ELSE NULL END) AS late,
-        cr.success
-    FROM
-        public.check_in_records cr
-    GROUP BY
-        date_trunc('day', cr.created_at), cr.success
-    ORDER BY
-        created_at DESC;
+    RETURN QUERY
+    SELECT
+        date_trunc('day', cr.created_at)::timestamptz AS created_at,
+        COUNT(cr.id) AS total,
+        COUNT(CASE WHEN cr.status = '遲到' THEN 1 END) AS late,
+        COUNT(CASE WHEN cr.success = FALSE THEN 1 END) AS fail
+    FROM
+        public.check_in_records cr
+    GROUP BY
+        date_trunc('day', cr.created_at)
+    ORDER BY
+        created_at DESC;
 END;
 $$;
 COMMENT ON FUNCTION public.get_daily_record_stats() IS '獲取每日報到記錄的統計資訊';
@@ -681,8 +676,7 @@ $$;
 COMMENT ON FUNCTION public.get_event_dashboard_data(uuid) IS '獲取指定活動的儀錶板數據，包括總結、出席人員和圖表數據。';
 
 
--- 5. 啟用 RLS 並定義安全策略
---    這會刪除舊的策略並應用新的策略。
+-- ========= 5. 啟用 RLS 並定義安全策略 =========
 ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.personnel ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.events ENABLE ROW LEVEL SECURITY;

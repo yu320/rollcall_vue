@@ -37,7 +37,7 @@ export const useAuthStore = defineStore('auth', () => {
   async function login(email, password) {
     loading.value = true;
     error.value = null; 
-    console.log('Auth Store: Login initiated, loading = true'); 
+    //console.log('Auth Store: Login initiated, loading = true'); 
     try {
       let finalEmail = email;
       if (email && !email.includes('@')) {
@@ -55,7 +55,7 @@ export const useAuthStore = defineStore('auth', () => {
       uiStore.showMessage(`登入失敗: ${e.message}`, 'error');
     } finally {
       loading.value = false;
-      console.log('Auth Store: Login finished, loading = false'); 
+      //console.log('Auth Store: Login finished, loading = false'); 
     }
   }
 
@@ -97,7 +97,7 @@ export const useAuthStore = defineStore('auth', () => {
   async function checkInitialAuth() {
     try {
       loading.value = true;
-      console.log('Auth Store: checkInitialAuth started, loading = true'); 
+      //console.log('Auth Store: checkInitialAuth started, loading = true'); 
       const session = await api.getSession();
       if (session) {
         await fetchUserProfile(session.user.id);
@@ -109,7 +109,7 @@ export const useAuthStore = defineStore('auth', () => {
     } finally {
       loading.value = false;
       isInitialized.value = true;
-      console.log('Auth Store: checkInitialAuth finished, loading = false, isInitialized = true'); 
+      //console.log('Auth Store: checkInitialAuth finished, loading = false, isInitialized = true'); 
     }
   }
   
