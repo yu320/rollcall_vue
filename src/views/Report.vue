@@ -324,10 +324,11 @@ const updateReportView = async () => {
         rawData.value = await api.fetchRecordsByDateRange(start, end);
         
         // 處理原始數據，生成各種統計結果 (這是一個複雜的本地計算)
+        // [FIX] 傳遞 dataStore.personnel 和 dataStore.events 的實際值 (.value)
         processedReportStats.value = processReportData(
             rawData.value, 
-            dataStore.personnel, 
-            dataStore.events, 
+            dataStore.personnel.value, 
+            dataStore.events.value, 
             buildingFilter.value // 傳遞當前棟別篩選值
         );
         
@@ -411,7 +412,7 @@ const processReportData = (records, allPersonnel, allEvents, currentBuildingFilt
     const overallAttendanceRate = overallShouldAttend > 0 ? (totalCheckins / overallShouldAttend * 100) : 0;
     const overallOnTimeRate = totalCheckins > 0 ? (totalOnTime / totalCheckins * 100) : 0;
 
-    -- 棟別準時率排名
+    // 棟別準時率排名
     const buildings = [...new Set(allPersonnel.map(p => p.building).filter(Boolean))];
     const buildingRank = buildings.map(b => {
         const personnelInBuilding = allPersonnel.filter(p => p.building === b);
@@ -452,12 +453,15 @@ const destroyChart = (instanceRef) => {
 // 渲染所有圖表 (確保在 DOM 準備好後調用)
 const renderAllCharts = () => {
     if (!processedReportStats.value) return;
-    const { activityStats, buildingOnTimeRank } = processedReportStats.value;
+    
+    // [FIX] 增加防禦性檢查，確保解構的變數即使在 processedReportStats.value 中不存在也能 fallback 到空陣列
+    const activityStatsData = processedReportStats.value.activityStats || [];
+    const buildingOnTimeRankData = processedReportStats.value.buildingOnTimeRank || [];
 
-    renderAttendanceTrendChart(activityStats);
-    renderAttendancePieChart(activityStats);
-    renderAttendanceStatusPieChart(activityStats);
-    renderBuildingAttendanceChart(buildingOnTimeRank); // 傳遞已處理的 buildingOnTimeRank
+    renderAttendanceTrendChart(activityStatsData);
+    renderAttendancePieChart(activityStatsData);
+    renderAttendanceStatusPieChart(activityStatsData);
+    renderBuildingAttendanceChart(buildingOnTimeRankData); 
 };
 
 // 渲染活動參與趨勢折線圖
