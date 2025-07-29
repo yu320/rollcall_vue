@@ -89,7 +89,7 @@ import { ref, onMounted } from 'vue';
 import { useUiStore } from '@/store/ui';
 import { useDataStore } from '@/store/data';
 import * as api from '@/services/api'; // 引入 api
-import { formatDateTime, parseFlexibleDateTime, isValidCardNumber, getDeviceId } from '@/utils'; // 引入所需的 utils 函數
+import { formatDateTime, parseFlexibleDateTime, isValidCardNumber, getDeviceId } from '@/utils'; // 引入所需的 utils 函數 
 
 const uiStore = useUiStore();
 const dataStore = useDataStore();
@@ -173,7 +173,8 @@ const processImport = async () => {
     if (dataStore.personnel.length === 0) {
         await dataStore.fetchAllPersonnel();
     }
-    const allPersonnel = dataStore.personnel;
+    // [FIX] 確保使用 .value 存取 Pinia store 中的響應式陣列
+    const allPersonnel = dataStore.personnel.value; 
     const personnelMapByIdentifier = new Map(); // 用於快速查找現有的人員
     allPersonnel.forEach(p => {
         personnelMapByIdentifier.set(p.code.toLowerCase(), p);
@@ -216,7 +217,9 @@ const processImport = async () => {
           status = '成功';
           const selectedEvent = selectedEventId.value ? dataStore.events.find(e => e.id === selectedEventId.value) : null;
           if (selectedEvent) {
-              const eventTime = selectedEvent.end_time ? new Date(selectedEvent.end_time) : new Date(selectedEvent.start_time);
+              // [FIX] 確保使用 .value 存取 Pinia store 中的響應式陣列
+              const eventInfo = dataStore.events.value.find(e => e.id === selectedEventId.value);
+              const eventTime = eventInfo.end_time ? new Date(eventInfo.end_time) : new Date(eventInfo.start_time);
               status = checkinTime > eventTime ? '遲到' : '準時';
           }
       } else { // 簽退
@@ -253,7 +256,7 @@ const processImport = async () => {
     const formattedRecordsForApi = recordsToProcess.map(r => ({
         name: r.name_at_checkin,
         identifier: r.input,
-        timestamp: r.original_line_data.timestampStr, // 傳遞原始時間字串給 Supabase 函數
+        timestamp: r.original_line_data.timestampStr, // 傳遞原始時間字串給 Supabase 函數 
         input_type: r.input_type // 確保傳遞 input_type
     }));
 
@@ -264,11 +267,22 @@ const processImport = async () => {
     });
     
     // 匯入成功後，設置結果並顯示訊息
-    importResult.value = {
-        successCount: result.success_count || 0,
-        autoCreatedCount: result.auto_created_count || 0,
-        errors: result.errors || [],
-    };
+    // [FIX] 確保從 RPC 返回的陣列中取出第一個物件來存取屬性
+    if (result && result.length > 0) {
+        importResult.value = {
+            successCount: result[0].success_count || 0,
+            autoCreatedCount: result[0].auto_created_count || 0,
+            errors: result[0].errors || [],
+        };
+    } else {
+        // 如果 result 為空或格式不符，則顯示預設值
+        importResult.value = {
+            successCount: 0,
+            autoCreatedCount: 0,
+            errors: ["RPC 函數返回結果為空或格式不符。"],
+        };
+    }
+
     uiStore.showMessage('匯入處理完成，請查看下方結果。', 'success');
 
     // 重新載入人員資料和活動日期統計，以更新相關頁面
