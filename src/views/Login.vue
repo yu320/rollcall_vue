@@ -8,7 +8,14 @@
     </div>
     
     <!-- Login Card -->
-    <div v-if="!authStore.loading" class="login-card w-full max-w-md rounded-2xl p-8 md:p-10 transition-all duration-300 ease-out transform">
+    <!-- 
+      使用 v-if="!authStore.loading" 控制載入動畫和登入卡片的切換。
+      當 authStore.loading 為 false 時，登入卡片會被渲染。
+      isCardVisible 會在組件掛載後立即設為 true，觸發 CSS 動畫。
+    -->
+    <div v-if="!authStore.loading"
+      :class="['login-card', 'w-full', 'max-w-md', 'rounded-2xl', 'p-8', 'md:p-10', 'transition-all', 'duration-300', 'ease-out', 'transform', { 'scale-100 opacity-100': isCardVisible }]"
+    >
       <div class="text-center mb-8">
         <!-- Top icon for the login page, replicating the SVG from the old HTML -->
         <div class="flex justify-center mb-4">
@@ -44,11 +51,6 @@
                 <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>
             </div>
             <input v-model="credentials.password" id="password" type="password" required class="form-input block w-full pl-10 pr-10 py-3 border border-gray-300 rounded-lg" placeholder="請輸入您的密碼">
-            <!-- The original HTML had a show/hide password eye icon. Replicating that exactly would require
-                 more complex state management and direct DOM manipulation within Vue,
-                 which goes against common Vue practices for simple components.
-                 For now, keeping it as a standard password input. If explicit request is made,
-                 this can be added by creating a separate password input component or integrating its logic. -->
           </div>
         </div>
         
@@ -80,7 +82,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted } from 'vue';
+import { ref, onMounted, onUnmounted, nextTick } from 'vue'; 
 import { useAuthStore } from '@/store/auth';
 
 const authStore = useAuthStore();
@@ -90,6 +92,9 @@ const credentials = ref({
   email: '',
   password: ''
 });
+
+// 新增一個響應式變數來控制登入卡片的進入動畫
+const isCardVisible = ref(false);
 
 // Method to handle login form submission
 const handleLogin = async () => {
@@ -113,6 +118,13 @@ const updateClock = () => {
 onMounted(() => {
   updateClock(); // Initial update
   clockInterval = setInterval(updateClock, 1000); // Update every second
+
+  // 使用 nextTick 確保 DOM 已更新，然後再觸發動畫
+  // 這樣做可以讓瀏覽器有時間應用初始 CSS 樣式 (opacity: 0, scale: 0.95)，
+  // 然後再應用動畫目標樣式 (opacity: 1, scale: 1)，從而觸發 CSS 過渡。
+  nextTick(() => {
+    isCardVisible.value = true;
+  });
 });
 
 // Lifecycle hook: When component is unmounted from the DOM
@@ -123,8 +135,8 @@ onUnmounted(() => {
 
 <style scoped>
 /*
-  This component's specific styling (login-container, login-card, animated-bg, car-loading-overlay)
-  is primarily handled by src/assets/styles/main.css, which consolidates styles from the old project.
-  No additional scoped styles are strictly needed here unless very specific overrides are required.
+  這個組件的特定樣式 (login-container, login-card, animated-bg, car-loading-overlay)
+  主要由 src/assets/styles/main.css 處理，該文件整合了舊專案的樣式。
+  除非有非常具體的覆蓋要求，這裡不需要額外的 scoped 樣式。
 */
 </style>
