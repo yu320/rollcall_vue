@@ -193,7 +193,7 @@ const renderOverviewStatusChart = () => {
     const failures = recentRecords.value.filter(r => !r.success).length;
 
     const ctx = overviewStatusChartCanvas.value.getContext('2d');
-    overviewStatusChartInstance = new Chart(ctx, {
+    overviewStatusChartInstance = new Chart(ctx, 
         type: 'doughnut',
         data: {
             labels: ['簽到成功', '簽退成功', '操作失敗'],
