@@ -6,7 +6,10 @@
       <!-- Roles List -->
       <div class="md:w-1/3">
         <h3 class="text-xl font-semibold mb-4 text-gray-700">角色列表</h3>
-        <div class="space-y-2">
+        <div v-if="isLoading" class="text-center py-4 text-gray-500">
+            載入角色中...
+        </div>
+        <div v-else-if="roles.length > 0" class="space-y-2">
           <div 
             v-for="role in roles" 
             :key="role.id"
@@ -17,11 +20,23 @@
             <p class="text-sm text-gray-500">{{ role.description || '暫無描述' }}</p>
           </div>
         </div>
+        <div v-else class="text-center py-4 text-gray-500">
+            沒有可用的角色。
+        </div>
       </div>
 
       <!-- Permissions Matrix -->
       <div class="md:w-2/3">
-        <div v-if="selectedRole">
+        <div v-if="isLoading" class="flex items-center justify-center h-full bg-gray-50 rounded-lg p-8">
+            <p class="text-gray-500 text-center">
+                <svg class="animate-spin -ml-1 mr-3 h-8 w-8 text-indigo-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                  <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                  <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                <span class="mt-2 block font-medium">載入權限中...</span>
+            </p>
+        </div>
+        <div v-else-if="selectedRole">
           <h3 class="text-xl font-semibold mb-4 text-gray-700">
             編輯角色 <span class="font-bold text-indigo-600">"{{ selectedRole.name }}"</span> 的權限
           </h3>
@@ -59,43 +74,67 @@
 </template>
 
 <script setup>
-import { ref, onMounted, computed } from 'vue';
+import { ref, onMounted, computed, watch } from 'vue';
 import { useUiStore } from '@/store/ui';
-// [FIXED] 修正 API 匯入方式，使用 * as api
+import { useDataStore } from '@/store/data';
 import * as api from '@/services/api';
 
 const uiStore = useUiStore();
+const dataStore = useDataStore(); // 獲取 dataStore 實例
 
 // Reactive state
-const roles = ref([]);
-const permissions = ref([]);
+const isLoading = ref(true); // 頁面整體載入狀態
+const roles = computed(() => dataStore.roles); // 從 Pinia 獲取角色列表
+const permissions = computed(() => dataStore.permissions); // 從 Pinia 獲取所有權限
 const selectedRole = ref(null);
-const rolePermissionIds = ref([]); // 只儲存 permission ID 的陣列
-
-// 用於 debounce 的計時器
-let debounceTimer = null;
+const rolePermissionIds = ref([]); // 只儲存 selectedRole 擁有的 permission ID 陣列
 
 // Fetch initial data on component mount
 onMounted(async () => {
-  uiStore.setLoading(true);
+  uiStore.setLoading(true); // 顯示全局載入遮罩
+  isLoading.value = true; // 設置頁面載入狀態
   try {
-    // 平行獲取所有角色和所有權限
-    [roles.value, permissions.value] = await Promise.all([
-      api.fetchAllRoles(),
-      api.fetchAllPermissions()
+    // 平行獲取所有角色和所有權限，並儲存到 dataStore
+    await Promise.all([
+      dataStore.fetchRolesAndPermissions(), // 這會更新 dataStore.roles
+      dataStore.fetchAllPermissions() // 這會更新 dataStore.permissions
     ]);
+
+    // 如果有角色，預設選中第一個角色 (或根據需要設定邏輯)
+    if (roles.value.length > 0) {
+      await selectRole(roles.value[0]);
+    }
   } catch (error) {
     uiStore.showMessage(`讀取權限資料失敗: ${error.message}`, 'error');
   } finally {
-    uiStore.setLoading(false);
+    isLoading.value = false; // 隱藏頁面載入狀態
+    uiStore.setLoading(false); // 隱藏全局載入遮罩
   }
 });
+
+// Watch for changes in selectedRole to fetch its permissions
+watch(selectedRole, async (newRole) => {
+    if (newRole) {
+        uiStore.setLoading(true);
+        try {
+            const currentPermissions = await api.fetchPermissionsForRole(newRole.id);
+            rolePermissionIds.value = currentPermissions.map(p => p.permission_id);
+        } catch (error) {
+            uiStore.showMessage(`讀取角色權限失敗: ${error.message}`, 'error');
+        } finally {
+            uiStore.setLoading(false);
+        }
+    } else {
+        rolePermissionIds.value = []; // 如果沒有選中角色，則清空權限列表
+    }
+});
+
 
 // Group permissions by category (e.g., 'personnel:read' -> 'personnel')
 const groupedPermissions = computed(() => {
   if (!permissions.value) return {};
   return permissions.value.reduce((acc, permission) => {
-    const groupName = permission.name.split(':')[0];
+    const groupName = permission.name.split(':')[0]; // 例如 'personnel:read' 變成 'personnel'
     if (!acc[groupName]) {
       acc[groupName] = [];
     }
@@ -107,28 +146,22 @@ const groupedPermissions = computed(() => {
 // Function to handle role selection
 const selectRole = async (role) => {
   selectedRole.value = role;
-  uiStore.setLoading(true);
-  try {
-    // [FIXED] 呼叫新增的 fetchPermissionsForRole API
-    const currentPermissions = await api.fetchPermissionsForRole(role.id);
-    // 將結果轉換為 ID 陣列
-    rolePermissionIds.value = currentPermissions.map(p => p.permission_id);
-  } catch (error) {
-    uiStore.showMessage(`讀取角色權限失敗: ${error.message}`, 'error');
-  } finally {
-    uiStore.setLoading(false);
-  }
+  // watch(selectedRole) 會自動觸發權限獲取
 };
 
 // Function to update permissions on save button click
 const updatePermissions = async () => {
-  if (!selectedRole.value) return;
+  if (!selectedRole.value) {
+    uiStore.showMessage('請先選擇一個角色。', 'warning');
+    return;
+  }
   
   uiStore.setLoading(true);
   try {
-    // [FIXED] 呼叫新增的 updatePermissionsForRole API
     await api.updatePermissionsForRole(selectedRole.value.id, rolePermissionIds.value);
     uiStore.showMessage(`角色 "${selectedRole.value.name}" 的權限已更新`, 'success');
+    // 更新成功後，重新獲取所有角色與權限數據，以確保 Pinia Store 是最新的
+    await dataStore.fetchRolesAndPermissions(); 
   } catch (error) {
     uiStore.showMessage(`更新權限失敗: ${error.message}`, 'error');
     // 如果更新失敗，重新獲取一次資料以確保 checkbox 狀態正確

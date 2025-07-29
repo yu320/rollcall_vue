@@ -46,21 +46,24 @@
                 <th class="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">類型</th>
                 <th class="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">狀態</th>
                 <th class="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">關聯活動</th>
+                <th class="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">裝置ID</th>
                 <th class="px-6 py-3 text-right text-xs font-semibold text-gray-600 uppercase tracking-wider">操作</th>
               </tr>
             </thead>
             <tbody class="bg-white divide-y divide-gray-100">
-              <!-- [MODIFIED] Added data-label attributes for responsive view -->
+              <!-- Added data-label attributes for responsive view -->
               <tr v-for="record in paginatedRecords" :key="record.id" class="hover:bg-gray-50">
-                <td data-label="選取" class="px-6 py-4"><input type="checkbox" v-model="selectedRecords" :value="record.id"></td>
-                <td data-label="時間" class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{{ new Date(record.created_at).toLocaleTimeString('zh-TW') }}</td>
+                <td data-label="選取" class="px-6 py-4"><input type="checkbox" v-model="selectedRecords" :value="record.id" :disabled="!canModifyRecords"></td>
+                <td data-label="時間" class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{{ formatDateTime(record.created_at, 'HH:mm:ss') }}</td>
                 <td data-label="姓名" class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{{ record.name_at_checkin || '—' }}</td>
                 <td data-label="學號/卡號" class="px-6 py-4 whitespace-nowrap text-sm text-gray-800">{{ record.input }}</td>
                 <td data-label="類型" class="px-6 py-4 whitespace-nowrap"><span class="type-badge" :data-type="record.action_type">{{ record.action_type }}</span></td>
                 <td data-label="狀態" class="px-6 py-4 whitespace-nowrap"><span class="status-badge" :data-status="record.status">{{ record.status }}</span></td>
                 <td data-label="活動" class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{{ record.events?.name || '—' }}</td>
+                <td data-label="裝置ID" class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 truncate" style="max-width: 150px;">{{ record.device_id || '—' }}</td>
                 <td data-label="操作" class="px-6 py-4 whitespace-nowrap text-right">
-                  <button @click="confirmSingleDelete(record)" class="text-red-600 hover:text-red-800 text-sm font-medium">刪除</button>
+                  <button v-if="canModifyRecords" @click="confirmSingleDelete(record)" class="text-red-600 hover:text-red-800 text-sm font-medium">刪除</button>
+                  <span v-else class="text-gray-400">—</span>
                 </td>
               </tr>
             </tbody>
@@ -87,6 +90,8 @@
                 :class="['text-left p-3 rounded-lg transition', selectedDate === date.date ? 'bg-indigo-600 text-white shadow-md' : 'bg-gray-100 hover:bg-gray-200']">
           <span class="font-semibold">{{ date.date }}</span>
           <span class="text-xs block">{{ date.total }} 筆記錄</span>
+          <span class="text-xs block text-yellow-700" v-if="date.late > 0">{{ date.late }} 遲到</span>
+          <span class="text-xs block text-red-700" v-if="date.fail > 0">{{ date.fail }} 失敗</span>
         </button>
       </div>
       <div v-else class="py-8 text-center text-gray-500">
@@ -99,54 +104,77 @@
 <script setup>
 import { ref, onMounted, computed, watch } from 'vue';
 import { useUiStore } from '@/store/ui';
+import { useAuthStore } from '@/store/auth'; // 引入 authStore 獲取權限
 import * as api from '@/services/api';
 import { format, parseISO } from 'date-fns';
+import { formatDateTime } from '@/utils'; // 從 utils 引入 formatDateTime
 
 const uiStore = useUiStore();
+const authStore = useAuthStore(); // 獲取 authStore 實例
 
 const isLoading = ref(true);
 const isDatesLoading = ref(true);
 
-const today = new Date().toISOString().split('T')[0];
+const today = new Date().toISOString().split('T')[0]; // 獲取今日日期，例如 "2024-07-29"
 const selectedDate = ref(today);
-const records = ref([]);
-const savedDates = ref([]);
-const selectedRecords = ref([]);
+const records = ref([]); // 當前選定日期的所有記錄
+const savedDates = ref([]); // 儲存有記錄的日期及其統計
+const selectedRecords = ref([]); // 被選取的記錄 ID 列表
 const pagination = ref({
   currentPage: 1,
   pageSize: 25,
   totalPages: 1,
 });
 
-const formatDateOnly = (dateInput) => format(parseISO(dateInput), 'yyyy-MM-dd');
+// 計算屬性：檢查用戶是否有修改記錄的權限 (admin 或 sdc)
+const canModifyRecords = computed(() => {
+  return authStore.hasPermission('records:delete') || authStore.hasPermission('records:create'); // 雖然這裡主要是刪除，但通常新增和刪除會綁定到一起
+});
 
+// 將 ISO 格式日期字串轉換為 YYYY-MM-DD
+const formatDateOnly = (dateInput) => {
+    try {
+        return format(parseISO(dateInput), 'yyyy-MM-dd');
+    } catch (e) {
+        return '無效日期';
+    }
+};
+
+// 載入指定日期的報到記錄
 const loadRecords = async () => {
-  if (!selectedDate.value) return;
+  if (!selectedDate.value) return; // 如果沒有選擇日期，則不執行
   isLoading.value = true;
-  uiStore.setLoading(true);
+  uiStore.setLoading(true); // 顯示全局載入遮罩
   try {
-    records.value = await api.fetchRecordsByDate(selectedDate.value);
+    // 傳遞 Date 物件給 API 函數
+    records.value = await api.fetchRecordsByDate(new Date(selectedDate.value));
   } catch (error) {
     records.value = [];
     uiStore.showMessage(`讀取記錄失敗: ${error.message}`, 'error');
   } finally {
     isLoading.value = false;
-    uiStore.setLoading(false);
+    uiStore.setLoading(false); // 隱藏全局載入遮罩
   }
 };
 
+// 獲取所有有記錄的日期及其統計
 const fetchSavedDates = async () => {
     isDatesLoading.value = true;
     try {
+        // api.fetchAllSavedDatesWithStats() 應該返回包含 created_at, success, status 的記錄
         const dateStats = await api.fetchAllSavedDatesWithStats();
-        const statsMap = dateStats.reduce((acc, record) => {
+        const statsMap = {}; // 使用物件作為 Map 實現，以便計算統計
+        
+        dateStats.forEach(record => {
             const dateStr = formatDateOnly(record.created_at);
-            if (!acc[dateStr]) {
-                acc[dateStr] = { date: dateStr, total: 0 };
+            if (!statsMap[dateStr]) {
+                statsMap[dateStr] = { date: dateStr, total: 0, late: 0, fail: 0 };
             }
-            acc[dateStr].total++;
-            return acc;
-        }, {});
+            statsMap[dateStr].total++;
+            if (record.status === '遲到') statsMap[dateStr].late++;
+            if (!record.success) statsMap[dateStr].fail++; // 只要 success 為 false 都算失敗
+        });
+        // 將物件轉換為陣列並按日期降序排序
         savedDates.value = Object.values(statsMap).sort((a, b) => b.date.localeCompare(a.date));
     } catch (error) {
         uiStore.showMessage(`讀取已儲存日期失敗: ${error.message}`, 'error');
@@ -155,62 +183,102 @@ const fetchSavedDates = async () => {
     }
 };
 
+// 組件掛載時，載入今日記錄並獲取所有有記錄的日期
 onMounted(() => {
   loadRecords();
   fetchSavedDates();
 });
 
-const selectSavedDate = (date) => {
-  selectedDate.value = date;
-};
-
+// 監聽 selectedDate 變化，重新載入記錄
 watch(selectedDate, (newDate) => {
-    if (newDate) loadRecords();
+    if (newDate) {
+      loadRecords();
+      selectedRecords.value = []; // 清空選取狀態
+    }
 });
 
+// 監聽 records 變化，更新分頁總頁數
 watch(() => records.value, (newRecords) => {
-  pagination.value.currentPage = 1;
+  pagination.value.currentPage = 1; // 記錄變化時重置回第一頁
   pagination.value.totalPages = Math.ceil(newRecords.length / pagination.value.pageSize);
 });
 
+// 監聽 pageSize 變化，更新分頁總頁數並重置頁碼
 watch(() => pagination.value.pageSize, () => {
     pagination.value.currentPage = 1;
     pagination.value.totalPages = Math.ceil(records.value.length / pagination.value.pageSize);
 });
 
+// Computed 屬性：根據分頁信息過濾記錄
 const paginatedRecords = computed(() => {
   const start = (pagination.value.currentPage - 1) * pagination.value.pageSize;
   const end = start + pagination.value.pageSize;
   return records.value.slice(start, end);
 });
 
+// Computed 屬性：控制全選框的狀態
 const selectAll = computed({
-  get: () => records.value.length > 0 && selectedRecords.value.length === records.value.length,
+  get: () => {
+    // 只有在有記錄且所有記錄都被選中時，全選框才為勾選狀態
+    const selectableRecords = paginatedRecords.value.filter(() => canModifyRecords.value);
+    return selectableRecords.length > 0 && selectedRecords.value.length === selectableRecords.length;
+  },
   set: (value) => {
-    selectedRecords.value = value ? records.value.map(r => r.id) : [];
+    // 根據 value (true/false) 來選取或取消選取所有當前頁的記錄
+    if (value) {
+      selectedRecords.value = paginatedRecords.value.filter(() => canModifyRecords.value).map(r => r.id);
+    } else {
+      selectedRecords.value = [];
+    }
   },
 });
 
+// 選擇一個已儲存的日期
+const selectSavedDate = (date) => {
+  selectedDate.value = date;
+};
+
+// 確認單筆刪除記錄
 const confirmSingleDelete = (record) => {
-  if (confirm(`確定要刪除這筆在 ${new Date(record.created_at).toLocaleString('zh-TW')} 由 ${record.name_at_checkin} 執行的記錄嗎？`)) {
+  uiStore.showConfirmation(
+    '確認刪除記錄',
+    `您確定要刪除這筆在 ${formatDateTime(record.created_at)} 由 ${record.name_at_checkin || '未知人員'} 執行的記錄嗎？此操作無法復原。`,
+    '刪除',
+    'bg-red-600 hover:bg-red-700'
+  ).then(() => {
     deleteRecords([record.id]);
-  }
+  }).catch(() => {
+    // 用戶取消刪除
+  });
 };
 
+// 確認批次刪除記錄
 const confirmBatchDelete = () => {
-  if (confirm(`確定要刪除選取的 ${selectedRecords.value.length} 筆記錄嗎？此操作無法復原。`)) {
-    deleteRecords(selectedRecords.value);
+  if (selectedRecords.value.length === 0) {
+      uiStore.showMessage('請至少選擇一筆記錄。', 'info');
+      return;
   }
+  uiStore.showConfirmation(
+    '確認批次刪除記錄',
+    `您確定要刪除選取的 ${selectedRecords.value.length} 筆記錄嗎？此操作無法復原。`,
+    '刪除',
+    'bg-red-600 hover:bg-red-700'
+  ).then(() => {
+    deleteRecords(selectedRecords.value);
+  }).catch(() => {
+    // 用戶取消刪除
+  });
 };
 
+// 執行刪除記錄 (單筆或批次)
 const deleteRecords = async (ids) => {
   uiStore.setLoading(true);
   try {
     await api.batchDeleteRecords(ids);
     uiStore.showMessage('刪除成功', 'success');
-    selectedRecords.value = [];
-    await loadRecords();
-    await fetchSavedDates();
+    selectedRecords.value = []; // 清空選取狀態
+    await loadRecords(); // 重新載入當前日期的記錄
+    await fetchSavedDates(); // 重新獲取已儲存的日期列表，以更新統計
   } catch (error) {
     uiStore.showMessage(`刪除失敗: ${error.message}`, 'error');
   } finally {
@@ -218,27 +286,30 @@ const deleteRecords = async (ids) => {
   }
 };
 
+// 匯出當前日期的記錄為 CSV
 const exportToCSV = () => {
   if (records.value.length === 0) {
       uiStore.showMessage('沒有可匯出的資料。', 'info');
       return;
   }
-  let csvContent = '日期,時間,姓名,學號/卡號,類型,狀態,關聯活動\n';
+  let csvContent = '日期,時間,姓名,學號/卡號,類型,狀態,關聯活動,裝置ID\n';
   records.value.forEach(r => {
     const recordDate = formatDateOnly(r.created_at);
-    const recordTime = new Date(r.created_at).toLocaleTimeString('zh-TW', { hour12: false });
+    const recordTime = formatDateTime(r.created_at, 'HH:mm:ss');
     const row = [
         recordDate,
         recordTime,
-        `"${r.name_at_checkin || ''}"`,
-        `"${r.input}"`,
+        `"${r.name_at_checkin || ''}"`, // 姓名
+        `"${r.input}"`, // 學號/卡號
         r.action_type,
         r.status,
-        `"${r.events?.name || ''}"`
-    ].join(',');
+        `"${r.events?.name || ''}"`, // 活動名稱
+        `"${r.device_id || ''}"` // 裝置ID
+    ].map(field => `"${String(field).replace(/"/g, '""')}"`).join(','); // 確保所有字段都用雙引號包圍並轉義內部雙引號
     csvContent += row + '\n';
   });
   
+  // 添加 BOM (Byte Order Mark) 確保 Excel 等軟體打開時中文不亂碼
   const blob = new Blob([`\uFEFF${csvContent}`], { type: 'text/csv;charset=utf-8;' });
   const link = document.createElement('a');
   link.href = URL.createObjectURL(blob);

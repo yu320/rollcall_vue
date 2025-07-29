@@ -62,12 +62,14 @@
 
 <script setup>
 import { ref } from 'vue';
-import { useRouter } from 'vue-router';
+import { useRouter } from 'vue-router'; // 引入 useRouter 以便導入後跳轉
 import { useUiStore } from '@/store/ui';
-import * as api from '@/services/api';
+import { useDataStore } from '@/store/data'; // 引入 dataStore 以便更新人員資料
+import * as api from '@/services/api'; // 引入 api
 
 const uiStore = useUiStore();
-const router = useRouter();
+const dataStore = useDataStore(); // 獲取 dataStore 實例
+const router = useRouter(); // 獲取 router 實例
 
 const manualInput = ref('');
 const selectedFile = ref(null);
@@ -75,7 +77,7 @@ const importResult = ref(null);
 
 const handleFileSelect = (event) => {
   selectedFile.value = event.target.files[0];
-  importResult.value = null;
+  importResult.value = null; // 重置結果顯示
 };
 
 const importFromFile = () => {
@@ -84,9 +86,9 @@ const importFromFile = () => {
     return;
   }
   const reader = new FileReader();
-  reader.onload = (e) => processImport(e.target.result);
+  reader.onload = (e) => processImport(e.target.result, 'file'); // 傳遞來源類型
   reader.onerror = () => uiStore.showMessage('讀取檔案失敗。', 'error');
-  reader.readAsText(selectedFile.value, 'UTF-8');
+  reader.readAsText(selectedFile.value, 'UTF-8'); // 確保使用 UTF-8 讀取
 };
 
 const importFromText = () => {
@@ -95,35 +97,66 @@ const importFromText = () => {
     uiStore.showMessage('請輸入要匯入的資料。', 'info');
     return;
   }
-  // Add a header row for consistent parsing
+  // 手動輸入也需要模擬 CSV 標頭以便解析器正確工作
   const dataWithHeader = `姓名,學號,卡號,棟別,標籤\n${text}`;
-  processImport(dataWithHeader);
+  processImport(dataWithHeader, 'manual'); // 傳遞來源類型
 };
 
-const processImport = async (csvText) => {
+const processImport = async (csvText, source) => {
   uiStore.setLoading(true);
-  importResult.value = null;
+  importResult.value = null; // 清空舊的結果
 
   try {
     const lines = csvText.split(/\r?\n/).filter(line => line.trim() !== '');
-    if (lines.length < 2) { // Must have header + at least one data row
-      throw new Error("沒有有效的資料可供匯入。");
+    if (lines.length < 2) { // 至少需要標頭和一條數據
+      throw new Error("沒有有效的資料可供匯入，請檢查檔案內容或輸入格式。");
+    }
+
+    // 解析 CSV 標頭
+    const headerLine = lines[0].replace(/^\uFEFF/, '').trim(); // 移除可能的 BOM
+    const headers = headerLine.split(',').map(h => h.trim().replace(/^"|"$/g, ''));
+
+    // 確定各欄位的索引
+    const nameIndex = headers.indexOf('姓名');
+    const codeIndex = headers.indexOf('學號');
+    const cardNumberIndex = headers.indexOf('卡號');
+    const buildingIndex = headers.indexOf('棟別');
+    const tagsIndex = headers.indexOf('標籤');
+
+    if (nameIndex === -1 || codeIndex === -1 || cardNumberIndex === -1) {
+        throw new Error("CSV 標頭格式不符。請確認包含 '姓名', '學號', '卡號' 等必填欄位。");
     }
 
     const personnelToProcess = [];
     const validationErrors = [];
 
-    // Start from 1 to skip header
+    // 從第二行開始解析數據
     for (let i = 1; i < lines.length; i++) {
       const line = lines[i].trim();
       if (!line) continue;
 
+      // 使用正則表達式來處理包含逗號的引號包圍的字段
       const parts = line.match(/(".*?"|[^",]+)(?=\s*,|\s*$)/g) || [];
-      const [name, code, cardNumber, building, tagsStr] = parts.map(p => (p || '').trim().replace(/^"|"$/g, ''));
       
+      const name = (parts[nameIndex] || '').trim().replace(/^"|"$/g, '');
+      const code = (parts[codeIndex] || '').trim().replace(/^"|"$/g, '');
+      const cardNumber = (parts[cardNumberIndex] || '').trim().replace(/^"|"$/g, '');
+      const building = (parts[buildingIndex] || '').trim().replace(/^"|"$/g, '');
+      const tagsStr = (parts[tagsIndex] || '').trim().replace(/^"|"$/g, '');
+      
+      // 簡單驗證必填欄位
       if (!name || !code || !cardNumber) {
         validationErrors.push(`第 ${i + 1} 行資料不完整 (姓名、學號、卡號為必填)。`);
         continue;
+      }
+      // 基礎格式驗證
+      if (!/^[A-Za-z0-9]+$/.test(code)) { // 學號通常是字母數字組合
+          validationErrors.push(`第 ${i + 1} 行學號格式無效 (只允許字母數字)。`);
+          continue;
+      }
+      if (!/^\d+$/.test(cardNumber)) { // 卡號必須是純數字
+          validationErrors.push(`第 ${i + 1} 行卡號格式無效 (只允許數字)。`);
+          continue;
       }
 
       const tags = tagsStr ? tagsStr.split(';').map(t => t.trim()).filter(Boolean) : [];
@@ -139,28 +172,50 @@ const processImport = async (csvText) => {
       return;
     }
 
+    // 調用 API 進行批量新增或更新
     const result = await api.upsertPersonnel(personnelToProcess);
-    importResult.value = result;
-
-    uiStore.showMessage(`匯入處理完成！成功新增 ${result.successCount}, 更新 ${result.updateCount} 筆。`, 'success');
     
-    // Clear input after success
-    manualInput.value = '';
-    selectedFile.value = null;
-    // Reset file input visually
-    const fileInput = document.getElementById('importFile');
-    if(fileInput) fileInput.value = '';
+    // 設置結果
+    importResult.value = {
+        totalProcessed: personnelToProcess.length,
+        successCount: result.successCount, // 假設 API 返回成功新增的數量
+        updateCount: result.updateCount,   // 假設 API 返回成功更新的數量
+        errors: result.errors || [],       // 假設 API 返回錯誤列表
+    };
 
+    if (importResult.value.errors.length > 0) {
+        uiStore.showMessage(`匯入完成，但有 ${importResult.value.errors.length} 筆失敗。`, 'warning');
+    } else {
+        uiStore.showMessage(`匯入處理完成！成功新增 ${importResult.value.successCount}, 更新 ${importResult.value.updateCount} 筆。`, 'success');
+    }
+    
+    // 匯入成功後，清空輸入框或檔案選擇
+    if (source === 'manual') manualInput.value = '';
+    if (source === 'file') {
+        selectedFile.value = null;
+        const fileInput = document.getElementById('importFile');
+        if(fileInput) fileInput.value = ''; // 清空檔案輸入框的顯示
+    }
+    
+    // 重新載入人員資料，以便人員管理頁面更新
+    await dataStore.fetchAllPersonnel();
+    // 考慮跳轉到人員管理頁面，但這裡不強制跳轉，讓用戶自行決定
+    // router.push('/personnel'); 
 
   } catch (error) {
     uiStore.showMessage(`匯入失敗: ${error.message}`, 'error');
+    importResult.value = { // 顯示解析或 API 錯誤
+        totalProcessed: 0, successCount: 0, updateCount: 0,
+        errors: [error.message.replace(/<br>/g, ' ')] // 將 <br> 轉換為空格
+    };
   } finally {
     uiStore.setLoading(false);
   }
 };
 
 const downloadSample = () => {
-  const csvContent = '姓名,學號,卡號,棟別,標籤\n"王大明","A001","11111111","A1","管理員;全職"\n"陳小美","B002","22222222","B2","職員"';
+  const csvContent = '姓名,學號,卡號,棟別,標籤\n"王大明","A001","11111111","A1","幹部;全職"\n"陳小美","B002","22222222","B2","職員"\n"林志強","C003","33333333","C2",\n"黃雅婷","D004","44444444","D1","實習生;設計部"';
+  // 添加 BOM (Byte Order Mark) 確保 Excel 等軟體打開時中文不亂碼
   const blob = new Blob([`\uFEFF${csvContent}`], { type: 'text/csv;charset=utf-8;' });
   const link = document.createElement('a');
   link.href = URL.createObjectURL(blob);
@@ -168,5 +223,6 @@ const downloadSample = () => {
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);
+  URL.revokeObjectURL(link.href);
 };
 </script>

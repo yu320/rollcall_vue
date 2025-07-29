@@ -56,53 +56,90 @@
         </div>
       </div>
     </div>
+
+    <!-- Charts Section -->
+    <div v-if="!isLoading" class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        <div class="bg-white rounded-xl shadow-lg p-6 border border-gray-200">
+            <h3 class="text-xl font-bold text-gray-800 mb-4">總操作狀態分佈</h3>
+            <div class="h-72"><canvas ref="overviewStatusChartCanvas"></canvas></div>
+        </div>
+        <div class="bg-white rounded-xl shadow-lg p-6 border border-gray-200">
+            <h3 class="text-xl font-bold text-gray-800 mb-4">近期活動趨勢</h3>
+            <div class="h-72"><canvas ref="overviewActivityTrendChartCanvas"></canvas></div>
+        </div>
+    </div>
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted, computed } from 'vue';
+import { ref, onMounted, computed, nextTick } from 'vue';
 import { useUiStore } from '@/store/ui';
 import { useDataStore } from '@/store/data';
 import * as api from '@/services/api';
-import { createSummaryCard, formatDateTime } from '@/utils/index';
+import { createSummaryCard, formatDateTime } from '@/utils/index'; // 確保引入 createSummaryCard 和 formatDateTime
 import { parseISO, isFuture } from 'date-fns';
+import Chart from 'chart.js/auto'; // 引入 Chart.js
+import 'chartjs-adapter-date-fns'; // 引入日期適配器
 
 const uiStore = useUiStore();
-const dataStore = useDataStore();
+const dataStore = useDataStore(); // 使用 Pinia 的 dataStore
 const isLoading = ref(true);
 
 const summaryCards = ref([]);
 const recentRecords = ref([]);
 
+// Chart.js 實例的引用
+let overviewStatusChartInstance = null;
+let overviewActivityTrendChartInstance = null;
+
+// Canvas 元素的模板引用
+const overviewStatusChartCanvas = ref(null);
+const overviewActivityTrendChartCanvas = ref(null);
+
+// 銷毀圖表實例的輔助函數
+const destroyChart = (chartInstance) => {
+  if (chartInstance) {
+    chartInstance.destroy();
+    chartInstance = null; // 清空引用
+  }
+};
+
+
 onMounted(async () => {
   isLoading.value = true;
-  uiStore.setLoading(true);
+  uiStore.setLoading(true); // 顯示全局載入遮罩
 
   try {
-    // Parallel fetching
+    // 平行獲取數據以提高效率
     const [_, __, records] = await Promise.all([
-      dataStore.fetchAllPersonnel(),
-      dataStore.fetchEvents(),
-      api.fetchRecentRecords(24) // Fetch records from the last 24 hours
+      dataStore.fetchAllPersonnel(), // 確保人員資料已載入
+      dataStore.fetchEvents(),      // 確保活動資料已載入
+      api.fetchRecentRecords(24) // 獲取最近 24 小時的記錄
     ]);
     
     recentRecords.value = records || [];
-    generateSummary();
+    generateSummary(); // 根據獲取到的數據生成摘要卡片
+
+    // 在 DOM 更新後渲染圖表
+    await nextTick();
+    renderAllCharts();
 
   } catch (error) {
     uiStore.showMessage(`無法載入總覽資訊: ${error.message}`, 'error');
   } finally {
     isLoading.value = false;
-    uiStore.setLoading(false);
+    uiStore.setLoading(false); // 隱藏全局載入遮罩
   }
 });
 
+// 生成摘要卡片數據
 const generateSummary = () => {
     const personnelCount = dataStore.personnel.length;
     const eventCount = dataStore.events.length;
     const checkInToday = recentRecords.value.filter(r => r.action_type === '簽到').length;
     const checkOutToday = recentRecords.value.filter(r => r.action_type === '簽退').length;
 
+    // 使用 utils/index.js 中的 createSummaryCard 函數
     summaryCards.value = [
         createSummaryCard('總人員數', personnelCount, 'users'),
         createSummaryCard('總活動數', eventCount, 'calendar'),
@@ -111,13 +148,15 @@ const generateSummary = () => {
     ];
 };
 
+// 計算屬性：獲取即將開始的活動
 const upcomingEvents = computed(() => {
     return dataStore.events
-        .filter(event => isFuture(parseISO(event.start_time)))
-        .sort((a, b) => new Date(a.start_time) - new Date(b.start_time))
-        .slice(0, 5); // Show top 5 upcoming
+        .filter(event => isFuture(parseISO(event.start_time))) // 過濾出未來活動
+        .sort((a, b) => new Date(a.start_time) - new Date(b.start_time)) // 按時間排序
+        .slice(0, 5); // 顯示前 5 個
 });
 
+// 根據記錄狀態返回對應的 CSS 類別
 const getStatusClass = (status) => {
   if (status && status.includes('準時')) return 'bg-green-100 text-green-800';
   if (status && status.includes('遲到')) return 'bg-yellow-100 text-yellow-800';
@@ -125,6 +164,7 @@ const getStatusClass = (status) => {
   return 'bg-gray-100 text-gray-800';
 };
 
+// 根據操作類型返回對應的背景和文字顏色類別
 const getActionTypeClass = (actionType) => {
     if(actionType === '簽到') {
         return { bg: 'bg-blue-100', text: 'text-blue-600' };
@@ -132,4 +172,103 @@ const getActionTypeClass = (actionType) => {
     return { bg: 'bg-orange-100', text: 'text-orange-600' };
 };
 
+// 渲染所有圖表的總函數
+const renderAllCharts = () => {
+    renderOverviewStatusChart();
+    renderOverviewActivityTrendChart();
+};
+
+// 渲染「總操作狀態分佈」圓餅圖
+const renderOverviewStatusChart = () => {
+    destroyChart(overviewStatusChartInstance); // 銷毀舊圖表
+
+    if (!overviewStatusChartCanvas.value) {
+        console.warn("無法找到 'overviewStatusChartCanvas' 元素，跳過圖表渲染。");
+        return; 
+    }
+
+    const checkInSuccess = recentRecords.value.filter(r => r.action_type === '簽到' && r.success).length;
+    const checkOutSuccess = recentRecords.value.filter(r => r.action_type === '簽退' && r.success).length;
+    const failures = recentRecords.value.filter(r => !r.success).length;
+
+    const ctx = overviewStatusChartCanvas.value.getContext('2d');
+    overviewStatusChartInstance = new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+            labels: ['簽到成功', '簽退成功', '操作失敗'],
+            datasets: [{
+                data: [checkInSuccess, checkOutSuccess, failures],
+                backgroundColor: ['#10B981', '#3B82F6', '#EF4444'], // 綠、藍、紅
+                borderColor: '#FFFFFF',
+                borderWidth: 2,
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: { legend: { position: 'bottom' } }
+        }
+    });
+};
+
+// 渲染「近期活動趨勢」折線圖
+const renderOverviewActivityTrendChart = () => {
+    destroyChart(overviewActivityTrendChartInstance); // 銷毀舊圖表
+
+    if (!overviewActivityTrendChartCanvas.value) {
+        console.warn("無法找到 'overviewActivityTrendChartCanvas' 元素，跳過圖表渲染。");
+        return; 
+    }
+
+    // 獲取最近的活動 (例如，最近10個活動)
+    const sortedEvents = [...dataStore.events].sort((a, b) => new Date(a.start_time) - new Date(b.start_time));
+    const recentEvents = sortedEvents.slice(Math.max(sortedEvents.length - 10, 0)); 
+
+    const labels = recentEvents.map(e => e.name); // 活動名稱作為 X 軸標籤
+    const checkInData = recentEvents.map(event => {
+        // 計算每個活動的簽到人次
+        return recentRecords.value.filter(r => r.event_id === event.id && r.action_type === '簽到').length;
+    });
+    const checkOutData = recentEvents.map(event => {
+        // 計算每個活動的簽退人次
+        return recentRecords.value.filter(r => r.event_id === event.id && r.action_type === '簽退').length;
+    });
+
+    const ctx = overviewActivityTrendChartCanvas.value.getContext('2d');
+    overviewActivityTrendChartInstance = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: labels,
+            datasets: [
+                {
+                    label: '簽到人次',
+                    data: checkInData,
+                    borderColor: '#4F46E5', // Indigo-600
+                    backgroundColor: 'rgba(79, 70, 229, 0.2)',
+                    fill: true,
+                    tension: 0.3 // 平滑曲線
+                },
+                {
+                    label: '簽退人次',
+                    data: checkOutData,
+                    borderColor: '#F59E0B', // Amber-500
+                    backgroundColor: 'rgba(245, 158, 11, 0.2)',
+                    fill: true,
+                    tension: 0.3
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+                y: { beginAtZero: true } // Y 軸從 0 開始
+            },
+            plugins: {
+                legend: { display: true } // 顯示圖例
+            }
+        }
+    });
+};
 </script>
+

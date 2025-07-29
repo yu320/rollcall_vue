@@ -8,7 +8,7 @@
           <label for="event-selector" class="sr-only">選擇活動</label>
           <select id="event-selector" v-model="selectedEventId" @change="updateDashboard" class="w-full bg-white border border-gray-300 rounded-lg px-4 py-3 focus:ring-2 focus:ring-indigo-500">
             <option :value="null" disabled>-- 請選擇一個活動來查看 --</option>
-            <option v-for="event in dataStore.events" :key="event.id" :value="event.id">{{ event.name }} ({{ formatDateTime(event.start_time, 'yyyy-MM-dd') }})</option>
+            <option v-for="event in sortedEvents" :key="event.id" :value="event.id">{{ event.name }} ({{ formatDateTime(event.start_time, 'yyyy-MM-dd HH:mm') }})</option>
           </select>
         </div>
       </div>
@@ -46,13 +46,13 @@
                 </tr>
               </thead>
               <tbody class="bg-white divide-y divide-gray-100">
-                 <!-- [MODIFIED] Added data-label attributes for responsive view -->
+                 <!-- Added data-label attributes for responsive view -->
                 <tr v-for="attendee in dashboardData.attendees" :key="attendee.personnel_id" class="hover:bg-gray-50">
                   <td data-label="姓名" class="px-6 py-4 font-medium text-gray-800">{{ attendee.name }}</td>
                   <td data-label="學號" class="px-6 py-4 text-gray-600">{{ attendee.code }}</td>
                   <td data-label="狀態" class="px-6 py-4"><span :class="getStatusClass(attendee.status)">{{ attendee.status }}</span></td>
-                  <td data-label="簽到時間" class="px-6 py-4 text-sm text-gray-500">{{ formatDateTime(attendee.check_in_time) || '—' }}</td>
-                  <td data-label="簽退時間" class="px-6 py-4 text-sm text-gray-500">{{ formatDateTime(attendee.check_out_time) || '—' }}</td>
+                  <td data-label="簽到時間" class="px-6 py-4 text-sm text-gray-500">{{ formatDateTime(attendee.check_in_time, 'HH:mm:ss') || '—' }}</td>
+                  <td data-label="簽退時間" class="px-6 py-4 text-sm text-gray-500">{{ formatDateTime(attendee.check_out_time, 'HH:mm:ss') || '—' }}</td>
                 </tr>
               </tbody>
             </table>
@@ -82,13 +82,13 @@
 </template>
 
 <script setup>
-import { ref, onMounted, nextTick } from 'vue';
+import { ref, onMounted, nextTick, computed } from 'vue';
 import { useUiStore } from '@/store/ui';
 import { useDataStore } from '@/store/data';
 import * as api from '@/services/api';
 import Chart from 'chart.js/auto';
 import 'chartjs-adapter-date-fns';
-import { zhTW } from 'date-fns/locale';
+import { zhTW } from 'date-fns/locale'; // 引入繁體中文語系
 import { createSummaryCard } from '@/utils/index';
 import { format, parseISO } from 'date-fns';
 
@@ -96,56 +96,83 @@ const uiStore = useUiStore();
 const dataStore = useDataStore();
 
 const selectedEventId = ref(null);
-const isLoading = ref(false);
-const dashboardData = ref(null);
-const statusChartCanvas = ref(null);
-const timelineChartCanvas = ref(null);
+const isLoading = ref(false); // 控制頁面載入狀態
+const dashboardData = ref(null); // 存放儀表板所有數據
 
+const statusChartCanvas = ref(null); // Canvas 引用
+const timelineChartCanvas = ref(null); // Canvas 引用
+
+// 儲存 Chart.js 實例，以便在數據更新時銷毀舊圖表
 const chartInstances = {
   status: null,
   timeline: null,
 };
 
+// 銷毀 Chart 實例的輔助函數
 const destroyChart = (chartInstance) => {
   if (chartInstance) {
     chartInstance.destroy();
   }
 };
 
+// 格式化日期時間字符串
 const formatDateTime = (isoString, formatStr = 'HH:mm:ss') => {
     if (!isoString) return null;
     return format(parseISO(isoString), formatStr);
-}
+};
 
+// 根據簽到狀態返回對應的 Tailwind CSS 類別
 const getStatusClass = (status) => {
-  if (status.includes('未簽到')) return 'status-badge bg-red-100 text-red-800';
-  if (status.includes('準時')) return 'status-badge bg-green-100 text-green-800';
-  if (status.includes('遲到')) return 'status-badge bg-yellow-100 text-yellow-800';
+  if (status && status.includes('未簽到')) return 'status-badge bg-red-100 text-red-800';
+  if (status && status.includes('準時')) return 'status-badge bg-green-100 text-green-800';
+  if (status && status.includes('遲到')) return 'status-badge bg-yellow-100 text-yellow-800';
   return 'status-badge bg-gray-100 text-gray-800';
 };
 
+// 計算屬性：將活動按開始時間降序排序，用於選擇器
+const sortedEvents = computed(() => {
+    return [...dataStore.events].sort((a, b) => new Date(b.start_time) - new Date(a.start_time));
+});
+
+// 組件掛載時，初始化數據和儀表板
 onMounted(async () => {
-  if (dataStore.events.length === 0) {
-      await dataStore.fetchEvents();
-  }
-  if (dataStore.events.length > 0) {
-    selectedEventId.value = dataStore.events[0].id;
-    await updateDashboard();
+  uiStore.setLoading(true); // 顯示全局載入遮罩
+  try {
+    // 確保活動和人員數據已載入
+    await Promise.all([
+      dataStore.fetchEvents(),
+      dataStore.fetchAllPersonnel()
+    ]);
+
+    // 如果有活動，預設選中第一個活動並載入其儀表板數據
+    if (dataStore.events.length > 0) {
+      selectedEventId.value = dataStore.events[0].id;
+      await updateDashboard();
+    }
+  } catch (error) {
+    uiStore.showMessage(`初始化儀表板失敗: ${error.message}`, 'error');
+    dashboardData.value = null; // 初始化失敗清空數據
+  } finally {
+    uiStore.setLoading(false); // 隱藏全局載入遮罩
   }
 });
 
+// 根據選擇的活動 ID 更新儀表板數據
 const updateDashboard = async () => {
   if (!selectedEventId.value) {
-    dashboardData.value = null;
+    dashboardData.value = null; // 沒有選擇活動，清空數據
     return;
   }
-  isLoading.value = true;
-  uiStore.setLoading(true);
+  isLoading.value = true; // 設置頁面載入狀態
+  uiStore.setLoading(true); // 顯示全局載入遮罩
   try {
+    // 調用 Supabase RPC 獲取儀表板所需的所有數據
     const data = await api.getDashboardData(selectedEventId.value);
     
+    // 將數據轉換為組件中使用的格式
     dashboardData.value = {
         summaryCards: [
+            // createSummaryCard 函數來自 '@/utils/index.js'
             createSummaryCard('應到人數', data.summary.expectedCount, 'users'),
             createSummaryCard('實到人數', data.summary.attendedCount, 'user-check'),
             createSummaryCard('未到人數', data.summary.absentCount, 'user-minus'),
@@ -153,26 +180,30 @@ const updateDashboard = async () => {
             createSummaryCard('準時率', `${data.summary.onTimeRate.toFixed(1)}%`, 'clock'),
         ],
         attendees: data.attendees,
-        charts: data.charts
+        charts: data.charts // 原始圖表數據
     };
     
+    // 使用 nextTick 確保 DOM 已更新，再渲染 Chart.js 圖表
     await nextTick();
     renderCharts();
   } catch (error) {
-    uiStore.showMessage(`載入儀錶板數據失敗: ${error.message}`, 'error');
-    dashboardData.value = null;
+    uiStore.showMessage(`載入儀表板數據失敗: ${error.message}`, 'error');
+    dashboardData.value = null; // 載入失敗清空數據
   } finally {
-    isLoading.value = false;
-    uiStore.setLoading(false);
+    isLoading.value = false; // 隱藏頁面載入狀態
+    uiStore.setLoading(false); // 隱藏全局載入遮罩
   }
 };
 
+// 渲染所有圖表
 const renderCharts = () => {
+  // 銷毀舊的圖表實例
   destroyChart(chartInstances.status);
   destroyChart(chartInstances.timeline);
 
   if (!dashboardData.value || !dashboardData.value.charts) return;
 
+  // 渲染簽到狀態分佈圖 (圓餅圖)
   if (statusChartCanvas.value) {
     const statusData = dashboardData.value.charts.status;
     chartInstances.status = new Chart(statusChartCanvas.value, {
@@ -181,18 +212,28 @@ const renderCharts = () => {
         labels: ['準時', '遲到', '未到'],
         datasets: [{
           data: [statusData.onTime, statusData.late, statusData.absent],
-          backgroundColor: ['#10B981', '#F59E0B', '#EF4444'],
+          backgroundColor: ['#10B981', '#F59E0B', '#EF4444'], // 綠色, 黃色, 紅色
           borderColor: '#FFFFFF',
           borderWidth: 2,
         }]
       },
-      options: { responsive: true, maintainAspectRatio: false }
+      options: { 
+        responsive: true, 
+        maintainAspectRatio: false,
+        plugins: {
+            legend: {
+                position: 'bottom' // 圖例置於底部
+            }
+        }
+      }
     });
   }
 
+  // 渲染簽到時間線圖 (折線圖)
   if (timelineChartCanvas.value) {
+    // 將 ISO 時間字符串轉換為 Date 對象
     const timelineData = dashboardData.value.charts.timeline.map(d => ({
-        x: parseISO(d.time),
+        x: parseISO(d.time), // 使用 date-fns 的 parseISO 函數
         y: d.count
     }));
 
@@ -200,12 +241,12 @@ const renderCharts = () => {
       type: 'line',
       data: {
         datasets: [{
-          label: '簽到人次',
+          label: '累積簽到人數', // 修正為「累積簽到人數」
           data: timelineData,
-          borderColor: '#4F46E5',
-          backgroundColor: 'rgba(79, 70, 229, 0.2)',
-          fill: true,
-          stepped: true,
+          borderColor: '#4F46E5', // Indigo-600
+          backgroundColor: 'rgba(79, 70, 229, 0.2)', // 帶透明度的 Indigo-600
+          fill: true, // 填充區域
+          stepped: true, // 階梯式線條
         }]
       },
       options: {
@@ -213,16 +254,39 @@ const renderCharts = () => {
         maintainAspectRatio: false,
         scales: {
           x: {
-            type: 'time',
-            time: { unit: 'minute', displayFormats: { minute: 'HH:mm' } },
-            adapters: { date: { locale: zhTW } },
-            title: { display: true, text: '時間' }
+            type: 'time', // X 軸類型為時間
+            time: { 
+                unit: 'minute', // 單位為分鐘
+                displayFormats: { 
+                    minute: 'HH:mm' // 顯示格式為小時:分鐘
+                } 
+            },
+            adapters: {
+                date: {
+                    locale: zhTW // 使用繁體中文語系
+                }
+            },
+            title: {
+                display: true,
+                text: '時間'
+            }
           },
           y: {
-            beginAtZero: true,
-            title: { display: true, text: '累積簽到人數' },
-            ticks: { stepSize: 1 }
+            beginAtZero: true, // Y 軸從 0 開始
+            title: {
+                display: true,
+                text: '累積簽到人數'
+            },
+            ticks: { 
+                stepSize: 1 // 步長為 1
+            }
           }
+        },
+        plugins: {
+            legend: {
+                display: true,
+                position: 'bottom'
+            }
         }
       }
     });

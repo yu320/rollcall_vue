@@ -18,6 +18,14 @@
         <button v-if="selectedPersonnel.length > 0" @click="confirmBatchDelete" class="w-full sm:w-auto bg-red-600 hover:bg-red-700 text-white font-medium py-2 px-4 rounded-lg shadow-sm transition">
           刪除選取 ({{ selectedPersonnel.length }})
         </button>
+        <button @click="openBatchAddTagsModal" :disabled="selectedPersonnel.length === 0" class="w-full sm:w-auto bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-6 rounded-lg transition duration-300 flex items-center justify-center shadow-md hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed">
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h.01M7 11h.01M7 15h.01M7 19h.01M15 7h.01M15 3h.01M15 11h.01M15 15h.01M15 19h.01M19 7h.01M19 3h.01M19 11h.01M19 15h.01M19 19h.01M3 3h.01M3 7h.01M3 11h.01M3 15h.01M3 19h.01M11 3h.01M11 7h.01M11 11h.01M11 15h.01M11 19h.01" /></svg>
+          批量增加標籤
+        </button>
+        <button @click="exportPersonnelData" class="w-full sm:w-auto bg-emerald-600 hover:bg-emerald-700 text-white font-medium py-2 px-6 rounded-lg transition duration-300 flex items-center justify-center shadow-md hover:shadow-lg">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+            匯出人員資料
+        </button>
         <button @click="openModal()" class="w-full sm:w-auto bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-2 px-6 rounded-lg shadow-sm transition">新增人員</button>
       </div>
     </div>
@@ -32,7 +40,7 @@
           <input type="checkbox" v-model="selectAll" id="selectAllCheckbox" class="h-4 w-4 text-indigo-600 rounded mr-2">
           <label for="selectAllCheckbox" class="text-sm text-gray-600">全選</label>
       </div>
-      <!-- [MODIFIED] Personnel card structure updated to match old version -->
+      <!-- Personnel card structure updated to match old version -->
       <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
         <div v-for="person in sortedPersonnel" :key="person.id" 
              class="person-card bg-white rounded-lg shadow-md overflow-hidden transition-all duration-300 hover:shadow-xl flex flex-col justify-between"
@@ -85,7 +93,7 @@
       <p>找不到符合條件的人員，或尚未新增任何人員。</p>
     </div>
 
-    <!-- Add/Edit Modal -->
+    <!-- Add/Edit Personnel Modal -->
     <Modal :show="isModalOpen" @close="closeModal">
       <template #header>{{ isEditing ? '編輯人員' : '新增人員' }}</template>
       <form @submit.prevent="handleSave">
@@ -117,6 +125,22 @@
         </div>
       </form>
     </Modal>
+
+    <!-- Batch Add Tags Modal -->
+    <Modal :show="isBatchAddTagsModalOpen" @close="closeBatchAddTagsModal">
+      <template #header>批量增加標籤</template>
+      <form @submit.prevent="handleBatchAddTags">
+          <p class="text-gray-700 mb-4">請輸入要增加的標籤，以分號分隔。這些標籤將會被新增到所有選取的人員資料中。</p>
+          <div class="mb-6">
+              <label for="newTagsInput" class="block text-gray-700 font-medium mb-2">新增標籤 (以分號 ; 分隔)</label>
+              <input type="text" id="newTagsInput" v-model="newTagsInput" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400" placeholder="例如：學生;志工">
+          </div>
+          <div class="flex flex-col sm:flex-row-reverse gap-3">
+              <button type="submit" class="w-full sm:w-auto bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-6 rounded-lg transition duration-300 shadow-sm">確認增加</button>
+              <button type="button" @click="closeBatchAddTagsModal" class="w-full sm:w-auto bg-gray-200 hover:bg-gray-300 text-gray-800 font-medium py-2 px-6 rounded-lg transition duration-300 shadow-sm">取消</button>
+          </div>
+      </form>
+    </Modal>
   </div>
 </template>
 
@@ -124,50 +148,101 @@
 import { ref, onMounted, computed, watch } from 'vue';
 import { useUiStore } from '@/store/ui';
 import { useDataStore } from '@/store/data';
+import * as api from '@/services/api'; // 確保引入 api
+import { formatDate } from '@/utils'; // 引入 formatDate 函數
 import Modal from '@/components/Modal.vue';
 
 const uiStore = useUiStore();
 const dataStore = useDataStore();
 const isLoading = ref(true);
-const selectedPersonnel = ref([]);
 
+// 篩選與排序相關狀態
 const filters = ref({
     searchTerm: '',
-    sortBy: 'name_asc',
+    sortBy: 'name_asc', // 預設依姓名升序
 });
 
+// 選取人員相關狀態
+const selectedPersonnel = ref([]);
+
+// 新增/編輯 Modal 相關狀態
+const isModalOpen = ref(false);
+const isEditing = ref(false);
+const editablePerson = ref({}); // 用於 Modal 中編輯的人員資料
+
+// 批量增加標籤 Modal 相關狀態
+const isBatchAddTagsModalOpen = ref(false);
+const newTagsInput = ref('');
+
+// 組件載入時，獲取所有人員資料
 onMounted(async () => {
     isLoading.value = true;
-    if (dataStore.personnel.length === 0) {
-        await dataStore.fetchAllPersonnel();
+    uiStore.setLoading(true);
+    try {
+        await dataStore.fetchAllPersonnel(); // 從 Pinia Store 獲取人員資料
+    } catch (error) {
+        // 錯誤已在 dataStore 處理，這裡只需捕獲
+    } finally {
+        isLoading.value = false;
+        uiStore.setLoading(false);
     }
-    isLoading.value = false;
 });
 
+// 監聽篩選條件變化，自動重新計算過濾與排序
+watch(() => filters.value.searchTerm, () => {
+  // 如果是實時搜尋，這裡會觸發，但我們讓 computed 屬性處理重算
+});
+watch(() => filters.value.sortBy, () => {
+  // 如果是排序方式變化，這裡會觸發，但我們讓 computed 屬性處理重算
+});
+
+// 過濾人員資料
 const filteredPersonnel = computed(() => {
     const term = filters.value.searchTerm.toLowerCase();
     if (!term) return dataStore.personnel;
+    
+    // 實現舊專案的搜索邏輯：支援姓名、學號、卡號或標籤的模糊匹配
     return dataStore.personnel.filter(p =>
         p.name.toLowerCase().includes(term) ||
         p.code.toLowerCase().includes(term) ||
-        p.card_number.toLowerCase().includes(term)
+        p.card_number.toLowerCase().includes(term) ||
+        (p.tags && p.tags.some(tag => tag.toLowerCase().includes(term)))
     );
 });
 
+// 排序人員資料
 const sortedPersonnel = computed(() => {
     const [key, direction] = filters.value.sortBy.split('_');
     return [...filteredPersonnel.value].sort((a, b) => {
         let valA = a[key]?.toLowerCase() || '';
         let valB = b[key]?.toLowerCase() || '';
+
+        // 特殊處理數字排序，例如學號和卡號
+        if (key === 'code' || key === 'card_number') {
+            const numA = parseInt(valA.replace(/[^0-9]/g, ''), 10);
+            const numB = parseInt(valB.replace(/[^0-9]/g, ''), 10);
+            if (!isNaN(numA) && !isNaN(numB)) {
+                return direction === 'asc' ? numA - numB : numB - numA;
+            }
+        }
+        // 處理日期排序 (created_at, updated_at)
+        if (key.includes('_at')) {
+            const dateA = new Date(a[key]);
+            const dateB = new Date(b[key]);
+            return direction === 'asc' ? dateA.getTime() - dateB.getTime() : dateB.getTime() - dateA.getTime();
+        }
+
+        // 默認字符串排序
         if (valA < valB) return direction === 'asc' ? -1 : 1;
         if (valA > valB) return direction === 'asc' ? 1 : -1;
         return 0;
     });
 });
 
-// Selection Logic
+// 選取邏輯：判斷單個人員是否被選中
 const isSelected = (id) => selectedPersonnel.value.includes(id);
 
+// 選取邏輯：全選/取消全選
 const selectAll = computed({
     get: () => sortedPersonnel.value.length > 0 && selectedPersonnel.value.length === sortedPersonnel.value.length,
     set: (value) => {
@@ -175,16 +250,14 @@ const selectAll = computed({
     }
 });
 
-// Modal logic
-const isModalOpen = ref(false);
-const isEditing = ref(false);
-const editablePerson = ref({});
-
+// --- 新增/編輯人員 Modal 相關邏輯 ---
 const openModal = (person = null) => {
     isEditing.value = !!person;
     if (person) {
+        // 複製人員資料，並將 tags 陣列轉換為分號分隔的字串
         editablePerson.value = { ...person, tags: Array.isArray(person.tags) ? person.tags.join(';') : '' };
     } else {
+        // 初始化空白人員資料
         editablePerson.value = { name: '', code: '', card_number: '', building: '', tags: '' };
     }
     isModalOpen.value = true;
@@ -192,11 +265,13 @@ const openModal = (person = null) => {
 const closeModal = () => isModalOpen.value = false;
 
 const handleSave = async () => {
+    // 儲存時，將 tags 字串重新轉換為陣列
     const personData = { 
         ...editablePerson.value, 
         tags: editablePerson.value.tags.split(';').map(t => t.trim()).filter(Boolean)
     };
     uiStore.setLoading(true);
+    // 調用 dataStore 中的 savePerson 方法
     const success = await dataStore.savePerson(personData);
     uiStore.setLoading(false);
     if (success) {
@@ -204,22 +279,103 @@ const handleSave = async () => {
     }
 };
 
+// --- 單筆/批次刪除人員相關邏輯 ---
 const confirmDelete = async (person) => {
     if(confirm(`確定要刪除 ${person.name} (${person.code}) 嗎？`)) {
-        await dataStore.batchDeletePersonnel([person.id]);
+        await dataStore.batchDeletePersonnel([person.id]); // 調用 dataStore 的批次刪除方法
+        selectedPersonnel.value = selectedPersonnel.value.filter(id => id !== person.id); // 更新選取狀態
     }
 };
 
 const confirmBatchDelete = async () => {
-    if(confirm(`確定要刪除選取的 ${selectedPersonnel.value.length} 位人員嗎？`)) {
+    if(selectedPersonnel.value.length === 0) {
+        uiStore.showMessage('請至少選擇一位人員進行批量刪除。', 'info');
+        return;
+    }
+    if(confirm(`確定要刪除選取的 ${selectedPersonnel.value.length} 位人員嗎？此操作無法復原。`)) {
         await dataStore.batchDeletePersonnel(selectedPersonnel.value);
-        selectedPersonnel.value = []; // Clear selection after deletion
+        selectedPersonnel.value = []; // 清空選取狀態
     }
 };
+
+// --- 批量增加標籤 Modal 相關邏輯 ---
+const openBatchAddTagsModal = () => {
+    if (selectedPersonnel.value.length === 0) {
+        uiStore.showMessage('請至少選擇一位人員。', 'info');
+        return;
+    }
+    newTagsInput.value = ''; // 清空輸入框
+    isBatchAddTagsModalOpen.value = true;
+};
+const closeBatchAddTagsModal = () => isBatchAddTagsModalOpen.value = false;
+
+const handleBatchAddTags = async () => {
+    const tagsToAdd = newTagsInput.value.trim().split(';').map(tag => tag.trim()).filter(Boolean);
+    if (tagsToAdd.length === 0) {
+        uiStore.showMessage('請輸入要增加的標籤。', 'warning');
+        return;
+    }
+
+    uiStore.setLoading(true);
+    try {
+        const allPersonnel = dataStore.personnel;
+        const updatePromises = selectedPersonnel.value.map(id => {
+            const person = allPersonnel.find(p => p.id === id);
+            if (!person) return Promise.resolve(); // 如果人員不存在，跳過
+            
+            // 合併現有標籤和新標籤，並去重
+            const currentTags = new Set(person.tags || []);
+            tagsToAdd.forEach(tag => currentTags.add(tag));
+            const updatedTags = Array.from(currentTags);
+            
+            return api.updatePersonnelTags(id, updatedTags); // 調用 API 更新標籤
+        });
+        
+        await Promise.all(updatePromises);
+        uiStore.showMessage(`已成功為 ${selectedPersonnel.value.length} 位人員增加標籤。`, 'success');
+        await dataStore.fetchAllPersonnel(); // 重新獲取人員資料以更新 UI
+        selectedPersonnel.value = []; // 清空選取
+        closeBatchAddTagsModal();
+    } catch (error) {
+        uiStore.showMessage(`批量增加標籤失敗: ${error.message}`, 'error');
+    } finally {
+        uiStore.setLoading(false);
+    }
+};
+
+// --- 匯出人員資料 ---
+const exportPersonnelData = () => {
+    if (dataStore.personnel.length === 0) {
+        uiStore.showMessage('沒有人員資料可匯出。', 'info');
+        return;
+    }
+
+    let csvContent = '姓名,學號,卡號,棟別,標籤\n';
+    dataStore.personnel.forEach(person => {
+        const name = `"${person.name}"`;
+        const code = `"${person.code}"`;
+        const cardNumber = `"${person.card_number}"`;
+        const building = `"${person.building || ''}"`;
+        const tags = `"${(person.tags || []).join(';')}"`;
+        csvContent += `${name},${code},${cardNumber},${building},${tags}\n`;
+    });
+
+    const blob = new Blob([`\uFEFF${csvContent}`], { type: 'text/csv;charset=utf-8;' }); // 添加 BOM 以確保中文顯示正常
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `人員資料_${formatDate(new Date())}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+    uiStore.showMessage('人員資料已匯出。', 'success');
+};
+
 </script>
 
 <style scoped>
-/* [NEW] Style to match the old project's card shadow and hover effect */
+/* Style to match the old project's card shadow and hover effect */
 .person-card {
   box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
 }

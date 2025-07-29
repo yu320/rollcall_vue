@@ -73,11 +73,115 @@ export async function fetchAllPersonnel() {
 }
 
 export async function upsertPersonnel(personnelData) {
-    const { data, error } = await supabase.from('personnel').upsert(personnelData, { onConflict: 'code', ignoreDuplicates: false });
-    if (error) throw error;
-    recordAuditLog({ action_type: 'UPSERT', target_table: 'personnel', description: `匯入/更新 ${data.length} 筆人員資料`, new_value: data });
-    return data;
+    const supabase = await getSupabase(); // Ensure supabase client is available
+    if (!supabase) throw new Error("Supabase client is not initialized.");
+
+    const results = {
+        successCount: 0,
+        updateCount: 0,
+        errors: [],
+    };
+
+    const existingPersonnelMapByCode = new Map();
+    const existingPersonnelMapByCard = new Map();
+
+    // Fetch all existing personnel to determine if it's an insert or update
+    const { data: existingData, error: fetchError } = await supabase.from('personnel').select('id, code, card_number, name');
+    if (fetchError) {
+        console.error("Failed to fetch existing personnel for upsert:", fetchError);
+        throw fetchError;
+    }
+    existingData.forEach(p => {
+        existingPersonnelMapByCode.set(p.code.toLowerCase(), p);
+        existingPersonnelMapByCard.set(String(p.card_number), p);
+    });
+
+    // Separate data into inserts and updates
+    const inserts = [];
+    const updates = [];
+
+    for (const person of personnelData) {
+        const existingByCode = existingPersonnelMapByCode.get(person.code.toLowerCase());
+        const existingByCard = existingPersonnelMapByCard.get(String(person.card_number));
+
+        if (existingByCode || existingByCard) {
+            // It's an update, prefer ID from existing record if available
+            const idToUpdate = existingByCode ? existingByCode.id : existingByCard.id;
+            updates.push({ id: idToUpdate, ...person });
+        } else {
+            inserts.push(person);
+        }
+    }
+
+    // Process inserts in batches
+    if (inserts.length > 0) {
+        for (let i = 0; i < inserts.length; i += BATCH_SIZE) {
+            const chunk = inserts.slice(i, i + BATCH_SIZE);
+            const { data, error } = await supabase.from('personnel').insert(chunk).select();
+            if (error) {
+                error.details?.forEach(detail => results.errors.push(`新增失敗: ${detail.message}`));
+                if (!error.details) results.errors.push(`新增批次失敗: ${error.message}`);
+            } else {
+                results.successCount += data.length;
+                data.forEach(p => recordAuditLog({
+                    action_type: 'CREATE',
+                    target_table: 'personnel',
+                    target_id: p.id,
+                    description: `透過匯入新增人員: ${p.name} (學號: ${p.code})`,
+                    new_value: p
+                }));
+            }
+        }
+    }
+
+    // Process updates in batches
+    if (updates.length > 0) {
+        for (let i = 0; i < updates.length; i += BATCH_SIZE) {
+            const chunk = updates.slice(i, i + BATCH_SIZE);
+            // Supabase upsert with `onConflict` cannot update different fields directly based on complex conditions.
+            // A direct update for each item is safer if unique fields like code/card_number are the conflict targets.
+            // For batch update, perform individual updates or use RPC function for more complex logic.
+            // For simplicity, let's assume `id` is the primary key for updates.
+            // If `onConflict: 'code'` is used, the upsert will update if code matches.
+            // Here, we handle `id` for specific updates.
+            const updatePromises = chunk.map(person => {
+                const oldData = existingPersonnelMapByCode.get(person.code.toLowerCase()) || existingPersonnelMapByCard.get(String(person.card_number));
+                return supabase.from('personnel')
+                    .update({
+                        name: person.name,
+                        code: person.code,
+                        card_number: person.card_number,
+                        building: person.building,
+                        tags: person.tags,
+                        updated_at: new Date()
+                    })
+                    .eq('id', person.id)
+                    .select()
+                    .single()
+                    .then(({ data, error }) => {
+                        if (error) {
+                            results.errors.push(`更新失敗 (${person.name || person.code}): ${error.message}`);
+                            return null;
+                        }
+                        results.updateCount++;
+                        recordAuditLog({
+                            action_type: 'UPDATE',
+                            target_table: 'personnel',
+                            target_id: data.id,
+                            description: `透過匯入更新人員: ${data.name} (學號: ${data.code})`,
+                            old_value: oldData,
+                            new_value: data
+                        });
+                        return data;
+                    });
+            });
+            const updateResults = await Promise.allSettled(updatePromises);
+            updateResults.filter(r => r.status === 'rejected').forEach(r => results.errors.push(`更新操作失敗: ${r.reason.message}`));
+        }
+    }
+    return results;
 }
+
 
 export async function createPersonnel(personData) {
     const { data, error } = await supabase.from('personnel').insert(personData).select().single();

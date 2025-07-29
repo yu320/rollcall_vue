@@ -101,4 +101,17 @@ const closeDropdown = (menu) => {
   box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
   border: 1px solid #e5e7eb;
 }
+
+/* [NEW] 手機版下拉選單固定定位和滿寬度 */
+@media (max-width: 768px) {
+    .dropdown-menu-floating {
+        position: fixed; /* 使用 fixed 定位確保不被父元素裁剪 */
+        left: 1rem;      /* 距離左邊 1rem */
+        right: 1rem;     /* 距離右邊 1rem，達到滿寬度效果 */
+        width: auto;     /* 寬度自動調整 */
+        max-width: calc(100vw - 2rem); /* 最大寬度為視口寬度減去左右 padding */
+        top: auto;       /* 讓垂直定位由 JS 或其他 flex/grid 屬性控制 */
+        margin-top: 0;   /* 移除上邊距 */
+    }
+}
 </style>

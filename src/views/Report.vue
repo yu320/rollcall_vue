@@ -33,7 +33,11 @@
     </div>
 
     <!-- 報表內容 -->
-    <div v-if="!isLoading">
+    <div v-if="isLoading" class="text-center py-16 text-gray-500 bg-white rounded-xl shadow-lg">
+      <div class="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-indigo-500 mx-auto mb-4"></div>
+      <p>正在載入報表數據...</p>
+    </div>
+    <div v-else>
       <!-- 活動參與統計 -->
       <div v-show="activeTab === 'participation'" class="space-y-6">
         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-6">
@@ -143,7 +147,7 @@
                 <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6" id="personnelReportStats">
                     <div class="bg-gray-50 p-4 rounded-lg text-center"><p class="text-sm text-gray-500">簽到次數</p><p class="text-2xl font-bold text-gray-900">{{ personnelReportData.stats.checkInCount }}</p></div>
                     <div class="bg-gray-50 p-4 rounded-lg text-center"><p class="text-sm text-gray-500">簽退次數</p><p class="text-2xl font-bold text-gray-900">{{ personnelReportData.stats.checkOutCount }}</p></div>
-                    <div class="bg-gray-50 p-4 rounded-lg text-center"><p class="text-sm text-gray-500">參與率</p><p class="text-2xl font-bold text-gray-900">{{ personnelReportData.stats.attendanceRate.toFixed(1) }}%</p></div>
+                    <div class="bg-gray-50 p-4 rounded-lg text-center"><p class="text-sm text-gray-500">參與活動數</p><p class="text-2xl font-bold text-gray-900">{{ personnelReportData.stats.attendedEventsCount }}</p></div>
                     <div class="bg-gray-50 p-4 rounded-lg text-center"><p class="text-sm text-gray-500">準時/遲到</p><p class="text-2xl font-bold text-gray-900">{{ personnelReportData.stats.onTimeCount }} / {{ personnelReportData.stats.lateCount }}</p></div>
                 </div>
             </div>
@@ -179,8 +183,7 @@ import { useDataStore } from '@/store/data';
 import { useAuthStore } from '@/store/auth';
 import * as api from '@/services/api';
 import Chart from 'chart.js/auto';
-// FIX: Removed incorrect import
-import { createSummaryCard } from '@/utils/index';
+import { createSummaryCard } from '@/utils/index'; // 確保正確導入
 
 // Store 初始化
 const uiStore = useUiStore();
@@ -188,62 +191,84 @@ const dataStore = useDataStore();
 const authStore = useAuthStore();
 
 // 組件狀態
-const isLoading = ref(true);
-const activeTab = ref('participation');
-const startDate = ref('');
-const endDate = ref('');
-const activityFilter = ref('all');
-const buildingFilter = ref('all');
-const personnelSearchTerm = ref('');
-const personnelReportData = ref(null);
+const isLoading = ref(true); // 控制頁面載入狀態
+const activeTab = ref('participation'); // 當前活躍的報表頁籤
+const startDate = ref(''); // 日期篩選器的開始日期
+const endDate = ref(''); // 日期篩選器的結束日期
+const activityFilter = ref('all'); // 活動篩選器 (all 或 eventId)
+const buildingFilter = ref('all'); // 棟別篩選器 (all 或 buildingName)
+const personnelSearchTerm = ref(''); // 人員搜尋詞
+const personnelReportData = ref(null); // 特定人員的報表數據
 
 // 原始和處理後的數據
-const rawData = ref([]);
-const processedData = ref(null);
+const rawData = ref([]); // 從 API 獲取的所有原始記錄
+const processedReportStats = ref(null); // 處理後的報表統計數據
 
-// 圖表實例和 Canvas 引用
-const chartInstances = {};
+// Chart.js 圖表實例引用
+const chartInstances = {
+    attendanceTrend: null,
+    attendancePie: null,
+    attendanceStatusPie: null,
+    buildingAttendance: null,
+};
+
+// Canvas 元素引用
 const attendanceTrendChartCanvas = ref(null);
 const attendancePieChartCanvas = ref(null);
 const attendanceStatusPieChartCanvas = ref(null);
 const buildingAttendanceChartCanvas = ref(null);
 
-
 // --- Computed Properties ---
 
+// 過濾後的活動選項 (只有在日期範圍內有記錄的活動)
 const eventOptions = computed(() => {
     if (!rawData.value) return [];
     const eventIds = [...new Set(rawData.value.map(r => r.event_id).filter(Boolean))];
-    return dataStore.events.filter(e => eventIds.includes(e.id));
+    // 確保只返回 dataStore 中存在的活動，並按開始時間降序排序
+    return dataStore.events.filter(e => eventIds.includes(e.id)).sort((a, b) => new Date(b.start_time) - new Date(a.start_time));
 });
 
+// 過濾後的棟別選項 (只有在人員資料中存在的棟別)
 const buildingOptions = computed(() => {
     return [...new Set(dataStore.personnel.map(p => p.building).filter(Boolean))].sort();
 });
 
-const filteredRecords = computed(() => {
-    if (!rawData.value) return [];
-    return rawData.value.filter(record => {
-        const personnel = dataStore.getPersonnelById(record.personnel_id);
-        const buildingMatch = buildingFilter.value === 'all' || (personnel && personnel.building === buildingFilter.value);
-        const activityMatch = activityFilter.value === 'all' || record.event_id === activityFilter.value;
-        return buildingMatch && activityMatch;
+// 根據活動篩選器和棟別篩選器過濾後的活動統計數據 (用於表格)
+const filteredActivityStats = computed(() => {
+    if (!processedReportStats.value) return [];
+    return processedReportStats.value.activityStats.filter(act => {
+        const activityMatch = activityFilter.value === 'all' || act.id === activityFilter.value;
+        return activityMatch;
     });
 });
 
-const filteredActivityStats = computed(() => processedData.value?.tables.activityStats || []);
-const summaryCards = computed(() => processedData.value?.summaryCards || []);
-const buildingOnTimeRank = computed(() => processedData.value?.buildingOnTimeRank || []);
+// 摘要卡片數據
+const summaryCards = computed(() => processedReportStats.value?.summaryCards || []);
+// 棟別準時率排名數據
+const buildingOnTimeRank = computed(() => processedReportStats.value?.buildingOnTimeRank || []);
 
 
 // --- Watchers ---
 
+// 監聽日期範圍或篩選條件變化，重新生成報表
 watch([startDate, endDate, activityFilter, buildingFilter], () => {
     updateReportView();
 });
 
+// 監聽活躍頁籤變化，如果切換到圖表相關頁籤，則重新渲染圖表
+watch(activeTab, (newTab) => {
+    if (newTab === 'participation' || newTab === 'building') {
+        // 使用 nextTick 確保 DOM 元素存在後再渲染圖表
+        nextTick(() => {
+            renderAllCharts();
+        });
+    }
+});
+
+
 // --- Methods ---
 
+// 格式化日期為 YYYY-MM-DD
 const formatDate = (date) => {
   const year = date.getFullYear();
   const month = (date.getMonth() + 1).toString().padStart(2, '0');
@@ -251,133 +276,177 @@ const formatDate = (date) => {
   return `${year}-${month}-${day}`;
 };
 
-
+// 組件掛載時初始化報表頁面
 onMounted(() => {
-    initialize();
+    initializeReport();
 });
 
-const initialize = async () => {
-    uiStore.setLoading(true);
-    isLoading.value = true;
+// 初始化報表頁面
+const initializeReport = async () => {
+    uiStore.setLoading(true); // 顯示全局載入遮罩
+    isLoading.value = true; // 設置頁面載入狀態
     try {
+        // 設置預設日期為最近一個月
         const end = new Date();
         const start = new Date();
         start.setMonth(start.getMonth() - 1);
         startDate.value = formatDate(start);
         endDate.value = formatDate(end);
 
+        // 並行載入所有人員和活動數據到 dataStore
         await Promise.all([dataStore.fetchAllPersonnel(), dataStore.fetchEvents()]);
+        
+        // 更新報表視圖 (會觸發數據獲取和圖表渲染)
         await updateReportView();
     } catch (error) {
         uiStore.showMessage(`初始化報表頁面失敗: ${error.message}`, 'error');
     } finally {
-        uiStore.setLoading(false);
-        isLoading.value = false;
+        isLoading.value = false; // 隱藏頁面載入狀態
+        uiStore.setLoading(false); // 隱藏全局載入遮罩
     }
 };
 
+// 更新整個報表視圖 (核心邏輯)
 const updateReportView = async () => {
-    if (!startDate.value || !endDate.value) return;
+    if (!startDate.value || !endDate.value) return; // 確保日期已選擇
 
-    // We don't need a separate loading overlay here as the main one is handled by isLoading
-    // uiStore.setLoading(true); 
+    // 重新獲取數據前顯示載入狀態
+    uiStore.setLoading(true); 
+    isLoading.value = true;
+    personnelReportData.value = null; // 清空人員報表數據
+
     try {
         const start = new Date(startDate.value);
         const end = new Date(endDate.value);
-        end.setHours(23, 59, 59, 999);
-        
+        end.setHours(23, 59, 59, 999); // 結束日期設為當天結束
+
+        // 從 API 獲取所有符合日期範圍的記錄
         rawData.value = await api.fetchRecordsByDateRange(start, end);
-        processedData.value = processReportData(filteredRecords.value, dataStore.personnel, dataStore.events, buildingFilter.value);
-        nextTick(() => {
-            renderAllCharts();
-        });
+        
+        // 處理原始數據，生成各種統計結果 (這是一個複雜的本地計算)
+        processedReportStats.value = processReportData(
+            rawData.value, 
+            dataStore.personnel, 
+            dataStore.events, 
+            buildingFilter.value // 傳遞當前棟別篩選值
+        );
+        
+        // 使用 nextTick 確保 DOM 更新完成後再渲染圖表
+        await nextTick();
+        renderAllCharts(); // 渲染所有圖表
     } catch (error) {
         uiStore.showMessage(`載入報表數據失敗: ${error.message}`, 'error');
+        rawData.value = []; // 載入失敗清空數據
+        processedReportStats.value = null;
     } finally {
-        // uiStore.setLoading(false);
+        isLoading.value = false;
+        uiStore.setLoading(false);
     }
 };
 
+// 處理原始記錄數據，生成各種報表統計
 const processReportData = (records, allPersonnel, allEvents, currentBuildingFilter) => {
-    const eventGroups = {};
+    const eventGroups = {}; // 按活動 ID 分組記錄
     records.forEach(r => {
-        if (!r.event_id) return;
+        if (!r.event_id) return; // 忽略沒有活動 ID 的記錄
         if (!eventGroups[r.event_id]) {
             const event = allEvents.find(e => e.id === r.event_id);
-            // [FIXED] 確保 eventInfo 有預設值，避免 undefined 或 NaN
-            eventGroups[r.event_id] = { eventInfo: event || { id: r.event_id, name: '未知活動', start_time: new Date().toISOString() }, records: [] };
+            eventGroups[r.event_id] = { 
+                eventInfo: event || { id: r.event_id, name: '未知活動', start_time: new Date().toISOString() }, 
+                records: [] 
+            };
         }
         eventGroups[r.event_id].records.push(r);
     });
 
+    // 計算每個活動的統計數據
     const activityStats = Object.values(eventGroups).map(group => {
+        // 過濾出符合當前棟別篩選的人員
         const personnelForEvent = currentBuildingFilter === 'all' ? allPersonnel : allPersonnel.filter(p => p.building === currentBuildingFilter);
-        const shouldAttendCount = personnelForEvent.length;
+        const shouldAttendCount = personnelForEvent.length; // 應到人數
+
         const checkInRecords = group.records.filter(r => r.action_type === '簽到' && r.success);
+        const checkOutRecords = group.records.filter(r => r.action_type === '簽退' && r.success);
+
         const attendedPersonnelIds = new Set(checkInRecords.map(r => r.personnel_id));
-        const attendedCount = attendedPersonnelIds.size;
-        const checkOutCount = new Set(group.records.filter(r => r.action_type === '簽退' && r.success).map(r => r.personnel_id)).size;
-        const onTimeCount = new Set(checkInRecords.filter(r => r.status === '準時').map(r => r.personnel_id)).size;
+        const attendedCount = attendedPersonnelIds.size; // 簽到人數 (去重)
+
+        const checkedOutPersonnelIds = new Set(checkOutRecords.map(r => r.personnel_id));
+        const checkOutCount = checkedOutPersonnelIds.size; // 簽退人數 (去重)
+        const notCheckedOutCount = attendedCount - checkOutCount; // 未簽退人數
+
+        const absentCount = shouldAttendCount - attendedCount; // 未到人數
+
+        const onTimePersonnelIds = new Set(checkInRecords.filter(r => r.status === '準時').map(r => r.personnel_id));
+        const onTimeCount = onTimePersonnelIds.size; // 準時人數 (去重)
+        const lateCount = attendedCount - onTimeCount; // 遲到人數 (去重)
+        
+        const attendanceRate = shouldAttendCount > 0 ? (attendedCount / shouldAttendCount * 100) : 0;
+        const onTimeRate = attendedCount > 0 ? (onTimeCount / attendedCount * 100) : 0;
         
         return {
             ...group.eventInfo,
             shouldAttendCount,
             attendedCount,
             checkOutCount,
-            notCheckedOutCount: attendedCount - checkOutCount,
-            absentCount: shouldAttendCount > 0 ? shouldAttendCount - attendedCount : 0,
+            notCheckedOutCount,
+            absentCount,
             onTimeCount,
-            lateCount: attendedCount - onTimeCount,
-            attendanceRate: shouldAttendCount > 0 ? (attendedCount / shouldAttendCount * 100) : 0,
-            onTimeRate: attendedCount > 0 ? (onTimeCount / attendedCount * 100) : 0,
+            lateCount,
+            attendanceRate: parseFloat(attendanceRate.toFixed(1)),
+            onTimeRate: parseFloat(onTimeRate.toFixed(1)),
         };
-    }).sort((a, b) => new Date(b.start_time) - new Date(a.start_time));
+    }).sort((a, b) => new Date(b.start_time) - new Date(a.start_time)); // 按活動時間降序
 
+    // 計算總體統計數據
+    const totalEvents = activityStats.length;
     const totalCheckins = activityStats.reduce((sum, act) => sum + act.attendedCount, 0);
+    const totalCheckouts = activityStats.reduce((sum, act) => sum + act.checkOutCount, 0);
     const totalOnTime = activityStats.reduce((sum, act) => sum + act.onTimeCount, 0);
     const overallShouldAttend = activityStats.reduce((sum, act) => sum + act.shouldAttendCount, 0);
+    const overallAttendanceRate = overallShouldAttend > 0 ? (totalCheckins / overallShouldAttend * 100) : 0;
+    const overallOnTimeRate = totalCheckins > 0 ? (totalOnTime / totalCheckins * 100) : 0;
 
-    const summary = {
-        totalEvents: activityStats.length,
-        totalCheckins: totalCheckins,
-        totalCheckouts: activityStats.reduce((sum, act) => sum + act.checkOutCount, 0),
-        overallAttendanceRate: overallShouldAttend > 0 ? (totalCheckins / overallShouldAttend * 100) : 0,
-        overallOnTimeRate: totalCheckins > 0 ? (totalOnTime / totalCheckins * 100) : 0,
-    };
-
+    // 棟別準時率排名
     const buildings = [...new Set(allPersonnel.map(p => p.building).filter(Boolean))];
     const buildingRank = buildings.map(b => {
         const personnelInBuilding = allPersonnel.filter(p => p.building === b);
-        const attendedRecords = records.filter(r => r.action_type === '簽到' && personnelInBuilding.some(p => p.id === r.personnel_id));
-        const onTimeCount = new Set(attendedRecords.filter(r => r.status === '準時').map(r => r.personnel_id)).size;
-        const totalAttendedInBuilding = new Set(attendedRecords.map(r => r.personnel_id)).size;
+        const personnelIdsInBuilding = new Set(personnelInBuilding.map(p => p.id));
+        const attendedRecords = records.filter(r => r.action_type === '簽到' && r.success && personnelIdsInBuilding.has(r.personnel_id));
+        
+        const onTimePersonnelIds = new Set(attendedRecords.filter(r => r.status === '準時').map(r => r.personnel_id));
+        const onTimeCount = onTimePersonnelIds.size;
+        
+        const totalAttendedInBuilding = new Set(attendedRecords.map(r => r.personnel_id)).size; // 該棟別實際簽到的人數
         const rate = totalAttendedInBuilding > 0 ? (onTimeCount / totalAttendedInBuilding) * 100 : 0;
         return { name: b, rate };
-    }).sort((a, b) => b.rate - a.rate);
+    }).sort((a, b) => b.rate - a.rate); // 按準時率降序
 
     return {
         summaryCards: [
-            { title: '總活動數', html: createSummaryCard('總活動數', summary.totalEvents.toLocaleString(), 'calendar') },
-            { title: '總簽到人次', html: createSummaryCard('總簽到人次', summary.totalCheckins.toLocaleString(), 'check-square') },
-            { title: '總簽退人次', html: createSummaryCard('總簽退人次', summary.totalCheckouts.toLocaleString(), 'user-minus') },
-            { title: '總體參與率', html: createSummaryCard('總體參與率', `${summary.overallAttendanceRate.toFixed(1)}%`, 'pie-chart') },
-            { title: '準時率', html: createSummaryCard('準時率 (基於已簽到)', `${summary.overallOnTimeRate.toFixed(1)}%`, 'clock') }
+            { title: '總活動數', html: createSummaryCard('總活動數', totalEvents.toLocaleString(), 'calendar') },
+            { title: '總簽到人次', html: createSummaryCard('總簽到人次', totalCheckins.toLocaleString(), 'check-square') },
+            { title: '總簽退人次', html: createSummaryCard('總簽退人次', totalCheckouts.toLocaleString(), 'user-minus') },
+            { title: '總體參與率', html: createSummaryCard('總體參與率', `${overallAttendanceRate.toFixed(1)}%`, 'pie-chart') },
+            { title: '準時率', html: createSummaryCard('準時率 (基於已簽到)', `${overallOnTimeRate.toFixed(1)}%`, 'clock') }
         ],
-        tables: { activityStats },
-        charts: { activityStats, records, allPersonnel },
-        buildingOnTimeRank: buildingRank
+        activityStats: activityStats,
+        buildingOnTimeRank: buildingRank,
     };
 };
 
+// 渲染所有圖表 (確保在 DOM 準備好後調用)
 const renderAllCharts = () => {
-    if (!processedData.value) return;
-    const { activityStats, records, allPersonnel } = processedData.value.charts;
+    if (!processedReportStats.value) return;
+    const { activityStats, buildingOnTimeRank } = processedReportStats.value;
+
     renderAttendanceTrendChart(activityStats);
     renderAttendancePieChart(activityStats);
     renderAttendanceStatusPieChart(activityStats);
-    renderBuildingAttendanceChart(records, allPersonnel);
+    renderBuildingAttendanceChart(buildingOnTimeRank); // 傳遞已處理的 buildingOnTimeRank
 };
 
+// 銷毀 Chart.js 實例的輔助函數
 const destroyChart = (instanceRef) => {
     if (instanceRef) {
         instanceRef.destroy();
@@ -385,13 +454,15 @@ const destroyChart = (instanceRef) => {
     }
 };
 
+// 渲染活動參與趨勢折線圖
 const renderAttendanceTrendChart = (activityStats) => {
-    destroyChart(chartInstances.trend);
+    destroyChart(chartInstances.attendanceTrend);
     if (!attendanceTrendChartCanvas.value) return;
-    chartInstances.trend = new Chart(attendanceTrendChartCanvas.value, { 
+    
+    chartInstances.attendanceTrend = new Chart(attendanceTrendChartCanvas.value, { 
         type: 'line',
         data: {
-            labels: activityStats.map(a => a.name).reverse(),
+            labels: activityStats.map(a => a.name).reverse(), // 圖表名稱反轉，讓最近的活動在右邊
             datasets: [
                 { label: '應到人數', data: activityStats.map(a => a.shouldAttendCount).reverse(), borderColor: 'rgba(107, 114, 128, 1)', borderDash: [5, 5], fill: false, tension: 0.3 },
                 { label: '簽到人次', data: activityStats.map(a => a.attendedCount).reverse(), borderColor: 'rgba(79, 70, 229, 1)', backgroundColor: 'rgba(79, 70, 229, 0.2)', fill: true, tension: 0.3 },
@@ -402,12 +473,14 @@ const renderAttendanceTrendChart = (activityStats) => {
     });
 };
 
+// 渲染簽到狀態(準時/遲到)分佈圓餅圖
 const renderAttendancePieChart = (activityStats) => {
-    destroyChart(chartInstances.pie);
+    destroyChart(chartInstances.attendancePie);
     if (!attendancePieChartCanvas.value) return;
     const totalOnTime = activityStats.reduce((sum, act) => sum + act.onTimeCount, 0);
     const totalLate = activityStats.reduce((sum, act) => sum + act.lateCount, 0);
-    chartInstances.pie = new Chart(attendancePieChartCanvas.value, {
+    
+    chartInstances.attendancePie = new Chart(attendancePieChartCanvas.value, {
         type: 'doughnut',
         data: {
             labels: ['準時', '遲到'],
@@ -417,13 +490,15 @@ const renderAttendancePieChart = (activityStats) => {
     });
 };
 
+// 渲染出席狀態(已簽退/未簽退/未到)分佈圓餅圖
 const renderAttendanceStatusPieChart = (activityStats) => {
-    destroyChart(chartInstances.statusPie);
+    destroyChart(chartInstances.attendanceStatusPie);
     if (!attendanceStatusPieChartCanvas.value) return;
     const totalCheckedOut = activityStats.reduce((sum, act) => sum + act.checkOutCount, 0);
     const totalNotCheckedOut = activityStats.reduce((sum, act) => sum + act.notCheckedOutCount, 0);
     const totalAbsent = activityStats.reduce((sum, act) => sum + act.absentCount, 0);
-    chartInstances.statusPie = new Chart(attendanceStatusPieChartCanvas.value, {
+    
+    chartInstances.attendanceStatusPie = new Chart(attendanceStatusPieChartCanvas.value, {
         type: 'doughnut',
         data: {
             labels: ['已簽退', '未簽退', '未到'],
@@ -433,72 +508,103 @@ const renderAttendanceStatusPieChart = (activityStats) => {
     });
 };
 
-const renderBuildingAttendanceChart = (records, personnel) => {
-    destroyChart(chartInstances.building);
+// 渲染棟別活動參與率比較長條圖
+const renderBuildingAttendanceChart = (buildingRank) => {
+    destroyChart(chartInstances.buildingAttendance);
     if (!buildingAttendanceChartCanvas.value) return;
-    const buildings = [...new Set(personnel.map(p => p.building).filter(Boolean))];
-    const buildingStats = buildings.map(b => {
-        const personnelInBuilding = personnel.filter(p => p.building === b);
-        const attendedRecords = records.filter(r => r.action_type === '簽到' && personnelInBuilding.some(p => p.id === r.personnel_id));
-        const onTimeCount = new Set(attendedRecords.filter(r => r.status === '準時').map(r => r.personnel_id)).size;
-        const totalAttendedInBuilding = new Set(attendedRecords.map(r => r.personnel_id)).size;
-        const rate = totalAttendedInBuilding > 0 ? (onTimeCount / totalAttendedInBuilding) * 100 : 0;
-        return { name: b, rate };
-    }).sort((a,b) => b.rate - a.rate);
-
-    chartInstances.building = new Chart(buildingAttendanceChartCanvas.value, {
+    
+    chartInstances.buildingAttendance = new Chart(buildingAttendanceChartCanvas.value, {
         type: 'bar',
         data: {
-            labels: buildingStats.map(s => s.name),
-            datasets: [{ label: '參與率 (%)', data: buildingStats.map(s => s.rate), backgroundColor: 'rgba(79, 70, 229, 0.8)' }]
+            labels: buildingRank.map(s => s.name),
+            datasets: [{ label: '準時率 (%)', data: buildingRank.map(s => s.rate), backgroundColor: 'rgba(79, 70, 229, 0.8)' }]
         },
-        options: { responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true, max: 100 } }, indexAxis: 'y' }
+        options: { 
+            responsive: true, 
+            maintainAspectRatio: false, 
+            scales: { y: { beginAtZero: true, max: 100 } }, 
+            indexAxis: 'y' // 橫向條形圖
+        }
     });
 };
 
-const generatePersonnelReport = () => {
+// 生成並顯示單一個人的人員報表
+const generatePersonnelReport = async () => {
     const term = personnelSearchTerm.value.trim().toLowerCase();
-    if (!term) return uiStore.showMessage('請輸入人員學號、卡號或姓名', 'info');
-    
-    const person = dataStore.personnel.find(p => p.code.toLowerCase() === term || p.name.toLowerCase() === term || String(p.card_number) === term);
-    
-    if (!person) {
+    if (!term) {
+        uiStore.showMessage('請輸入人員學號、卡號或姓名', 'info');
         personnelReportData.value = null;
-        return uiStore.showMessage('找不到該人員', 'error');
+        return;
     }
     
-    const recordsForPerson = rawData.value.filter(r => r.personnel_id === person.id);
-    const attendedEvents = new Set(recordsForPerson.map(r => r.event_id));
-    const totalEventsInScope = new Set(rawData.value.map(r => r.event_id));
-    
-    personnelReportData.value = {
-        person: person,
-        records: recordsForPerson.sort((a,b) => new Date(b.created_at) - new Date(a.created_at)),
-        stats: {
-            checkInCount: recordsForPerson.filter(r => r.action_type === '簽到').length,
-            checkOutCount: recordsForPerson.filter(r => r.action_type === '簽退').length,
-            onTimeCount: recordsForPerson.filter(r => r.status === '準時').length,
-            lateCount: recordsForPerson.filter(r => r.status === '遲到').length,
-            attendanceRate: totalEventsInScope.size > 0 ? (attendedEvents.size / totalEventsInScope.size) * 100 : 0,
+    // 檢查是否為 sdsc 角色，如果是則不允許查看人員活動參與報表
+    if (!authStore.hasPermission('reports:personnel')) {
+        uiStore.showMessage('您沒有權限查看人員活動參與報表。', 'error');
+        personnelReportData.value = null;
+        return;
+    }
+
+    uiStore.setLoading(true); // 顯示載入遮罩
+    try {
+        const person = dataStore.personnel.find(p => 
+            p.code.toLowerCase() === term || 
+            p.name.toLowerCase() === term ||
+            String(p.card_number) === term
+        );
+        
+        if (!person) {
+            personnelReportData.value = null;
+            uiStore.showMessage('找不到該人員', 'error');
+            return;
         }
-    };
-};
+        
+        // 過濾出該人員在當前日期範圍內的所有記錄
+        const recordsForPerson = rawData.value.filter(r => r.personnel_id === person.id);
+        
+        const checkInCount = recordsForPerson.filter(r => r.action_type === '簽到' && r.success).length;
+        const checkOutCount = recordsForPerson.filter(r => r.action_type === '簽退' && r.success).length;
+        const onTimeCount = recordsForPerson.filter(r => r.status === '準時' && r.action_type === '簽到').length;
+        const lateCount = recordsForPerson.filter(r => r.status === '遲到' && r.action_type === '簽到').length;
+        
+        const participatedEvents = new Set(recordsForPerson.filter(r => r.event_id && r.success).map(r => r.event_id));
+        const attendedEventsCount = participatedEvents.size;
 
-const getStatusClass = (status) => {
-    switch (status) {
-        case '準時': return 'bg-green-100 text-green-800';
-        case '遲到': return 'bg-yellow-100 text-yellow-800';
-        default: return 'bg-blue-100 text-blue-800';
+        personnelReportData.value = {
+            person: person,
+            records: recordsForPerson.sort((a,b) => new Date(b.created_at) - new Date(a.created_at)), // 最近的記錄在前
+            stats: {
+                checkInCount: checkInCount,
+                checkOutCount: checkOutCount,
+                onTimeCount: onTimeCount,
+                lateCount: lateCount,
+                attendedEventsCount: attendedEventsCount, // 參與活動的數量
+            }
+        };
+    } catch (error) {
+        uiStore.showMessage(`生成人員報表失敗: ${error.message}`, 'error');
+        personnelReportData.value = null;
+    } finally {
+        uiStore.setLoading(false); // 隱藏載入遮罩
     }
 };
 
+// 根據簽到狀態返回對應的 Tailwind CSS 類別
+const getStatusClass = (status) => {
+    if (status && status.includes('準時')) return 'bg-green-100 text-green-800';
+    if (status && status.includes('遲到')) return 'bg-yellow-100 text-yellow-800';
+    if (status && status.includes('成功')) return 'bg-blue-100 text-blue-800';
+    if (status && status.includes('失敗')) return 'bg-red-100 text-red-800';
+    return 'bg-gray-100 text-gray-800';
+};
+
+// 將目前篩選的報表數據匯出為 CSV/Excel
 const exportReportData = () => {
-    if (!filteredActivityStats.value || filteredActivityStats.value.length === 0) {
+    if (!processedReportStats.value || processedReportStats.value.activityStats.length === 0) {
         return uiStore.showMessage('沒有可匯出的數據', 'info');
     }
     
     let csvContent = '活動名稱,活動日期,應到,簽到,簽退,未簽退,未到,參與率(%),準時率(%)\n';
-    filteredActivityStats.value.forEach(act => {
+    processedReportStats.value.activityStats.forEach(act => {
         const row = [
             `"${act.name}"`,
             formatDate(new Date(act.start_time)),
@@ -524,22 +630,35 @@ const exportReportData = () => {
     URL.revokeObjectURL(url);
     uiStore.showMessage('報表已匯出', 'success');
 };
-
 </script>
 
 <style scoped>
-.report-tab {
-    cursor: pointer;
-    transition: all 0.3s ease;
-    border-bottom: 3px solid transparent;
-    padding: 1rem 0.25rem;
-    font-size: 0.875rem; /* text-sm */
-    font-weight: 500; /* font-medium */
-    white-space: nowrap;
+/* 數據表格樣式 */
+.data-grid {
+    border-collapse: collapse;
+    width: 100%;
 }
-.report-tab.active {
-    border-color: #4f46e5; /* primary-color */
-    color: #4f46e5;
+.data-grid th, .data-grid td {
+    padding: 12px 16px;
+    text-align: left;
+    border-bottom: 1px solid #e5e7eb;
+}
+.data-grid th {
+    background-color: #f9fafb;
     font-weight: 600;
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    color: #6b7280; /* gray-500 */
 }
+.data-grid tbody tr:hover {
+    background-color: #f9fafb;
+}
+
+/* RWD 表格樣式 (手機版卡片式) - 定義在 main.css 中，這裡不需要重複 */
+
+/* 確保圖表容器高度，以便 Chart.js 可以渲染 */
+.h-72 { height: 18rem; } /* 288px */
+.h-96 { height: 24rem; } /* 384px */
+
+/* [MODIFIED] 手機版日期範圍和按鈕佈局 - 已經在 main.css 中，這裡不需要重複 */
 </style>
