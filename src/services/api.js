@@ -59,58 +59,74 @@ export async function getUserProfile(userId) {
   return data;
 }
 
-export async function updateUserProfile(userId, nickname, newPassword = null) {
-    // console.log(`[API] Updating user profile for ID: ${userId}, Nickname: ${nickname}, New Password: ${newPassword ? 'provided' : 'not provided'}`);
-    const updates = {};
-    if (nickname !== undefined) updates.nickname = nickname;
+export async function updateUserPassword(newPassword) {
+    const { error } = await supabase.auth.updateUser({ password: newPassword });
+    if (error) throw error;
+}
 
-    let authUpdatePromise = Promise.resolve();
-    if (newPassword) {
-        // console.log('[API] Attempting to update password via auth.updateUser...');
-        authUpdatePromise = supabase.auth.updateUser({ password: newPassword });
-    }
+// [NEW] API for updating user profile (nickname and/or password)
+export async function updateUserProfile(userId, payload) {
+    let success = true;
+    let errorMessage = '';
 
-    let profileUpdatePromise = Promise.resolve();
-    if (Object.keys(updates).length > 0) {
-        // console.log('[API] Attempting to update profile table...');
-        // First, fetch old data for audit log
-        const { data: oldProfileData, error: oldDataError } = await supabase.from('profiles').select('*').eq('id', userId).single();
-        if (oldDataError) console.warn("更新個人資料前無法獲取舊資料用於稽核:", oldDataError.message);
-
-        profileUpdatePromise = supabase
-            .from('profiles')
-            .update({ ...updates, updated_at: new Date() }) // Include updated_at
-            .eq('id', userId)
-            .select() // Select updated data for audit log
-            .single()
-            .then(({ data, error }) => {
-                if (error) throw error;
-                // console.log('[API] Profile table updated successfully:', data);
-                recordAuditLog({
+    try {
+        // Update nickname in 'profiles' table if it's provided in payload
+        if (payload.nickname !== undefined) {
+            const { data: oldProfileData, error: fetchOldError } = await supabase
+                .from('profiles')
+                .select('nickname')
+                .eq('id', userId)
+                .single();
+            
+            const { error: profileError } = await supabase
+                .from('profiles')
+                .update({ nickname: payload.nickname, updated_at: new Date() }) 
+                .eq('id', userId);
+            
+            if (profileError) {
+                console.error("更新暱稱失敗:", profileError);
+                errorMessage = profileError.message;
+                success = false;
+            } else {
+                 recordAuditLog({
                     action_type: 'UPDATE',
                     target_table: 'profiles',
                     target_id: userId,
-                    description: `更新個人資料: ${data.nickname || data.email}`,
-                    old_value: oldProfileData,
-                    new_value: data
+                    description: `更新使用者暱稱`,
+                    old_value: { nickname: oldProfileData?.nickname || null },
+                    new_value: { nickname: payload.nickname }
                 });
-                return data;
-            });
-    }
+            }
+        }
 
-    const [authResult, profileResult] = await Promise.allSettled([authUpdatePromise, profileUpdatePromise]);
+        // Update password using Supabase Auth if it's provided in payload
+        if (payload.password) {
+            const { error: authError } = await supabase.auth.updateUser({ password: payload.password });
+            if (authError) {
+                console.error("更新密碼失敗:", authError);
+                errorMessage = authError.message;
+                success = false;
+            } else {
+                recordAuditLog({
+                    action_type: 'UPDATE',
+                    target_table: 'auth.users',
+                    target_id: userId,
+                    description: `更新使用者密碼`,
+                    old_value: { password_changed: false }, // Cannot log old password directly
+                    new_value: { password_changed: true }
+                });
+            }
+        }
 
-    if (authResult.status === 'rejected') {
-        console.error('Auth update failed:', authResult.reason);
-        throw authResult.reason;
+        // If any of the updates failed, throw an error
+        if (!success) {
+            throw new Error(errorMessage || '更新個人資料失敗。');
+        }
+        return true; // Return true if all attempted operations were successful
+    } catch (error) {
+        console.error("更新個人資料時發生錯誤:", error);
+        throw error; // Re-throw for calling component to catch and display specific message
     }
-    if (profileResult.status === 'rejected') {
-        console.error('Profile update failed:', profileResult.reason);
-        throw profileResult.reason;
-    }
-
-    // console.log('[API] User profile update completed.');
-    return { auth: authResult.value, profile: profileResult.value };
 }
 
 
@@ -128,10 +144,12 @@ export async function upsertPersonnel(personnelData) {
     const errors = [];
 
     // Fetch existing personnel to distinguish between inserts and updates
-    const existingPersonnel = await supabase.from('personnel').select('code, card_number, id');
-    const existingCodes = new Set(existingPersonnel.data.map(p => p.code));
-    const existingCardNumbers = new Set(existingPersonnel.data.map(p => p.card_number));
-    const existingPersonnelMap = new Map(existingPersonnel.data.map(p => [p.code, p]));
+    const { data: existingPersonnel, error: fetchExistingError } = await supabase.from('personnel').select('code, card_number, id');
+    if (fetchExistingError) throw fetchExistingError; // Handle error for fetching existing personnel
+
+    const existingCodes = new Set(existingPersonnel.map(p => p.code));
+    const existingCardNumbers = new Set(existingPersonnel.map(p => p.card_number));
+    const existingPersonnelMap = new Map(existingPersonnel.map(p => [p.code, p]));
 
 
     const inserts = personnelData.filter(p => !existingCodes.has(p.code) && !existingCardNumbers.has(p.card_number));
@@ -153,7 +171,7 @@ export async function upsertPersonnel(personnelData) {
     for (let i = 0; i < updates.length; i += BATCH_SIZE) {
         const chunk = updates.slice(i, i + BATCH_SIZE);
         const updatePromises = chunk.map(async (item) => {
-            const existingPerson = existingPersonnelMap.get(item.code) || existingPersonnel.data.find(p => p.card_number === item.card_number);
+            const existingPerson = existingPersonnelMap.get(item.code) || existingPersonnel.find(p => p.card_number === item.card_number);
             if (existingPerson) {
                 const { error } = await supabase.from('personnel').update(item).eq('id', existingPerson.id);
                 if (error) {
@@ -231,6 +249,7 @@ export async function updatePersonnelTags(id, tags) {
 // --- Events API ---
 
 export async function fetchEvents() {
+    // [FIXED] Removed `const supabase = getSupabase();` and now using the imported `supabase` client directly.
     const { data, error } = await supabase
         .from('events')
         .select(`
@@ -246,6 +265,7 @@ export async function fetchEvents() {
 }
 
 export async function createEvent(eventData) {
+    // [FIXED] Removed `const supabase = getSupabase();`
     const { data, error } = await supabase.from('events').insert([eventData]).select();
     if (error) throw error;
     if (data && data.length > 0) {
@@ -261,6 +281,7 @@ export async function createEvent(eventData) {
 }
 
 export async function updateEvent(id, eventData) {
+    // [FIXED] Removed `const supabase = getSupabase();`
     const { data: oldData, error: fetchError } = await supabase.from('events').select('*').eq('id', id).single();
     if (fetchError) console.warn("更新活動前無法獲取舊資料用於稽核:", fetchError.message);
 
@@ -280,6 +301,7 @@ export async function updateEvent(id, eventData) {
 }
 
 export async function deleteEvent(id) {
+    // [FIXED] Removed `const supabase = getSupabase();`
     const { data: oldData, error: fetchError } = await supabase.from('events').select('*').eq('id', id).single();
     if (fetchError) console.warn("刪除活動前無法獲取舊資料用於稽核:", fetchError.message);
 
@@ -374,12 +396,8 @@ export async function fetchAllSavedDatesWithStats() {
     return data;
 }
 
-export async function importCheckinRecords({ records, eventId, actionType }) {
-    const { data, error } = await supabase.rpc('import_checkin_records_with_personnel_creation', {
-        records_to_import: records, // Changed key to match RPC argument
-        eventid: eventId,          // Changed key to match RPC argument
-        actiontype: actionType     // Changed key to match RPC argument
-    });
+export async function importCheckinRecords(importData) {
+    const { data, error } = await supabase.rpc('import_checkin_records_with_personnel_creation', { records_to_import: importData });
     if (error) throw error;
     return data;
 }
@@ -440,22 +458,6 @@ export async function updateAccount(accountData) {
     return result;
 }
 
-// [NEW] Batch Update Accounts (via Serverless Function wrapper if needed)
-export async function batchUpdateAccounts(updates) {
-    const adminUserId = await getAdminUserId();
-    const results = [];
-    for (const update of updates) {
-        try {
-            const result = await updateAccount(update); // Re-use single update function
-            results.push({ id: update.id, email: update.email, success: true, ...result });
-        } catch (error) {
-            results.push({ id: update.id, email: update.email, success: false, error: error.message });
-        }
-    }
-    return results;
-}
-
-
 export async function deleteAccounts(ids) {
     const adminUserId = await getAdminUserId();
     const response = await fetch('/api/delete-account', {
@@ -476,6 +478,25 @@ export async function fetchAllAccounts() {
     if (error) throw error;
     return data;
 }
+
+export async function batchUpdateAccounts(accountsToUpdate) {
+    const adminUserId = await getAdminUserId();
+    const results = [];
+    for (const account of accountsToUpdate) {
+        try {
+            // Re-use existing updateAccount if it handles all needed fields, otherwise create new logic
+            // For now, let's assume updateAccount in api.js can handle nickname, password, role_id update.
+            // If updateAccount uses a serverless function, it's already calling the backend,
+            // so we just pass the payload directly.
+            const result = await updateAccount(account); // This calls the /api/update-account endpoint
+            results.push({ ...result, success: true, email: account.email });
+        } catch (error) {
+            results.push({ id: account.id, success: false, error: error.message, email: account.email });
+        }
+    }
+    return results;
+}
+
 
 // --- Roles & Permissions Management ---
 

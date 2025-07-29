@@ -99,8 +99,8 @@ const selectedEventId = ref(null);
 const isLoading = ref(false); // 控制頁面載入狀態
 const dashboardData = ref(null); // 存放儀表板所有數據
 
-const statusChartCanvas = ref(null); // Canvas 引用
-const timelineChartCanvas = ref(null); // Canvas 引用
+const statusChartCanvas = ref(null); // Canvas 引用 
+const timelineChartCanvas = ref(null); // Canvas 引用 
 
 // 儲存 Chart.js 實例，以便在數據更新時銷毀舊圖表
 const chartInstances = {
@@ -167,20 +167,40 @@ const updateDashboard = async () => {
   uiStore.setLoading(true); // 顯示全局載入遮罩
   try {
     // 調用 Supabase RPC 獲取儀表板所需的所有數據
+    // 【修改點】直接從 RPC 獲取數據，並確保其包含正確的篩選邏輯
     const data = await api.getDashboardData(selectedEventId.value);
     
-    // 將數據轉換為組件中使用的格式
+    // 計算應到人數 (所有人員)
+    const allPersonnel = dataStore.personnel;
+    const expectedCount = allPersonnel.length;
+
+    // 從 RPC 返回的數據中獲取統計值，這些值應該已經在後端處理過 `personnel_id` 存在性
+    const actualCount = data.summary.attendedCount; // 實際簽到人數 (去重)
+    const checkOutCount = data.summary.checkedOutCount; // 實際簽退人數 (去重)
+    const onTimeCount = data.summary.onTimeCount; // 準時人數 (去重)
+    const lateCount = data.summary.lateCount; // 遲到人數 (去重)
+    const absentCount = data.summary.absentCount; // 未到人數
+
+    const attendanceRate = data.summary.attendanceRate;
+    const onTimeRate = data.summary.onTimeRate;
+
+    // attendees 列表和 charts 數據直接使用 RPC 返回的結果
+    const attendeesList = data.attendees;
+    const timelineData = data.charts.timeline;
+
     dashboardData.value = {
         summaryCards: [
-            // createSummaryCard 函數來自 '@/utils/index.js'
-            createSummaryCard('應到人數', data.summary.expectedCount, 'users'),
-            createSummaryCard('實到人數', data.summary.attendedCount, 'user-check'),
-            createSummaryCard('未到人數', data.summary.absentCount, 'user-minus'),
-            createSummaryCard('參與率', `${data.summary.attendanceRate.toFixed(1)}%`, 'pie-chart'),
-            createSummaryCard('準時率', `${data.summary.onTimeRate.toFixed(1)}%`, 'clock'),
+            createSummaryCard('應到人數', expectedCount, 'users'),
+            createSummaryCard('實到人數', actualCount, 'user-check'),
+            createSummaryCard('未到人數', absentCount, 'user-minus'),
+            createSummaryCard('參與率', `${attendanceRate.toFixed(1)}%`, 'pie-chart'),
+            createSummaryCard('準時率', `${onTimeRate.toFixed(1)}%`, 'clock'),
         ],
-        attendees: data.attendees,
-        charts: data.charts // 原始圖表數據
+        attendees: attendeesList,
+        charts: { // 傳遞給 renderCharts 的數據
+            status: { onTime: onTimeCount, late: lateCount, absent: absentCount },
+            timeline: timelineData
+        }
     };
     
     // 使用 nextTick 確保 DOM 已更新，再渲染 Chart.js 圖表
@@ -234,14 +254,14 @@ const renderCharts = () => {
     // 將 ISO 時間字符串轉換為 Date 對象
     const timelineData = dashboardData.value.charts.timeline.map(d => ({
         x: parseISO(d.time), // 使用 date-fns 的 parseISO 函數
-        y: d.count
+        y: d.checkin_count // 確保這裡使用正確的欄位名稱
     }));
 
     chartInstances.timeline = new Chart(timelineChartCanvas.value, {
       type: 'line',
       data: {
         datasets: [{
-          label: '累積簽到人數', // 修正為「累積簽到人數」
+          label: '累積簽到人數',
           data: timelineData,
           borderColor: '#4F46E5', // Indigo-600
           backgroundColor: 'rgba(79, 70, 229, 0.2)', // 帶透明度的 Indigo-600
@@ -293,3 +313,4 @@ const renderCharts = () => {
   }
 };
 </script>
+

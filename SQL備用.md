@@ -1,8 +1,8 @@
 -- ===================================================================
---           報到管理系統 - 整合與修正後資料庫設定與遷移腳本
+--          報到管理系統 - 完整資料庫設定與遷移腳本
 -- ===================================================================
 -- 作者: Hong
--- 版本: 2.2.17 (整合使用者最新修正，並確保所有函數與RLS策略的正確性)
+-- 版本: 2.2.14 (最終修正 set_profiles_updated_at 函數的 BEGIN NEW 語法錯誤 及 RLS 依賴問題)
 -- 描述: 這個 SQL 腳本為通用版本，可用於全新資料庫的初始化，
 --       或安全地更新現有資料庫以符合最新架構。
 --       它包含了所有資料表、角色、權限、輔助函數及安全策略。
@@ -96,19 +96,18 @@ BEGIN
 
 END $$;
 
--- [NEW] Trigger to automatically update 'updated_at' on profile updates
-DROP TRIGGER IF EXISTS on_profiles_update ON public.profiles;
 -- [NEW] Function to set updated_at timestamp automatically for profiles table
 DROP FUNCTION IF EXISTS public.set_profiles_updated_at();
 CREATE OR REPLACE FUNCTION public.set_profiles_updated_at()
 RETURNS TRIGGER AS $$
 BEGIN
-    NEW.updated_at = NOW(); -- Corrected syntax here with proper linebreak
+    NEW.updated_at = NOW(); -- Corrected syntax here
     RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;
 
 -- [NEW] Trigger to automatically update 'updated_at' on profile updates
+DROP TRIGGER IF EXISTS on_profiles_update ON public.profiles;
 CREATE TRIGGER on_profiles_update
 BEFORE UPDATE ON public.profiles
 FOR EACH ROW EXECUTE PROCEDURE public.set_profiles_updated_at();
@@ -387,7 +386,7 @@ BEGIN
     SELECT id INTO default_role_id FROM public.roles WHERE name = 'operator';
     INSERT INTO public.profiles(id, email, nickname, role_id)
     VALUES(NEW.id, NEW.email, NEW.email, default_role_id)
-    ON CONFLICT (id) DO UPDATE SET email = EXCLUDED.email; -- 如果已有profile，則更新email
+    ON CONFLICT(id) DO UPDATE SET email = EXCLUDED.email; -- 如果已有 profile，則更新 email
     RETURN NEW;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
@@ -397,36 +396,43 @@ CREATE TRIGGER on_auth_user_created
 AFTER INSERT ON auth.users
 FOR EACH ROW EXECUTE PROCEDURE public.handle_new_user();
 
--- 4.2 權限檢查輔助函數 (用於 RLS)
--- 先刪除所有依賴此函數的 RLS 策略
+-- ========= 5. 啟用 RLS 並定義安全策略 (先刪除所有相關策略，再刪除函數，最後重新創建) =========
+
+-- --- 策略刪除: profiles ---
+DROP POLICY IF EXISTS "Allow users to read their own profile" ON public.profiles;
 DROP POLICY IF EXISTS "Allow admin to manage all profiles_select" ON public.profiles;
 DROP POLICY IF EXISTS "Allow admin to manage all profiles_insert" ON public.profiles;
 DROP POLICY IF EXISTS "Allow admin to manage all profiles_update" ON public.profiles;
 DROP POLICY IF EXISTS "Allow admin to manage all profiles_delete" ON public.profiles;
-DROP POLICY IF EXISTS "Allow users to read their own profile" ON public.profiles;
 
+-- --- 策略刪除: personnel ---
 DROP POLICY IF EXISTS "Allow authorized users to read personnel" ON public.personnel;
 DROP POLICY IF EXISTS "Allow authorized users to create personnel" ON public.personnel;
 DROP POLICY IF EXISTS "Allow authorized users to update personnel" ON public.personnel;
 DROP POLICY IF EXISTS "Allow authorized users to delete personnel" ON public.personnel;
 
+-- --- 策略刪除: events ---
 DROP POLICY IF EXISTS "Allow authenticated users to read events" ON public.events;
 DROP POLICY IF EXISTS "Allow authorized users to create events" ON public.events;
 DROP POLICY IF EXISTS "Allow authorized users to update events" ON public.events;
 DROP POLICY IF EXISTS "Allow authorized users to delete events" ON public.events;
 
+-- --- 策略刪除: check_in_records ---
 DROP POLICY IF EXISTS "Allow authorized users to read records" ON public.check_in_records;
 DROP POLICY IF EXISTS "Allow authorized users to create records" ON public.check_in_records;
 DROP POLICY IF EXISTS "Allow authorized users to delete records" ON public.check_in_records;
 
+-- --- 策略刪除: audit_logs ---
 DROP POLICY IF EXISTS "Allow admin to read audit logs" ON public.audit_logs;
-DROP POLICY IF EXISTS "Allow authenticated users to insert audit logs" ON public.audit_logs; -- 確保此策略被刪除
+DROP POLICY IF EXISTS "Allow authenticated users to insert audit logs" ON public.audit_logs;
 
+-- --- 策略刪除: roles, permissions, role_permissions (新增的策略，也需要先刪除) ---
 DROP POLICY IF EXISTS "Allow admins to manage roles" ON public.roles;
 DROP POLICY IF EXISTS "Allow admins to manage permissions" ON public.permissions;
 DROP POLICY IF EXISTS "Allow admins to manage role_permissions" ON public.role_permissions;
 
-DROP FUNCTION IF EXISTS public.user_has_permission(p_user_id uuid, p_permission_name text);
+-- 4.2 權限檢查輔助函數 (用於 RLS) - 現在可以在所有依賴策略被刪除後安全地刪除和重建
+DROP FUNCTION IF EXISTS public.user_has_permission(uuid, text);
 CREATE OR REPLACE FUNCTION public.user_has_permission(p_user_id uuid, p_permission_name text)
 RETURNS boolean AS $$
 DECLARE
@@ -463,15 +469,13 @@ RETURNS TABLE (created_at timestamptz, total bigint, late bigint, fail bigint)
 LANGUAGE plpgsql
 AS $$
 BEGIN
-    RETURN QUERY
-    SELECT
-        date_trunc('day', cr.created_at)::timestamptz AS created_at,
-        COUNT(cr.id) AS total,
-        COUNT(CASE WHEN cr.status = '遲到' THEN 1 END) AS late,
-        COUNT(CASE WHEN cr.success = FALSE THEN 1 END) AS fail
-    FROM public.check_in_records cr
-    GROUP BY date_trunc('day', cr.created_at)
-    ORDER BY created_at DESC;
+    RETURN QUERY SELECT date_trunc('day', cr.created_at)::timestamptz AS created_at,
+                         COUNT(cr.id) AS total,
+                         COUNT(CASE WHEN cr.status = '遲到' THEN 1 END) AS late,
+                         COUNT(CASE WHEN cr.success = FALSE THEN 1 END) AS fail
+                  FROM public.check_in_records cr
+                  GROUP BY date_trunc('day', cr.created_at)
+                  ORDER BY created_at DESC;
 END;
 $$;
 COMMENT ON FUNCTION public.get_daily_record_stats() IS '獲取每日報到記錄的統計資訊';
@@ -500,9 +504,6 @@ DECLARE
     processed_success_count int := 0;
     processed_auto_created_count int := 0;
     processed_errors text[] := ARRAY[]::text[];
-    -- 新增變數用於生成的值
-    generated_code text;
-    generated_card_number text;
 BEGIN
     -- 獲取活動時間，如果提供了 eventId
     IF eventid IS NOT NULL THEN
@@ -511,11 +512,11 @@ BEGIN
         WHERE id = eventid;
     END IF;
 
-    FOR rec IN SELECT * FROM jsonb_array_elements(to_jsonb(records_to_import)) -- 修正為 to_jsonb
+    FOR rec IN SELECT * FROM jsonb_array_elements(array_to_jsonb(records_to_import))
     LOOP
         person_name := rec->>'name';
-        person_code := rec->>'identifier'; -- 這可能是學號或卡號
-        person_card_number := rec->>'identifier'; -- 這可能是學號或卡號
+        person_code := rec->>'identifier';
+        person_card_number := rec->>'identifier'; -- 假設 identifier 可以是學號或卡號
         person_input_type := rec->>'input_type'; -- 從前端傳遞過來的 input_type
 
         -- 檢查人員是否存在 (優先使用 code，然後 card_number)
@@ -549,32 +550,21 @@ BEGIN
             -- 人員不存在，自動創建
             BEGIN
                 IF person_input_type = '學號' THEN
-                    -- 學號是 identifier，卡號是學號去掉英文
-                    generated_card_number := REPLACE(TRANSLATE(person_code, 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ', ''), ' ', '');
-                    IF generated_card_number = '' THEN
-                        generated_card_number := gen_random_uuid()::text; -- 如果沒有數字，則使用隨機 UUID
-                    END IF;
-                    INSERT INTO public.personnel (name, code, card_number, tags, created_at, updated_at)
-                    VALUES (person_name, person_code, generated_card_number, ARRAY['系統匯入'], NOW(), NOW())
+                    INSERT INTO public.personnel (name, code, card_number, created_at, updated_at)
+                    VALUES (person_name, person_code, gen_random_uuid()::text, NOW(), NOW()) -- 隨機生成卡號
                     RETURNING id INTO person_id;
                 ELSIF person_input_type = '卡號' THEN
-                    -- 卡號是 identifier，學號是 AUTO_卡號
-                    generated_code := CONCAT('AUTO_', person_card_number);
-                    INSERT INTO public.personnel (name, code, card_number, tags, created_at, updated_at)
-                    VALUES (person_name, generated_code, person_card_number, ARRAY['系統匯入'], NOW(), NOW())
+                    INSERT INTO public.personnel (name, code, card_number, created_at, updated_at)
+                    VALUES (person_name, gen_random_uuid()::text, person_card_number, NOW(), NOW()) -- 隨機生成學號
                     RETURNING id INTO person_id;
                 ELSE
                     -- 如果 input_type 是未知，預設以學號創建，卡號隨機
-                    generated_card_number := REPLACE(TRANSLATE(person_code, 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ', ''), ' ', '');
-                    IF generated_card_number = '' THEN
-                        generated_card_number := gen_random_uuid()::text;
-                    END IF;
-                    INSERT INTO public.personnel (name, code, card_number, tags, created_at, updated_at)
-                    VALUES (person_name, person_code, generated_card_number, ARRAY['系統匯入'], NOW(), NOW())
+                    INSERT INTO public.personnel (name, code, card_number, created_at, updated_at)
+                    VALUES (person_name, person_code, gen_random_uuid()::text, NOW(), NOW())
                     RETURNING id INTO person_id;
                     RAISE NOTICE '未知人員識別類型，預設以學號創建人員: %', person_code;
                 END IF;
-
+               
                 processed_auto_created_count := processed_auto_created_count + 1;
                 personnel_exists := TRUE; -- 標記為已存在
             EXCEPTION
@@ -624,7 +614,7 @@ BEGIN
                 personnel_id, device_id, event_id, status, action_type
             )
             VALUES (
-                (rec->>'timestamp')::timestamptz,
+                rec->>'timestamp'::timestamptz,
                 rec->>'identifier',
                 person_input_type,
                 personnel_exists, -- 如果人員存在或已自動創建，則標記成功
@@ -799,22 +789,18 @@ END;
 $$;
 COMMENT ON FUNCTION public.get_event_dashboard_data(uuid) IS '獲取指定活動的儀錶板數據，包括總結、出席人員和圖表數據。';
 
--- ========= 5. 啟用 RLS 並定義安全策略 =========
+-- ========= 6. 啟用 RLS 並定義安全策略 (重新創建所有策略) =========
 ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.personnel ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.events ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.check_in_records ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.audit_logs ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.roles ENABLE ROW LEVEL SECURITY; -- Enable RLS for roles table
+ALTER TABLE public.permissions ENABLE ROW LEVEL SECURITY; -- Enable RLS for permissions table
+ALTER TABLE public.role_permissions ENABLE ROW LEVEL SECURITY; -- Enable RLS for role_permissions table
+
 
 -- --- 策略: profiles ---
--- Drop specific policies
-DROP POLICY IF EXISTS "Allow admin to manage all profiles_select" ON public.profiles;
-DROP POLICY IF EXISTS "Allow admin to manage all profiles_insert" ON public.profiles;
-DROP POLICY IF EXISTS "Allow admin to manage all profiles_update" ON public.profiles;
-DROP POLICY IF EXISTS "Allow admin to manage all profiles_delete" ON public.profiles;
-DROP POLICY IF EXISTS "Allow users to read their own profile" ON public.profiles;
-
--- Recreate policies for profiles
 CREATE POLICY "Allow users to read their own profile" ON public.profiles FOR SELECT USING (auth.uid() = id);
 CREATE POLICY "Allow admin to manage all profiles_select" ON public.profiles FOR SELECT USING (public.user_has_permission(auth.uid(), 'accounts:manage_users'));
 CREATE POLICY "Allow admin to manage all profiles_insert" ON public.profiles FOR INSERT WITH CHECK (public.user_has_permission(auth.uid(), 'accounts:manage_users'));
@@ -822,61 +808,38 @@ CREATE POLICY "Allow admin to manage all profiles_update" ON public.profiles FOR
 CREATE POLICY "Allow admin to manage all profiles_delete" ON public.profiles FOR DELETE USING (public.user_has_permission(auth.uid(), 'accounts:manage_users'));
 
 -- --- 策略: personnel ---
--- Drop specific policies
-DROP POLICY IF EXISTS "Allow authorized users to read personnel" ON public.personnel;
-DROP POLICY IF EXISTS "Allow authorized users to create personnel" ON public.personnel;
-DROP POLICY IF EXISTS "Allow authorized users to update personnel" ON public.personnel;
-DROP POLICY IF EXISTS "Allow authorized users to delete personnel" ON public.personnel;
-
--- Recreate policies for personnel
 CREATE POLICY "Allow authorized users to read personnel" ON public.personnel FOR SELECT USING (public.user_has_permission(auth.uid(), 'personnel:read'));
 CREATE POLICY "Allow authorized users to create personnel" ON public.personnel FOR INSERT WITH CHECK (public.user_has_permission(auth.uid(), 'personnel:create'));
 CREATE POLICY "Allow authorized users to update personnel" ON public.personnel FOR UPDATE USING (public.user_has_permission(auth.uid(), 'personnel:update')) WITH CHECK (public.user_has_permission(auth.uid(), 'personnel:update'));
 CREATE POLICY "Allow authorized users to delete personnel" ON public.personnel FOR DELETE USING (public.user_has_permission(auth.uid(), 'personnel:delete'));
 
 -- --- 策略: events ---
--- Drop specific policies
-DROP POLICY IF EXISTS "Allow authenticated users to read events" ON public.events;
-DROP POLICY IF EXISTS "Allow authorized users to create events" ON public.events;
-DROP POLICY IF EXISTS "Allow authorized users to update events" ON public.events;
-DROP POLICY IF EXISTS "Allow authorized users to delete events" ON public.events;
-
--- Recreate policies for events
 CREATE POLICY "Allow authenticated users to read events" ON public.events FOR SELECT USING (auth.role() = 'authenticated');
 CREATE POLICY "Allow authorized users to create events" ON public.events FOR INSERT WITH CHECK (public.user_has_permission(auth.uid(), 'events:create'));
 CREATE POLICY "Allow authorized users to update events" ON public.events FOR UPDATE USING (public.user_has_permission(auth.uid(), 'events:update')) WITH CHECK (public.user_has_permission(auth.uid(), 'events:update'));
 CREATE POLICY "Allow authorized users to delete events" ON public.events FOR DELETE USING (public.user_has_permission(auth.uid(), 'events:delete'));
 
 -- --- 策略: check_in_records ---
--- Drop specific policies
-DROP POLICY IF EXISTS "Allow authorized users to read records" ON public.check_in_records;
-DROP POLICY IF EXISTS "Allow authorized users to create records" ON public.check_in_records;
-DROP POLICY IF EXISTS "Allow authorized users to delete records" ON public.check_in_records;
-
--- Recreate policies for check_in_records
 CREATE POLICY "Allow authorized users to read records" ON public.check_in_records FOR SELECT USING (public.user_has_permission(auth.uid(), 'records:view'));
 CREATE POLICY "Allow authorized users to create records" ON public.check_in_records FOR INSERT WITH CHECK (public.user_has_permission(auth.uid(), 'records:create'));
 CREATE POLICY "Allow authorized users to delete records" ON public.check_in_records FOR DELETE USING (public.user_has_permission(auth.uid(), 'records:delete'));
 
 -- --- 策略: audit_logs ---
--- Drop specific policies
-DROP POLICY IF EXISTS "Allow admin to read audit logs" ON public.audit_logs;
-DROP POLICY IF EXISTS "Allow authenticated users to insert audit logs" ON public.audit_logs;
-
--- Recreate policies for audit_logs
 CREATE POLICY "Allow admin to read audit logs" ON public.audit_logs FOR SELECT USING (public.user_has_permission(auth.uid(), 'accounts:manage'));
 CREATE POLICY "Allow authenticated users to insert audit logs" ON public.audit_logs FOR INSERT WITH CHECK (auth.role() = 'authenticated');
 
--- --- 策略: roles, permissions, role_permissions ---
--- Drop specific policies
-DROP POLICY IF EXISTS "Allow admins to manage roles" ON public.roles;
-DROP POLICY IF EXISTS "Allow admins to manage permissions" ON public.permissions;
-DROP POLICY IF EXISTS "Allow admins to manage role_permissions" ON public.role_permissions;
+-- --- 策略: roles --- (新增)
+CREATE POLICY "Allow admins to manage roles" ON public.roles
+FOR ALL USING (public.user_has_permission(auth.uid(), 'accounts:manage')) WITH CHECK (public.user_has_permission(auth.uid(), 'accounts:manage'));
 
--- Recreate policies for roles, permissions, and role_permissions
-CREATE POLICY "Allow admins to manage roles" ON public.roles FOR ALL USING (public.user_has_permission(auth.uid(), 'accounts:manage')) WITH CHECK (public.user_has_permission(auth.uid(), 'accounts:manage'));
-CREATE POLICY "Allow admins to manage permissions" ON public.permissions FOR ALL USING (public.user_has_permission(auth.uid(), 'accounts:manage')) WITH CHECK (public.user_has_permission(auth.uid(), 'accounts:manage'));
-CREATE POLICY "Allow admins to manage role_permissions" ON public.role_permissions FOR ALL USING (public.user_has_permission(auth.uid(), 'accounts:manage')) WITH CHECK (public.user_has_permission(auth.uid(), 'accounts:manage'));
+-- --- 策略: permissions --- (新增)
+CREATE POLICY "Allow admins to manage permissions" ON public.permissions
+FOR ALL USING (public.user_has_permission(auth.uid(), 'accounts:manage')) WITH CHECK (public.user_has_permission(auth.uid(), 'accounts:manage'));
+
+-- --- 策略: role_permissions --- (新增)
+CREATE POLICY "Allow admins to manage role_permissions" ON public.role_permissions
+FOR ALL USING (public.user_has_permission(auth.uid(), 'accounts:manage')) WITH CHECK (public.user_has_permission(auth.uid(), 'accounts:manage'));
+
 
 -- 如果所有步驟都成功，提交事務
 COMMIT;

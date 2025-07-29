@@ -122,8 +122,22 @@ const processImport = async () => {
   uiStore.setLoading(true);
   importResult.value = null; // 清空舊的結果
 
+  let csvText;
   try {
-    const csvText = await selectedFile.value.text();
+    const reader = new FileReader();
+    // 【修改點】明確指定使用 'Big5' 編碼來讀取檔案，解決中文亂碼問題
+    reader.readAsText(selectedFile.value, 'Big5');
+    csvText = await new Promise((resolve, reject) => {
+      reader.onload = (e) => resolve(e.target.result);
+      reader.onerror = (e) => reject(new Error(`讀取檔案失敗: ${e.target.error}`));
+    });
+  } catch (error) {
+    uiStore.showMessage(`檔案讀取失敗: ${error.message}`, 'error');
+    uiStore.setLoading(false);
+    return;
+  }
+
+  try {
     const lines = csvText.split(/\r?\n/).filter(line => line.trim() !== '');
     if (lines.length < 2) { // 至少需要標頭和一條數據
       throw new Error("CSV 檔案為空或只有標頭。");
@@ -288,3 +302,10 @@ const downloadSample = () => {
   URL.revokeObjectURL(link.href);
 };
 </script>
+
+<style scoped>
+/*
+  這個組件的特定樣式。
+  主要的 Tailwind CSS 樣式定義在 `src/assets/styles/tailwind.css` 和 `src/assets/styles/main.css` 中。
+*/
+</style>

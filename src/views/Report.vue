@@ -348,7 +348,8 @@ const updateReportView = async () => {
 const processReportData = (records, allPersonnel, allEvents, currentBuildingFilter) => {
     const eventGroups = {}; // 按活動 ID 分組記錄
     records.forEach(r => {
-        if (!r.event_id) return; // 忽略沒有活動 ID 的記錄
+        // 【修改點】僅在 personnel_id 存在時才納入統計
+        if (!r.event_id || !r.personnel_id) return; 
         if (!eventGroups[r.event_id]) {
             const event = allEvents.find(e => e.id === r.event_id);
             eventGroups[r.event_id] = { 
@@ -365,8 +366,10 @@ const processReportData = (records, allPersonnel, allEvents, currentBuildingFilt
         const personnelForEvent = currentBuildingFilter === 'all' ? allPersonnel : allPersonnel.filter(p => p.building === currentBuildingFilter);
         const shouldAttendCount = personnelForEvent.length; // 應到人數
 
-        const checkInRecords = group.records.filter(r => r.action_type === '簽到' && r.success);
-        const checkOutRecords = group.records.filter(r => r.action_type === '簽退' && r.success);
+        // 【修改點】簽到記錄過濾：只篩選 action_type 為 '簽到' 且 personnel_id 存在的記錄
+        const checkInRecords = group.records.filter(r => r.action_type === '簽到' && r.personnel_id);
+        // 【修改點】簽退記錄過濾：只篩選 action_type 為 '簽退' 且 personnel_id 存在的記錄
+        const checkOutRecords = group.records.filter(r => r.action_type === '簽退' && r.personnel_id);
 
         const attendedPersonnelIds = new Set(checkInRecords.map(r => r.personnel_id));
         const attendedCount = attendedPersonnelIds.size; // 簽到人數 (去重)
@@ -377,7 +380,8 @@ const processReportData = (records, allPersonnel, allEvents, currentBuildingFilt
 
         const absentCount = shouldAttendCount - attendedCount; // 未到人數
 
-        const onTimePersonnelIds = new Set(checkInRecords.filter(r => r.status === '準時').map(r => r.personnel_id));
+        // 【修改點】準時人數過濾：只篩選 status 為 '準時' 且 personnel_id 存在的簽到記錄
+        const onTimePersonnelIds = new Set(checkInRecords.filter(r => r.status === '準時' && r.personnel_id).map(r => r.personnel_id));
         const onTimeCount = onTimePersonnelIds.size; // 準時人數 (去重)
         const lateCount = attendedCount - onTimeCount; // 遲到人數 (去重)
         
@@ -407,14 +411,16 @@ const processReportData = (records, allPersonnel, allEvents, currentBuildingFilt
     const overallAttendanceRate = overallShouldAttend > 0 ? (totalCheckins / overallShouldAttend * 100) : 0;
     const overallOnTimeRate = totalCheckins > 0 ? (totalOnTime / totalCheckins * 100) : 0;
 
-    // 棟別準時率排名
+    -- 棟別準時率排名
     const buildings = [...new Set(allPersonnel.map(p => p.building).filter(Boolean))];
     const buildingRank = buildings.map(b => {
         const personnelInBuilding = allPersonnel.filter(p => p.building === b);
         const personnelIdsInBuilding = new Set(personnelInBuilding.map(p => p.id));
-        const attendedRecords = records.filter(r => r.action_type === '簽到' && r.success && personnelIdsInBuilding.has(r.personnel_id));
+        // 【修改點】篩選出 action_type 為 '簽到' 且 personnel_id 存在，且屬於該棟別的記錄
+        const attendedRecords = records.filter(r => r.action_type === '簽到' && r.personnel_id && personnelIdsInBuilding.has(r.personnel_id));
         
-        const onTimePersonnelIds = new Set(attendedRecords.filter(r => r.status === '準時').map(r => r.personnel_id));
+        // 【修改點】準時人數過濾：只篩選 status 為 '準時' 且 personnel_id 存在的簽到記錄
+        const onTimePersonnelIds = new Set(attendedRecords.filter(r => r.status === '準時' && r.personnel_id).map(r => r.personnel_id));
         const onTimeCount = onTimePersonnelIds.size;
         
         const totalAttendedInBuilding = new Set(attendedRecords.map(r => r.personnel_id)).size; // 該棟別實際簽到的人數
@@ -435,6 +441,14 @@ const processReportData = (records, allPersonnel, allEvents, currentBuildingFilt
     };
 };
 
+// 銷毀 Chart.js 實例的輔助函數
+const destroyChart = (instanceRef) => {
+    if (instanceRef) {
+        instanceRef.destroy();
+        instanceRef = null;
+    }
+};
+
 // 渲染所有圖表 (確保在 DOM 準備好後調用)
 const renderAllCharts = () => {
     if (!processedReportStats.value) return;
@@ -444,14 +458,6 @@ const renderAllCharts = () => {
     renderAttendancePieChart(activityStats);
     renderAttendanceStatusPieChart(activityStats);
     renderBuildingAttendanceChart(buildingOnTimeRank); // 傳遞已處理的 buildingOnTimeRank
-};
-
-// 銷毀 Chart.js 實例的輔助函數
-const destroyChart = (instanceRef) => {
-    if (instanceRef) {
-        instanceRef.destroy();
-        instanceRef = null;
-    }
 };
 
 // 渲染活動參與趨勢折線圖
@@ -559,14 +565,20 @@ const generatePersonnelReport = async () => {
         }
         
         // 過濾出該人員在當前日期範圍內的所有記錄
-        const recordsForPerson = rawData.value.filter(r => r.personnel_id === person.id);
+        // 【修改點】人員報表記錄過濾：只篩選 personnel_id 存在的記錄
+        const recordsForPerson = rawData.value.filter(r => r.personnel_id === person.id && r.personnel_id);
         
-        const checkInCount = recordsForPerson.filter(r => r.action_type === '簽到' && r.success).length;
-        const checkOutCount = recordsForPerson.filter(r => r.action_type === '簽退' && r.success).length;
-        const onTimeCount = recordsForPerson.filter(r => r.status === '準時' && r.action_type === '簽到').length;
-        const lateCount = recordsForPerson.filter(r => r.status === '遲到' && r.action_type === '簽到').length;
+        // 【修改點】簽到次數過濾：只篩選 action_type 為 '簽到' 且 personnel_id 存在的記錄
+        const checkInCount = recordsForPerson.filter(r => r.action_type === '簽到' && r.personnel_id).length;
+        // 【修改點】簽退次數過濾：只篩選 action_type 為 '簽退' 且 personnel_id 存在的記錄
+        const checkOutCount = recordsForPerson.filter(r => r.action_type === '簽退' && r.personnel_id).length;
+        // 【修改點】準時次數過濾：只篩選 status 為 '準時' 且 personnel_id 存在的簽到記錄
+        const onTimeCount = recordsForPerson.filter(r => r.status === '準時' && r.action_type === '簽到' && r.personnel_id).length;
+        // 【修改點】遲到次數過濾：只篩選 status 為 '遲到' 且 personnel_id 存在的簽到記錄
+        const lateCount = recordsForPerson.filter(r => r.status === '遲到' && r.action_type === '簽到' && r.personnel_id).length;
         
-        const participatedEvents = new Set(recordsForPerson.filter(r => r.event_id && r.success).map(r => r.event_id));
+        // 【修改點】參與活動數過濾：只篩選 event_id 和 personnel_id 存在的記錄
+        const participatedEvents = new Set(recordsForPerson.filter(r => r.event_id && r.personnel_id).map(r => r.event_id));
         const attendedEventsCount = participatedEvents.size;
 
         personnelReportData.value = {
@@ -627,7 +639,7 @@ const exportReportData = () => {
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
-    URL.revokeObjectURL(url);
+    URL.revokeObjectURL(link.href);
     uiStore.showMessage('報表已匯出', 'success');
 };
 </script>

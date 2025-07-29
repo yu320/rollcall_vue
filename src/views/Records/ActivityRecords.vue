@@ -56,7 +56,7 @@
             <tbody class="bg-white divide-y divide-gray-100">
               <!-- Added data-label attributes for responsive view -->
               <tr v-for="record in paginatedRecords" :key="record.personnelId" class="hover:bg-gray-50">
-                <td data-label="選取" class="px-6 py-4"><input type="checkbox" v-model="selectedPersonnel" :value="record.personnelId" :disabled="!canModifyRecords" class="h-4 w-4 text-indigo-600 rounded"></td>
+                <td data-label="選取" class="px-6 py-4"><input type="checkbox" v-model="selectedPersonnel" :value="record.personnelId" :disabled="!canModifyRecords"></td>
                 <td data-label="學號" class="px-6 py-4 whitespace-nowrap text-sm text-gray-800">{{ record.code }}</td>
                 <td data-label="姓名" class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{{ record.name }}</td>
                 <td data-label="簽到時間" class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{{ record.checkInTime ? formatDateTime(record.checkInTime, 'HH:mm:ss') : '—' }}</td>
@@ -179,7 +179,8 @@ watch(allRecordsForEvent, (newRecords) => {
     const recordsByPerson = {};
 
     newRecords.forEach(rec => {
-        if (!rec.personnel_id) return; // 跳過沒有 personnel_id 的記錄
+        // 【修改點】僅在 personnel_id 存在時才納入統計
+        if (!rec.personnel_id) return; 
 
         if (!recordsByPerson[rec.personnel_id]) {
             const personInfo = personnelMap.get(rec.personnel_id);
@@ -298,7 +299,8 @@ const confirmBatchDelete = () => {
 const deletePersonnelRecords = async (personnelIdsToDelete) => {
     // 從 allRecordsForEvent 找出所有屬於這些 personnelIds 的 record.id
     const recordIdsToDelete = allRecordsForEvent.value
-        .filter(rec => personnelIdsToDelete.includes(rec.personnel_id))
+        // 【修改點】確保只刪除 personnel_id 存在的記錄
+        .filter(rec => personnelIdsToDelete.includes(rec.personnel_id) && rec.personnel_id)
         .map(rec => rec.id);
 
     if (recordIdsToDelete.length === 0) {
@@ -354,3 +356,10 @@ const exportToCSV = () => {
   URL.revokeObjectURL(link.href);
 };
 </script>
+
+<style scoped>
+/*
+  這個組件的特定樣式。
+  主要的 Tailwind CSS 樣式定義在 `src/assets/styles/tailwind.css` 和 `src/assets/styles/main.css` 中。
+*/
+</style>
