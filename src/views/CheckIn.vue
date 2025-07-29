@@ -1,664 +1,448 @@
-<template>
-  <div class="space-y-8">
-    <!-- 頁面標題和篩選器 -->
-    <div class="bg-white rounded-xl shadow-lg p-6 md:p-8 border border-indigo-200">
-      <div class="flex flex-col md:flex-row justify-between items-center mb-6 gap-4">
-        <h2 class="text-3xl font-bold text-indigo-800">活動報表分析</h2>
-        <div class="flex flex-col md:flex-row space-y-3 md:space-y-0 md:space-x-3 items-center w-full md:w-auto">
-          <!-- 日期範圍篩選器 -->
-          <div class="flex items-center gap-2 flex-wrap justify-center">
-            <label for="reportStartDate" class="text-sm font-medium text-gray-700 whitespace-nowrap">日期範圍:</label>
-            <input type="date" id="reportStartDate" v-model="startDate" class="text-sm border border-gray-300 rounded-md px-3 py-2 focus:ring-2 focus:ring-indigo-300">
-            <span class="text-gray-500">至</span>
-            <input type="date" id="reportEndDate" v-model="endDate" class="text-sm border border-gray-300 rounded-md px-3 py-2 focus:ring-2 focus:ring-indigo-300">
-          </div>
-          <!-- 匯出按鈕 -->
-          <button @click="exportReportData" class="w-full md:w-auto bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-md text-sm flex items-center justify-center transition shadow-sm hover:shadow-md">
-            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-            </svg>
-            匯出 Excel
-          </button>
+  <template>
+    <div class="max-w-2xl mx-auto">
+      <div class="bg-white rounded-xl shadow-lg p-8 border-2 border-dashed border-gray-300">
+        <div class="text-center mb-8">
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-16 w-16 mx-auto text-indigo-500 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
+          </svg>
+          <h2 class="text-3xl font-bold text-gray-800">刷卡報到</h2>
+          <p class="text-gray-500 mt-2">請將學生證放置於刷卡機或是手動輸入學號進行報到</p>
         </div>
+
+        <div class="mb-6 flex justify-center gap-4">
+          <label class="inline-flex items-center cursor-pointer">
+            <input type="radio" name="checkin-mode" value="簽到" v-model="actionType" class="form-radio h-5 w-5 text-indigo-600">
+            <span class="ml-2 text-lg font-medium text-gray-800">簽到</span>
+          </label>
+          <label class="inline-flex items-center cursor-pointer">
+            <input type="radio" name="checkin-mode" value="簽退" v-model="actionType" class="form-radio h-5 w-5 text-indigo-600">
+            <span class="ml-2 text-lg font-medium text-gray-800">簽退</span>
+          </label>
+        </div>
+        
+        <div class="mb-6">
+          <label for="eventSelector" class="block text-sm font-medium text-gray-700 mb-2">選擇活動 </label>
+          <select id="eventSelector" v-model="selectedEventId" class="w-full pl-4 pr-10 py-3 border border-gray-300 rounded-lg text-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white">
+            <option :value="null">-- 不選擇活動 (測試用) --</option>
+            <option v-for="event in sortedEvents" :key="event.id" :value="event.id" :class="{'text-gray-500': isEventEnded(event.end_time)}">
+              {{ event.name }} ({{ formatDateTime(event.start_time) }}) <span v-if="isEventEnded(event.end_time)">(已結束)</span>
+            </option>
+          </select>
+        </div>
+
+        <div class="relative">
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-gray-400 absolute left-4 top-1/2 -translate-y-1/2" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M10 6H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V8a2 2 0 00-2-2h-5m-4 0V5a2 2 0 114 0v1m-4 0a2 2 0 104 0m-5 8a2 2 0 100-4 2 2 0 000 4zm0 0c1.306 0 2.417.835 2.83 2M9 14a3.001 3.001 0 00-2.83 2M15 11h3m-3 4h2" />
+          </svg>
+          <input type="text" id="checkInInput" v-model="checkInInput" @keyup.enter="handleCheckIn" class="w-full pl-14 pr-4 py-4 border border-gray-300 rounded-lg text-lg focus:outline-none focus:ring-2 focus:ring-indigo-500" placeholder="輸入學號/卡號">
+        </div>
+        <button @click="handleCheckIn" class="mt-6 w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-4 px-4 rounded-lg text-lg transition duration-300 ease-in-out transform hover:scale-105">
+            確認{{ actionType }}
+        </button>
       </div>
 
-      <!-- 報表分頁 -->
-      <div class="border-b border-gray-200">
-        <nav class="-mb-px flex space-x-6" aria-label="Tabs">
-          <button @click="activeTab = 'participation'" :class="['report-tab', { 'active': activeTab === 'participation' }]">活動參與統計</button>
-          <button @click="activeTab = 'building'" :class="['report-tab', { 'active': activeTab === 'building' }]">棟別活動分析</button>
-          <button v-if="authStore.hasPermission('reports:personnel')" @click="activeTab = 'personnel'" :class="['report-tab', { 'active': activeTab === 'personnel' }]">人員活動參與報表</button>
-        </nav>
-      </div>
-    </div>
-
-    <!-- 報表內容 -->
-    <div v-if="isLoading" class="text-center py-16 text-gray-500 bg-white rounded-xl shadow-lg">
-      <div class="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-indigo-500 mx-auto mb-4"></div>
-      <p>正在載入報表數據...</p>
-    </div>
-    <div v-else>
-      <!-- 活動參與統計 -->
-      <div v-show="activeTab === 'participation'" class="space-y-6">
-        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-6">
-          <div v-for="card in summaryCards" :key="card.title" class="bg-white rounded-xl shadow-md p-6 border border-gray-200 hover:shadow-lg transition-shadow" v-html="card.html"></div>
-        </div>
-        <div class="bg-white rounded-xl shadow-md p-6 border border-gray-200">
-          <h3 class="text-xl font-bold text-gray-800 mb-6">活動參與趨勢</h3>
-          <div class="h-72"><canvas ref="attendanceTrendChartCanvas"></canvas></div>
-        </div>
-        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <div class="bg-white rounded-xl shadow-md p-6 border border-gray-200">
-            <h3 class="text-xl font-bold text-gray-800 mb-6">簽到狀態分佈 (準時/遲到)</h3>
-            <div class="h-72"><canvas ref="attendancePieChartCanvas"></canvas></div>
-          </div>
-          <div class="bg-white rounded-xl shadow-md p-6 border border-gray-200">
-            <h3 class="text-xl font-bold text-gray-800 mb-6">出席狀態分佈</h3>
-            <div class="h-72"><canvas ref="attendanceStatusPieChartCanvas"></canvas></div>
-          </div>
-        </div>
-        <div class="bg-white rounded-xl shadow-md overflow-hidden border border-gray-200">
-          <div class="px-6 py-4 border-b border-gray-200">
-            <div class="flex flex-col md:flex-row justify-between items-center gap-3">
-              <h3 class="text-xl font-bold text-gray-800">活動報到詳細數據</h3>
-              <div class="flex items-center space-x-2">
-                <select v-model="activityFilter" class="border border-gray-300 rounded-md text-sm py-2 px-3 focus:outline-none focus:ring-2 focus:ring-indigo-500">
-                  <option value="all">全部活動</option>
-                  <option v-for="event in eventOptions" :key="event.id" :value="event.id">{{ event.name }} ({{ formatDate(new Date(event.start_time)) }})</option>
-                </select>
-                <select v-model="buildingFilter" class="border border-gray-300 rounded-md text-sm py-2 px-3 focus:outline-none focus:ring-2 focus:ring-indigo-500">
-                  <option value="all">全部棟別</option>
-                  <option v-for="building in buildingOptions" :key="building" :value="building">{{ building }}</option>
-                </select>
+      <div v-if="checkInResult.isVisible" class="bg-white rounded-xl shadow-lg overflow-hidden border border-gray-200 mt-8">
+          <div :class="checkInResult.statusClass" class="px-6 py-4 text-center">
+              <div class="check-in-animation inline-flex items-center justify-center w-16 h-16 rounded-full text-white mb-4">
+                  <component :is="checkInResult.statusIcon" class="h-10 w-10"></component>
               </div>
-            </div>
+              <h3 class="text-2xl font-bold text-gray-800">{{ checkInResult.statusText }}</h3>
           </div>
-          <div class="overflow-x-auto">
-            <table class="data-grid w-full">
-              <thead>
+          <div class="p-6">
+              <div class="mb-6">
+                  <div class="text-center mb-4">
+                      <div v-if="checkInResult.person" class="inline-flex items-center justify-center w-20 h-20 rounded-full bg-indigo-100 text-indigo-800 text-2xl font-bold mb-2">{{ checkInResult.person.name.charAt(0) }}</div>
+                      <h3 v-if="checkInResult.person" class="text-xl font-bold">{{ checkInResult.person.name }}</h3>
+                  </div>
+                  <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div v-if="checkInResult.person" class="bg-gray-50 p-3 rounded-lg">
+                          <p class="text-sm text-gray-500">學號</p>
+                          <p class="font-medium" :class="dataStore.getInputColorClass(checkInResult.person.code)">{{ checkInResult.person.code }}</p>
+                      </div>
+                      <div v-if="checkInResult.person" class="bg-gray-50 p-3 rounded-lg">
+                          <p class="text-sm text-gray-500">卡號</p>
+                          <p class="font-medium">{{ checkInResult.person.card_number }}</p>
+                      </div>
+                      <div v-if="checkInResult.event" class="col-span-1 sm:col-span-2 bg-indigo-50 p-3 rounded-lg">
+                          <p class="text-sm text-gray-500">活動</p>
+                          <p class="font-medium text-indigo-800">{{ checkInResult.event.name }}</p>
+                      </div>
+                      <div v-else class="col-span-1 sm:col-span-2 bg-gray-50 p-3 rounded-lg">
+                          <p class="text-sm text-gray-500">輸入內容</p>
+                          <p class="font-medium">{{ checkInResult.input }}</p>
+                          <p class="text-sm text-gray-500 mt-1">請確認{{ checkInResult.inputType }}是否正確，或聯繫管理員。</p>
+                      </div>
+                  </div>
+              </div>
+              <div class="text-center">
+                  <button @click="resetCheckIn" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-3 px-8 rounded-lg transition duration-300 transform hover:scale-105 shadow-md">
+                      繼續報到
+                  </button>
+              </div>
+          </div>
+      </div>
+      
+      <div class="mt-10">
+        <div class="flex flex-col sm:flex-row justify-between items-center mb-6 gap-4">
+          <h3 class="text-2xl font-bold text-gray-800">今日暫存記錄</h3>
+          <div class="flex flex-wrap gap-3 justify-center w-full sm:w-auto">
+            <button @click="deleteAllTodayRecords" class="w-full sm:w-auto bg-red-600 hover:bg-red-700 text-white font-medium py-2 px-4 rounded-lg transition duration-300 flex items-center justify-center shadow-sm hover:shadow-md">
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm4 0a1 1 0 012 0v6a1 1 0 11-2 0V8z" clip-rule="evenodd" /></svg>
+              刪除全部
+            </button>
+            <button @click="saveTodayRecords" class="w-full sm:w-auto bg-emerald-600 hover:bg-emerald-700 text-white font-medium py-2 px-4 rounded-lg transition duration-300 flex items-center justify-center shadow-sm hover:shadow-md">
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.4 1.4a1 1 0 0 0 1.4 0l.7-.7a1 1 0 0 0 0-1.4l-1.4-1.4a1 1 0 0 0-1.4 0z"></path><path d="M18 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V6z"></path><path d="M14 2v4a2 2 0 01-2 2H8a2 2 0 01-2-2V2z"></path><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line></svg>
+              儲存記錄
+            </button>
+          </div>
+        </div>
+        <div class="bg-white rounded-xl shadow-lg overflow-hidden border border-gray-200">
+          <div class="overflow-x-auto table-responsive">
+            <table class="min-w-full divide-y divide-gray-200">
+              <thead class="bg-gray-50">
                 <tr>
-                  <th>活動名稱</th><th>活動日期</th><th>應到</th><th>簽到</th><th>簽退</th><th>未簽退</th><th>未到</th><th>參與率</th><th>準時率</th>
+                  <th scope="col" class="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">時間</th>
+                  <th scope="col" class="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">姓名</th>
+                  <th scope="col" class="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">學號/卡號</th>
+                  <th scope="col" class="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">類型</th>
+                  <th scope="col" class="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">狀態</th>
+                  <th scope="col" class="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">活動</th>
+                  <th scope="col" class="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">裝置ID</th>
+                  <th scope="col" class="px-6 py-3 text-right text-xs font-semibold text-gray-600 uppercase tracking-wider">操作</th>
                 </tr>
               </thead>
-              <tbody v-if="filteredActivityStats.length > 0">
-                <tr v-for="act in filteredActivityStats" :key="act.id">
-                  <td data-label="活動名稱">{{ act.name }}</td>
-                  <td data-label="活動日期">{{ formatDate(new Date(act.start_time)) }}</td>
-                  <td data-label="應到">{{ act.shouldAttendCount }}</td>
-                  <td data-label="簽到">{{ act.attendedCount }}</td>
-                  <td data-label="簽退">{{ act.checkOutCount }}</td>
-                  <td data-label="未簽退">{{ act.notCheckedOutCount }}</td>
-                  <td data-label="未到">{{ act.absentCount }}</td>
-                  <td data-label="參與率">{{ act.attendanceRate.toFixed(1) }}%</td>
-                  <td data-label="準時率">{{ act.onTimeRate.toFixed(1) }}%</td>
+              <tbody class="bg-white divide-y divide-gray-100">
+                <tr v-for="record in todayRecords" :key="record.id">
+                  <td data-label="時間" class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{{ formatDateTime(record.created_at, 'HH:mm:ss') }}</td>
+                  <td data-label="姓名" class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{{ record.name_at_checkin || '—' }}</td>
+                  <td data-label="學號/卡號" class="px-6 py-4 whitespace-nowrap text-sm text-gray-800" :class="dataStore.getInputColorClass(record.input)">{{ record.input }}</td>
+                  <td data-label="類型" class="px-6 py-4 whitespace-nowrap"><span class="type-badge" :data-type="record.action_type">{{ record.action_type }}</span></td>
+                  <td data-label="狀態" class="px-6 py-4 whitespace-nowrap"><span class="status-badge" :data-status="record.status">{{ record.status }}</span></td>
+                  <td data-label="活動" class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{{ record.event_id ? dataStore.getEventById(record.event_id)?.name || 'N/A' : '—' }}</td>
+                  <td data-label="裝置ID" class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 truncate" style="max-width: 150px;">{{ record.device_id || '—' }}</td>
+                  <td data-label="操作" class="px-6 py-4 whitespace-nowrap text-right">
+                    <button @click="handleDeleteTempRecord(record.id)" class="text-red-600 hover:text-red-800 text-sm font-medium">刪除</button>
+                  </td>
                 </tr>
-              </tbody>
-              <tbody v-else>
-                <tr><td colspan="9" class="text-center py-8 text-gray-500">沒有符合條件的資料</td></tr>
               </tbody>
             </table>
           </div>
+          <div v-if="todayRecords.length === 0" class="py-8 text-center text-gray-500 text-lg">尚無報到記錄</div>
         </div>
-      </div>
-      
-      <!-- 棟別活動分析 -->
-      <div v-show="activeTab === 'building'" class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div class="bg-white rounded-xl shadow-md p-6 border border-gray-200">
-            <h3 class="text-xl font-bold text-gray-800 mb-6">棟別活動參與率比較</h3>
-            <div class="h-96"><canvas ref="buildingAttendanceChartCanvas"></canvas></div>
-        </div>
-        <div class="bg-white rounded-xl shadow-md p-6 border border-gray-200">
-            <h3 class="text-xl font-bold text-gray-800 mb-4">棟別準時率排名</h3>
-            <div class="space-y-4">
-                <div v-for="stat in buildingOnTimeRank" :key="stat.name">
-                    <div class="flex justify-between mb-1">
-                        <span class="text-sm font-medium text-gray-800">{{ stat.name }}</span>
-                        <span class="text-sm font-semibold text-indigo-600">{{ stat.rate.toFixed(1) }}%</span>
-                    </div>
-                    <div class="w-full bg-gray-200 rounded-full h-2.5">
-                        <div class="bg-indigo-600 h-2.5 rounded-full" :style="{ width: stat.rate + '%' }"></div>
-                    </div>
-                </div>
-            </div>
-        </div>
-      </div>
-
-      <!-- 人員活動參與報表 -->
-      <div v-show="activeTab === 'personnel'" class="space-y-6">
-        <div class="bg-white rounded-xl shadow-md p-6 border border-gray-200">
-            <h3 class="text-xl font-bold text-gray-800 mb-4">人員搜尋</h3>
-            <div class="flex flex-col md:flex-row gap-4 items-end">
-                <div class="flex-grow">
-                    <label for="reportPersonnelSearch" class="block text-sm font-medium text-gray-700 mb-1">人員學號/姓名/卡號</label>
-                    <input type="text" v-model="personnelSearchTerm" @keyup.enter="generatePersonnelReport" placeholder="輸入學號/姓名/卡號..." class="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500">
-                </div>
-                <div class="flex-shrink-0"><button @click="generatePersonnelReport" class="bg-indigo-600 text-white px-5 py-2 rounded-md hover:bg-indigo-700 text-sm w-full md:w-auto">搜尋</button></div>
-            </div>
-        </div>
-        <div v-if="personnelReportData">
-            <div class="bg-white rounded-xl shadow-md p-6 mb-6 border border-gray-200">
-                <div class="flex items-center mb-6">
-                    <div class="flex-shrink-0 h-16 w-16 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-700 font-bold text-xl">{{ personnelReportData.person.name.charAt(0) }}</div>
-                    <div class="ml-4">
-                        <h3 class="text-lg font-medium text-gray-900">{{ personnelReportData.person.name }} ({{ personnelReportData.person.code }})</h3>
-                        <p class="text-sm text-gray-500">{{ personnelReportData.person.building || '無棟別' }} | {{ (personnelReportData.person.tags || []).join(', ') || '無標籤' }}</p>
-                    </div>
-                </div>
-                <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6" id="personnelReportStats">
-                    <div class="bg-gray-50 p-4 rounded-lg text-center"><p class="text-sm text-gray-500">簽到次數</p><p class="text-2xl font-bold text-gray-900">{{ personnelReportData.stats.checkInCount }}</p></div>
-                    <div class="bg-gray-50 p-4 rounded-lg text-center"><p class="text-sm text-gray-500">簽退次數</p><p class="text-2xl font-bold text-gray-900">{{ personnelReportData.stats.checkOutCount }}</p></div>
-                    <div class="bg-gray-50 p-4 rounded-lg text-center"><p class="text-sm text-gray-500">參與活動數</p><p class="text-2xl font-bold text-gray-900">{{ personnelReportData.stats.attendedEventsCount }}</p></div>
-                    <div class="bg-gray-50 p-4 rounded-lg text-center"><p class="text-sm text-gray-500">準時/遲到</p><p class="text-2xl font-bold text-gray-900">{{ personnelReportData.stats.onTimeCount }} / {{ personnelReportData.stats.lateCount }}</p></div>
-                </div>
-            </div>
-            <div class="bg-white rounded-xl shadow-md overflow-hidden border border-gray-200">
-                <div class="px-6 py-4 border-b border-gray-200"><h3 class="text-xl font-bold text-gray-800">活動報到記錄</h3></div>
-                <div class="overflow-x-auto">
-                    <table class="data-grid w-full">
-                        <thead><tr><th>日期</th><th>活動名稱</th><th>操作類型</th><th>操作時間</th><th>狀態</th></tr></thead>
-                        <tbody>
-                            <tr v-for="record in personnelReportData.records" :key="record.id">
-                                <td data-label="日期">{{ formatDate(new Date(record.created_at)) }}</td>
-                                <td data-label="活動名稱">{{ dataStore.getEventById(record.event_id)?.name || 'N/A' }}</td>
-                                <td data-label="操作類型">{{ record.action_type }}</td>
-                                <td data-label="操作時間">{{ new Date(record.created_at).toLocaleTimeString('zh-TW', { hour: '2-digit', minute: '2-digit' }) }}</td>
-                                <td data-label="狀態"><span :class="['status-badge', getStatusClass(record.status)]">{{ record.status }}</span></td>
-                            </tr>
-                        </tbody>
-                    </table>
-                     <div v-if="personnelReportData.records.length === 0" class="text-center py-8 text-gray-500">此人員在選定時間範圍内沒有報到記錄</div>
-                </div>
-            </div>
-        </div>
-        <div v-else class="text-center py-12 text-gray-500 bg-white rounded-xl shadow-lg">請搜尋人員以查看報表</div>
       </div>
     </div>
-  </div>
-</template>
+  </template>
 
-<script setup>
-import { ref, onMounted, watch, computed, nextTick } from 'vue';
-import { useUiStore } from '@/store/ui';
-import { useDataStore } from '@/store/data';
-import { useAuthStore } from '@/store/auth';
-import * as api from '@/services/api';
-import Chart from 'chart.js/auto';
-import { createSummaryCard } from '@/utils/index'; // 確保正確導入
+  <script setup>
+  import { ref, onMounted, computed, watch } from 'vue';
+  import { useUiStore } from '@/store/ui';
+  import { useDataStore } from '@/store/data';
+  import * as api from '@/services/api';
+  import { formatDateTime } from '@/utils'; // 從 utils 引入格式化日期函數
+  import { isPast, parseISO } from 'date-fns';
 
-// Store 初始化
-const uiStore = useUiStore();
-const dataStore = useDataStore();
-const authStore = useAuthStore();
+  // SVG 圖標組件，用於動態渲染
+  // 這裡將常用的 SVG 路徑定義為組件，以便在 <component :is="..."> 中使用
+  const CheckCircleIcon = { template: `<svg xmlns="http://www.w3.org/2000/svg" class="h-10 w-10" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" /></svg>` };
+  const XCircleIcon = { template: `<svg xmlns="http://www.w3.org/2000/svg" class="h-10 w-10" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>` };
+  const ClockIcon = { template: `<svg xmlns="http://www.w3.org/2000/svg" class="h-10 w-10" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>` };
+  const WarningIcon = { template: `<svg xmlns="http://www.w3.org/2000/svg" class="h-10 w-10" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>` };
+  const RepeatIcon = { template: `<svg xmlns="http://www.w3.org/2000/svg" class="h-10 w-10" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.228 9.247a4.998 4.998 0 00-.776 2.343M11.603 16.03a6.002 6.002 0 00.99 1.139M15 14l-3-3m0 0l-3-3m3 3l3 3m0 0l3-3m0 0a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>` };
 
-// 組件狀態
-const isLoading = ref(true); // 控制頁面載入狀態
-const activeTab = ref('participation'); // 當前活躍的報表頁籤
-const startDate = ref(''); // 日期篩選器的開始日期
-const endDate = ref(''); // 日期篩選器的結束日期
-const activityFilter = ref('all'); // 活動篩選器 (all 或 eventId)
-const buildingFilter = ref('all'); // 棟別篩選器 (all 或 buildingName)
-const personnelSearchTerm = ref(''); // 人員搜尋詞
-const personnelReportData = ref(null); // 特定人員的報表數據
+  // Pinia Stores
+  const uiStore = useUiStore();
+  const dataStore = useDataStore();
 
-// 原始和處理後的數據
-const rawData = ref([]); // 從 API 獲取的所有原始記錄
-const processedReportStats = ref(null); // 處理後的報表統計數據
+  // Component State
+  const checkInInput = ref('');
+  const selectedEventId = ref(null);
+  const actionType = ref('簽到'); // 預設為簽到
+  const checkInResult = ref({
+    isVisible: false,
+    statusClass: '',
+    statusIcon: null,
+    statusText: '',
+    person: null,
+    event: null,
+    input: '',
+    inputType: ''
+  });
 
-// Chart.js 圖表實例引用
-const chartInstances = {
-    attendanceTrend: null,
-    attendancePie: null,
-    attendanceStatusPie: null,
-    buildingAttendance: null,
-};
+  // 使用 localStorage 或 sessionStorage 儲存今日暫存記錄
+  const TODAY_RECORDS_KEY = 'todayCheckInRecords';
+  const todayRecords = ref([]);
 
-// Canvas 元素引用
-const attendanceTrendChartCanvas = ref(null);
-const attendancePieChartCanvas = ref(null);
-const attendanceStatusPieChartCanvas = ref(null);
-const buildingAttendanceChartCanvas = ref(null);
+  // Computed properties
+  const sortedEvents = computed(() => {
+    return [...dataStore.events].sort((a, b) => new Date(b.start_time) - new Date(a.start_time));
+  });
 
-// --- Computed Properties ---
+  // 判斷活動是否已結束
+  const isEventEnded = (endTime) => {
+      if (!endTime) return false;
+      return isPast(parseISO(endTime));
+  };
 
-// 過濾後的活動選項 (只有在日期範圍內有記錄的活動)
-const eventOptions = computed(() => {
-    if (!rawData.value) return [];
-    const eventIds = [...new Set(rawData.value.map(r => r.event_id).filter(Boolean))];
-    // 確保只返回 dataStore 中存在的活動，並按開始時間降序排序
-    return dataStore.events.filter(e => eventIds.includes(e.id)).sort((a, b) => new Date(b.start_time) - new Date(a.start_time));
-});
-
-// 過濾後的棟別選項 (只有在人員資料中存在的棟別)
-const buildingOptions = computed(() => {
-    return [...new Set(dataStore.personnel.map(p => p.building).filter(Boolean))].sort();
-});
-
-// 根據活動篩選器和棟別篩選器過濾後的活動統計數據 (用於表格)
-const filteredActivityStats = computed(() => {
-    if (!processedReportStats.value) return [];
-    return processedReportStats.value.activityStats.filter(act => {
-        const activityMatch = activityFilter.value === 'all' || act.id === activityFilter.value;
-        return activityMatch;
-    });
-});
-
-// 摘要卡片數據
-const summaryCards = computed(() => processedReportStats.value?.summaryCards || []);
-// 棟別準時率排名數據
-const buildingOnTimeRank = computed(() => processedReportStats.value?.buildingOnTimeRank || []);
-
-
-// --- Watchers ---
-
-// 監聽日期範圍或篩選條件變化，重新生成報表
-watch([startDate, endDate, activityFilter, buildingFilter], () => {
-    updateReportView();
-});
-
-// 監聽活躍頁籤變化，如果切換到圖表相關頁籤，則重新渲染圖表
-watch(activeTab, (newTab) => {
-    if (newTab === 'participation' || newTab === 'building') {
-        // 使用 nextTick 確保 DOM 元素存在後再渲染圖表
-        nextTick(() => {
-            renderAllCharts();
-        });
-    }
-});
-
-
-// --- Methods ---
-
-// 格式化日期為 YYYY-MM-DD
-const formatDate = (date) => {
-  const year = date.getFullYear();
-  const month = (date.getMonth() + 1).toString().padStart(2, '0');
-  const day = date.getDate().toString().padStart(2, '0');
-  return `${year}-${month}-${day}`;
-};
-
-// 組件掛載時初始化報表頁面
-onMounted(() => {
-    initializeReport();
-});
-
-// 初始化報表頁面
-const initializeReport = async () => {
-    uiStore.setLoading(true); // 顯示全局載入遮罩
-    isLoading.value = true; // 設置頁面載入狀態
+  // --- Lifecycle Hooks ---
+  onMounted(async () => {
+    uiStore.setLoading(true);
     try {
-        // 設置預設日期為最近一個月
-        const end = new Date();
-        const start = new Date();
-        start.setMonth(start.getMonth() - 1);
-        startDate.value = formatDate(start);
-        endDate.value = formatDate(end);
-
-        // 並行載入所有人員和活動數據到 dataStore
-        await Promise.all([dataStore.fetchAllPersonnel(), dataStore.fetchEvents()]);
-        
-        // 更新報表視圖 (會觸發數據獲取和圖表渲染)
-        await updateReportView();
+      // 確保人員和活動資料已載入，供報到邏輯使用
+      await Promise.all([
+        dataStore.fetchAllPersonnel(),
+        dataStore.fetchEvents()
+      ]);
+      
+      // 載入 localStorage 中的暫存記錄
+      loadTodayRecordsFromLocalStorage();
+      
+      // 預設選擇第一個活動 (如果有的話)
+      if (dataStore.events.length > 0) {
+        selectedEventId.value = dataStore.events[0].id;
+      }
     } catch (error) {
-        uiStore.showMessage(`初始化報表頁面失敗: ${error.message}`, 'error');
+      uiStore.showMessage(`初始化報到頁面失敗: ${error.message}`, 'error');
     } finally {
-        isLoading.value = false; // 隱藏頁面載入狀態
-        uiStore.setLoading(false); // 隱藏全局載入遮罩
+      uiStore.setLoading(false);
     }
-};
+  });
 
-// 更新整個報表視圖 (核心邏輯)
-const updateReportView = async () => {
-    if (!startDate.value || !endDate.value) return; // 確保日期已選擇
+  // 監聽 todayRecords 變化時自動儲存到 localStorage
+  watch(todayRecords, (newRecords) => {
+      localStorage.setItem(TODAY_RECORDS_KEY, JSON.stringify(newRecords));
+  }, { deep: true });
 
-    // 重新獲取數據前顯示載入狀態
-    uiStore.setLoading(true); 
-    isLoading.value = true;
-    personnelReportData.value = null; // 清空人員報表數據
+  // --- Methods ---
 
-    try {
-        const start = new Date(startDate.value);
-        const end = new Date(endDate.value);
-        end.setHours(23, 59, 59, 999); // 結束日期設為當天結束
+  const loadTodayRecordsFromLocalStorage = () => {
+      try {
+          const storedRecords = localStorage.getItem(TODAY_RECORDS_KEY);
+          todayRecords.value = storedRecords ? JSON.parse(storedRecords) : [];
+      } catch (e) {
+          console.error("無法從 localStorage 解析暫存記錄:", e);
+          todayRecords.value = [];
+      }
+  };
 
-        // 從 API 獲取所有符合日期範圍的記錄
-        rawData.value = await api.fetchRecordsByDateRange(start, end);
-        
-        // 處理原始數據，生成各種統計結果 (這是一個複雜的本地計算)
-        processedReportStats.value = processReportData(
-            rawData.value, 
-            dataStore.personnel, 
-            dataStore.events, 
-            buildingFilter.value // 傳遞當前棟別篩選值
-        );
-        
-        // 使用 nextTick 確保 DOM 更新完成後再渲染圖表
-        await nextTick();
-        renderAllCharts(); // 渲染所有圖表
-    } catch (error) {
-        uiStore.showMessage(`載入報表數據失敗: ${error.message}`, 'error');
-        rawData.value = []; // 載入失敗清空數據
-        processedReportStats.value = null;
-    } finally {
-        isLoading.value = false;
-        uiStore.setLoading(false);
+  const handleCheckIn = async () => {
+    const input = checkInInput.value.trim();
+    if (!input) {
+      uiStore.showMessage('請輸入學號或卡號', 'info');
+      return;
     }
-};
 
-// 處理原始記錄數據，生成各種報表統計
-const processReportData = (records, allPersonnel, allEvents, currentBuildingFilter) => {
-    const eventGroups = {}; // 按活動 ID 分組記錄
-    records.forEach(r => {
-        if (!r.event_id) return; // 忽略沒有活動 ID 的記錄
-        if (!eventGroups[r.event_id]) {
-            const event = allEvents.find(e => e.id === r.event_id);
-            eventGroups[r.event_id] = { 
-                eventInfo: event || { id: r.event_id, name: '未知活動', start_time: new Date().toISOString() }, 
-                records: [] 
-            };
-        }
-        eventGroups[r.event_id].records.push(r);
-    });
+    const allPersonnel = dataStore.personnel;
+    const currentEvent = selectedEventId.value ? dataStore.events.find(e => e.id === selectedEventId.value) : null;
 
-    // 計算每個活動的統計數據
-    const activityStats = Object.values(eventGroups).map(group => {
-        // 過濾出符合當前棟別篩選的人員
-        const personnelForEvent = currentBuildingFilter === 'all' ? allPersonnel : allPersonnel.filter(p => p.building === currentBuildingFilter);
-        const shouldAttendCount = personnelForEvent.length; // 應到人數
+    let person = null;
+    let inputType = '';
 
-        const checkInRecords = group.records.filter(r => r.action_type === '簽到' && r.success);
-        const checkOutRecords = group.records.filter(r => r.action_type === '簽退' && r.success);
+    // 判斷輸入類型並查找人員
+    if (/^\d+$/.test(input)) { // 判斷是否為純數字 (卡號)
+      inputType = '卡號';
+      person = allPersonnel.find(p => String(p.card_number) === input);
+    } else { // 否則視為學號
+      inputType = '學號';
+      person = allPersonnel.find(p => String(p.code).toLowerCase() === input.toLowerCase());
+    }
 
-        const attendedPersonnelIds = new Set(checkInRecords.map(r => r.personnel_id));
-        const attendedCount = attendedPersonnelIds.size; // 簽到人數 (去重)
+    let recordStatus = '';
+    let isSuccess = false;
 
-        const checkedOutPersonnelIds = new Set(checkOutRecords.map(r => r.personnel_id));
-        const checkOutCount = checkedOutPersonnelIds.size; // 簽退人數 (去重)
-        const notCheckedOutCount = attendedCount - checkOutCount; // 未簽退人數
+    // 檢查是否已存在重複的簽到/簽退記錄
+    const existingRecord = todayRecords.value.find(
+      r => r.personnel_id === (person ? person.id : null) &&
+          r.event_id === selectedEventId.value &&
+          r.action_type === actionType.value &&
+          r.success // 只檢查成功的記錄
+    );
 
-        const absentCount = shouldAttendCount - attendedCount; // 未到人數
+    if (!person) {
+      recordStatus = `${actionType.value}失敗 - 查無此人`;
+      isSuccess = false;
+    } else if (existingRecord) {
+        recordStatus = `重複${actionType.value}`;
+        isSuccess = false; // 重複操作不視為成功
+    } else {
+      isSuccess = true;
+      if (actionType.value === '簽到') {
+          if (currentEvent) {
+              const eventTime = currentEvent.end_time ? parseISO(currentEvent.end_time) : parseISO(currentEvent.start_time);
+              recordStatus = (new Date() > eventTime) ? '遲到' : '準時';
+          } else {
+              recordStatus = '成功'; // 未選擇活動
+          }
+      } else { // 簽退
+          // 檢查是否有對應活動的「簽到」記錄
+          const hasCheckedIn = todayRecords.value.some(
+              r => r.personnel_id === person.id && 
+                  r.event_id === selectedEventId.value && 
+                  r.action_type === '簽到' && 
+                  r.success
+          );
 
-        const onTimePersonnelIds = new Set(checkInRecords.filter(r => r.status === '準時').map(r => r.personnel_id));
-        const onTimeCount = onTimePersonnelIds.size; // 準時人數 (去重)
-        const lateCount = attendedCount - onTimeCount; // 遲到人數 (去重)
-        
-        const attendanceRate = shouldAttendCount > 0 ? (attendedCount / shouldAttendCount * 100) : 0;
-        const onTimeRate = attendedCount > 0 ? (onTimeCount / attendedCount * 100) : 0;
-        
-        return {
-            ...group.eventInfo,
-            shouldAttendCount,
-            attendedCount,
-            checkOutCount,
-            notCheckedOutCount,
-            absentCount,
-            onTimeCount,
-            lateCount,
-            attendanceRate: parseFloat(attendanceRate.toFixed(1)),
-            onTimeRate: parseFloat(onTimeRate.toFixed(1)),
-        };
-    }).sort((a, b) => new Date(b.start_time) - new Date(a.start_time)); // 按活動時間降序
+          if (!hasCheckedIn && selectedEventId.value) { // 如果有選定活動但沒有簽到記錄
+              recordStatus = '異常(未簽到)';
+              isSuccess = true; // 視為簽退操作成功，但帶有異常狀態
+          } else {
+              recordStatus = '簽退成功';
+          }
+      }
+    }
 
-    // 計算總體統計數據
-    const totalEvents = activityStats.length;
-    const totalCheckins = activityStats.reduce((sum, act) => sum + act.attendedCount, 0);
-    const totalCheckouts = activityStats.reduce((sum, act) => sum + act.checkOutCount, 0);
-    const totalOnTime = activityStats.reduce((sum, act) => sum + act.onTimeCount, 0);
-    const overallShouldAttend = activityStats.reduce((sum, act) => sum + act.shouldAttendCount, 0);
-    const overallAttendanceRate = overallShouldAttend > 0 ? (totalCheckins / overallShouldAttend * 100) : 0;
-    const overallOnTimeRate = totalCheckins > 0 ? (totalOnTime / totalCheckins * 100) : 0;
-
-    // 棟別準時率排名
-    const buildings = [...new Set(allPersonnel.map(p => p.building).filter(Boolean))];
-    const buildingRank = buildings.map(b => {
-        const personnelInBuilding = allPersonnel.filter(p => p.building === b);
-        const personnelIdsInBuilding = new Set(personnelInBuilding.map(p => p.id));
-        const attendedRecords = records.filter(r => r.action_type === '簽到' && r.success && personnelIdsInBuilding.has(r.personnel_id));
-        
-        const onTimePersonnelIds = new Set(attendedRecords.filter(r => r.status === '準時').map(r => r.personnel_id));
-        const onTimeCount = onTimePersonnelIds.size;
-        
-        const totalAttendedInBuilding = new Set(attendedRecords.map(r => r.personnel_id)).size; // 該棟別實際簽到的人數
-        const rate = totalAttendedInBuilding > 0 ? (onTimeCount / totalAttendedInBuilding) * 100 : 0;
-        return { name: b, rate };
-    }).sort((a, b) => b.rate - a.rate); // 按準時率降序
-
-    return {
-        summaryCards: [
-            { title: '總活動數', html: createSummaryCard('總活動數', totalEvents.toLocaleString(), 'calendar') },
-            { title: '總簽到人次', html: createSummaryCard('總簽到人次', totalCheckins.toLocaleString(), 'check-square') },
-            { title: '總簽退人次', html: createSummaryCard('總簽退人次', totalCheckouts.toLocaleString(), 'user-minus') },
-            { title: '總體參與率', html: createSummaryCard('總體參與率', `${overallAttendanceRate.toFixed(1)}%`, 'pie-chart') },
-            { title: '準時率', html: createSummaryCard('準時率 (基於已簽到)', `${overallOnTimeRate.toFixed(1)}%`, 'clock') }
-        ],
-        activityStats: activityStats,
-        buildingOnTimeRank: buildingRank,
+    const newRecord = {
+      id: crypto.randomUUID(), // 生成唯一 ID
+      created_at: new Date().toISOString(),
+      input: input,
+      input_type: inputType,
+      success: isSuccess,
+      name_at_checkin: person ? person.name : null,
+      personnel_id: person ? person.id : null,
+      device_id: getDeviceId(), // 假設 getDeviceId 函數存在於 utils
+      event_id: selectedEventId.value || null,
+      status: recordStatus,
+      action_type: actionType.value,
     };
-};
 
-// 渲染所有圖表 (確保在 DOM 準備好後調用)
-const renderAllCharts = () => {
-    if (!processedReportStats.value) return;
-    const { activityStats, buildingOnTimeRank } = processedReportStats.value;
+    todayRecords.value.unshift(newRecord); // 新增到列表頂部
 
-    renderAttendanceTrendChart(activityStats);
-    renderAttendancePieChart(activityStats);
-    renderAttendanceStatusPieChart(activityStats);
-    renderBuildingAttendanceChart(buildingOnTimeRank); // 傳遞已處理的 buildingOnTimeRank
-};
+    displayCheckInResult(newRecord, person, currentEvent);
+    checkInInput.value = ''; // 清空輸入框
+  };
 
-// 銷毀 Chart.js 實例的輔助函數
-const destroyChart = (instanceRef) => {
-    if (instanceRef) {
-        instanceRef.destroy();
-        instanceRef = null;
-    }
-};
+  const displayCheckInResult = (record, person, event) => {
+    let statusColorClass = '';
+    let statusIconComponent = null;
+    let messageBoxType = 'info';
 
-// 渲染活動參與趨勢折線圖
-const renderAttendanceTrendChart = (activityStats) => {
-    destroyChart(chartInstances.attendanceTrend);
-    if (!attendanceTrendChartCanvas.value) return;
-    
-    chartInstances.attendanceTrend = new Chart(attendanceTrendChartCanvas.value, { 
-        type: 'line',
-        data: {
-            labels: activityStats.map(a => a.name).reverse(), // 圖表名稱反轉，讓最近的活動在右邊
-            datasets: [
-                { label: '應到人數', data: activityStats.map(a => a.shouldAttendCount).reverse(), borderColor: 'rgba(107, 114, 128, 1)', borderDash: [5, 5], fill: false, tension: 0.3 },
-                { label: '簽到人次', data: activityStats.map(a => a.attendedCount).reverse(), borderColor: 'rgba(79, 70, 229, 1)', backgroundColor: 'rgba(79, 70, 229, 0.2)', fill: true, tension: 0.3 },
-                { label: '簽退人次', data: activityStats.map(a => a.checkOutCount).reverse(), borderColor: 'rgba(245, 158, 11, 1)', backgroundColor: 'rgba(245, 158, 11, 0.2)', fill: true, tension: 0.3 }
-            ]
-        },
-        options: { responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true } } }
-    });
-};
-
-// 渲染簽到狀態(準時/遲到)分佈圓餅圖
-const renderAttendancePieChart = (activityStats) => {
-    destroyChart(chartInstances.attendancePie);
-    if (!attendancePieChartCanvas.value) return;
-    const totalOnTime = activityStats.reduce((sum, act) => sum + act.onTimeCount, 0);
-    const totalLate = activityStats.reduce((sum, act) => sum + act.lateCount, 0);
-    
-    chartInstances.attendancePie = new Chart(attendancePieChartCanvas.value, {
-        type: 'doughnut',
-        data: {
-            labels: ['準時', '遲到'],
-            datasets: [{ data: [totalOnTime, totalLate], backgroundColor: ['#10B981', '#F59E0B'], borderColor: '#FFFFFF', borderWidth: 1 }]
-        },
-        options: { responsive: true, maintainAspectRatio: false }
-    });
-};
-
-// 渲染出席狀態(已簽退/未簽退/未到)分佈圓餅圖
-const renderAttendanceStatusPieChart = (activityStats) => {
-    destroyChart(chartInstances.attendanceStatusPie);
-    if (!attendanceStatusPieChartCanvas.value) return;
-    const totalCheckedOut = activityStats.reduce((sum, act) => sum + act.checkOutCount, 0);
-    const totalNotCheckedOut = activityStats.reduce((sum, act) => sum + act.notCheckedOutCount, 0);
-    const totalAbsent = activityStats.reduce((sum, act) => sum + act.absentCount, 0);
-    
-    chartInstances.attendanceStatusPie = new Chart(attendanceStatusPieChartCanvas.value, {
-        type: 'doughnut',
-        data: {
-            labels: ['已簽退', '未簽退', '未到'],
-            datasets: [{ data: [totalCheckedOut, totalNotCheckedOut, totalAbsent], backgroundColor: ['#3B82F6', '#FBBF24', '#6B7280'], borderColor: '#FFFFFF', borderWidth: 1 }]
-        },
-        options: { responsive: true, maintainAspectRatio: false }
-    });
-};
-
-// 渲染棟別活動參與率比較長條圖
-const renderBuildingAttendanceChart = (buildingRank) => {
-    destroyChart(chartInstances.buildingAttendance);
-    if (!buildingAttendanceChartCanvas.value) return;
-    
-    chartInstances.buildingAttendance = new Chart(buildingAttendanceChartCanvas.value, {
-        type: 'bar',
-        data: {
-            labels: buildingRank.map(s => s.name),
-            datasets: [{ label: '準時率 (%)', data: buildingRank.map(s => s.rate), backgroundColor: 'rgba(79, 70, 229, 0.8)' }]
-        },
-        options: { 
-            responsive: true, 
-            maintainAspectRatio: false, 
-            scales: { y: { beginAtZero: true, max: 100 } }, 
-            indexAxis: 'y' // 橫向條形圖
-        }
-    });
-};
-
-// 生成並顯示單一個人的人員報表
-const generatePersonnelReport = async () => {
-    const term = personnelSearchTerm.value.trim().toLowerCase();
-    if (!term) {
-        uiStore.showMessage('請輸入人員學號、卡號或姓名', 'info');
-        personnelReportData.value = null;
-        return;
-    }
-    
-    // 檢查是否為 sdsc 角色，如果是則不允許查看人員活動參與報表
-    if (!authStore.hasPermission('reports:personnel')) {
-        uiStore.showMessage('您沒有權限查看人員活動參與報表。', 'error');
-        personnelReportData.value = null;
-        return;
+    switch (record.status) {
+      case '準時':
+        statusColorClass = 'bg-green-100 text-green-800'; // 綠色背景，綠色文字
+        statusIconComponent = CheckCircleIcon;
+        messageBoxType = 'success';
+        break;
+      case '遲到':
+        statusColorClass = 'bg-yellow-100 text-yellow-800'; // 黃色背景，黃色文字
+        statusIconComponent = ClockIcon;
+        messageBoxType = 'warning';
+        break;
+      case '成功': // 通用成功狀態，用於未綁定活動的簽到
+        statusColorClass = 'bg-blue-100 text-blue-800';
+        statusIconComponent = CheckCircleIcon;
+        messageBoxType = 'success';
+        break;
+      case '簽退成功':
+        statusColorClass = 'bg-blue-100 text-blue-800';
+        statusIconComponent = CheckCircleIcon;
+        messageBoxType = 'success';
+        break;
+      case '重複簽到':
+      case '重複簽退':
+        statusColorClass = 'bg-yellow-100 text-yellow-800';
+        statusIconComponent = RepeatIcon;
+        messageBoxType = 'warning';
+        break;
+      case '異常(未簽到)':
+        statusColorClass = 'bg-red-100 text-red-800';
+        statusIconComponent = WarningIcon;
+        messageBoxType = 'warning'; // 雖然是異常，但操作成功
+        break;
+      default: // 失敗情況
+        statusColorClass = 'bg-red-100 text-red-800';
+        statusIconComponent = XCircleIcon;
+        messageBoxType = 'error';
+        break;
     }
 
-    uiStore.setLoading(true); // 顯示載入遮罩
+    checkInResult.value = {
+      isVisible: true,
+      statusClass: statusColorClass.replace('text-', 'bg-').replace('-100', '-500') + ' ' + statusColorClass.replace('bg-', 'text-').replace('-100', '-800'), // 設置背景和文字顏色
+      statusIcon: statusIconComponent,
+      statusText: record.status,
+      person: person,
+      event: event,
+      input: record.input,
+      inputType: record.input_type
+    };
+    
+    // 顯示訊息框
+    const msgText = `${record.status}：${person ? person.name : record.input}`;
+    uiStore.showMessage(msgText, messageBoxType);
+  };
+
+
+  const resetCheckIn = () => {
+    checkInResult.value.isVisible = false;
+    checkInInput.value = '';
+    // 可以重新聚焦到輸入框，但 Vue 通常會自動處理
+  };
+
+  const saveTodayRecords = async () => {
+    if (todayRecords.value.length === 0) {
+      uiStore.showMessage('目前沒有可儲存的報到記錄。', 'info');
+      return;
+    }
+    
+    uiStore.setLoading(true);
     try {
-        const person = dataStore.personnel.find(p => 
-            p.code.toLowerCase() === term || 
-            p.name.toLowerCase() === term ||
-            String(p.card_number) === term
-        );
-        
-        if (!person) {
-            personnelReportData.value = null;
-            uiStore.showMessage('找不到該人員', 'error');
-            return;
-        }
-        
-        // 過濾出該人員在當前日期範圍內的所有記錄
-        const recordsForPerson = rawData.value.filter(r => r.personnel_id === person.id);
-        
-        const checkInCount = recordsForPerson.filter(r => r.action_type === '簽到' && r.success).length;
-        const checkOutCount = recordsForPerson.filter(r => r.action_type === '簽退' && r.success).length;
-        const onTimeCount = recordsForPerson.filter(r => r.status === '準時' && r.action_type === '簽到').length;
-        const lateCount = recordsForPerson.filter(r => r.status === '遲到' && r.action_type === '簽到').length;
-        
-        const participatedEvents = new Set(recordsForPerson.filter(r => r.event_id && r.success).map(r => r.event_id));
-        const attendedEventsCount = participatedEvents.size;
-
-        personnelReportData.value = {
-            person: person,
-            records: recordsForPerson.sort((a,b) => new Date(b.created_at) - new Date(a.created_at)), // 最近的記錄在前
-            stats: {
-                checkInCount: checkInCount,
-                checkOutCount: checkOutCount,
-                onTimeCount: onTimeCount,
-                lateCount: lateCount,
-                attendedEventsCount: attendedEventsCount, // 參與活動的數量
-            }
-        };
+      await api.saveRecords(todayRecords.value); // 調用 API 服務儲存
+      uiStore.showMessage('今日報到記錄已成功儲存至資料庫。', 'success');
+      todayRecords.value = []; // 清空暫存記錄
     } catch (error) {
-        uiStore.showMessage(`生成人員報表失敗: ${error.message}`, 'error');
-        personnelReportData.value = null;
+      uiStore.showMessage(`儲存今日記錄失敗: ${error.message}`, 'error');
     } finally {
-        uiStore.setLoading(false); // 隱藏載入遮罩
+      uiStore.setLoading(false);
     }
-};
+  };
 
-// 根據簽到狀態返回對應的 Tailwind CSS 類別
-const getStatusClass = (status) => {
-    if (status && status.includes('準時')) return 'bg-green-100 text-green-800';
-    if (status && status.includes('遲到')) return 'bg-yellow-100 text-yellow-800';
-    if (status && status.includes('成功')) return 'bg-blue-100 text-blue-800';
-    if (status && status.includes('失敗')) return 'bg-red-100 text-red-800';
-    return 'bg-gray-100 text-gray-800';
-};
-
-// 將目前篩選的報表數據匯出為 CSV/Excel
-const exportReportData = () => {
-    if (!processedReportStats.value || processedReportStats.value.activityStats.length === 0) {
-        return uiStore.showMessage('沒有可匯出的數據', 'info');
+  const deleteAllTodayRecords = async () => {
+    if (todayRecords.value.length === 0) {
+      uiStore.showMessage('目前沒有任何報到記錄可刪除。', 'info');
+      return;
     }
     
-    let csvContent = '活動名稱,活動日期,應到,簽到,簽退,未簽退,未到,參與率(%),準時率(%)\n';
-    processedReportStats.value.activityStats.forEach(act => {
-        const row = [
-            `"${act.name}"`,
-            formatDate(new Date(act.start_time)),
-            act.shouldAttendCount,
-            act.attendedCount,
-            act.checkOutCount,
-            act.notCheckedOutCount,
-            act.absentCount,
-            act.attendanceRate.toFixed(1),
-            act.onTimeRate.toFixed(1)
-        ].join(',');
-        csvContent += row + '\n';
-    });
-    
-    const blob = new Blob([`\uFEFF${csvContent}`], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `活動報表_${formatDate(new Date())}.csv`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
-    uiStore.showMessage('報表已匯出', 'success');
-};
-</script>
+    try {
+      const confirmed = await uiStore.showConfirmation('確認清除全部暫存記錄', '此操作不會刪除已儲存的資料。');
+      if (confirmed) {
+        todayRecords.value = []; // 清空暫存記錄
+        uiStore.showMessage('已清除所有暫存記錄。', 'success');
+      }
+    } catch (error) {
+      // 使用者取消，不執行任何操作
+      console.log("清除操作已取消");
+    }
+  };
 
-<style scoped>
-/* 數據表格樣式 */
-.data-grid {
-    border-collapse: collapse;
-    width: 100%;
-}
-.data-grid th, .data-grid td {
-    padding: 12px 16px;
-    text-align: left;
-    border-bottom: 1px solid #e5e7eb;
-}
-.data-grid th {
-    background-color: #f9fafb;
-    font-weight: 600;
-    font-size: 0.75rem;
-    text-transform: uppercase;
-    color: #6b7280; /* gray-500 */
-}
-.data-grid tbody tr:hover {
-    background-color: #f9fafb;
-}
+  const handleDeleteTempRecord = (id) => {
+    todayRecords.value = todayRecords.value.filter(record => record.id !== id);
+    uiStore.showMessage('記錄已從暫存列表移除。', 'info');
+  };
 
-/* RWD 表格樣式 (手機版卡片式) - 定義在 main.css 中，這裡不需要重複 */
+  // 輔助函數：獲取設備ID (從舊專案的 utils.js 遷移)
+  function getDeviceId() {
+    let deviceId = localStorage.getItem('uniqueDeviceId');
+    if (!deviceId) {
+      if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+        deviceId = crypto.randomUUID();
+      } else {
+        deviceId = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+          const r = Math.random() * 16 | 0, v = c === 'x' ? r : (r & 0x3 | 0x8);
+          return v.toString(16);
+        });
+      }
+      localStorage.setItem('uniqueDeviceId', deviceId);
+    }
+    return deviceId;
+  }
 
-/* 確保圖表容器高度，以便 Chart.js 可以渲染 */
-.h-72 { height: 18rem; } /* 288px */
-.h-96 { height: 24rem; } /* 384px */
+  // 輔助函數：判斷是否為有效卡號 (從舊專案的 utils.js 遷移)
+  function isValidCardNumber(cardNumber) {
+      return /^\d+$/.test(cardNumber);
+  }
 
-/* [MODIFIED] 手機版日期範圍和按鈕佈局 - 已經在 main.css 中，這裡不需要重複 */
-</style>
+  </script>
+
+  <style scoped>
+  /* 數據表格樣式 */
+  /* 這裡的樣式應該已經在 main.css 中，確保響應式表格正常工作 */
+  </style>
