@@ -403,7 +403,7 @@ const saveTodayRecords = async () => {
     await api.saveRecords(todayRecords.value); // 調用 API 服務儲存
     uiStore.showMessage('今日報到記錄已成功儲存至資料庫。', 'success');
     todayRecords.value = []; // 清空暫存記錄
-  } = (error) => {
+  } catch (error) { // Corrected: `)` was missing before `(error)`
     uiStore.showMessage(`儲存今日記錄失敗: ${error.message}`, 'error');
   } finally {
     uiStore.setLoading(false);

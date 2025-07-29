@@ -30,13 +30,19 @@ import { computed } from 'vue';
 import { useAuthStore } from '@/store/auth';
 import { useUiStore } from '@/store/ui';
 import logoUrl from '@/assets/logo.jpg';
+import { USER_ROLE_NAMES } from '@/utils/constants'; // 確保引入 USER_ROLE_NAMES
 
 const authStore = useAuthStore();
 const uiStore = useUiStore();
 
 const isLoggedIn = computed(() => authStore.isLoggedIn);
 const user = computed(() => authStore.user);
-const userRoleName = computed(() => authStore.userRoleName);
+
+// 修正 userRoleName，使其從映射中獲取中文名稱
+const userRoleName = computed(() => {
+  const roleKey = authStore.user?.roles?.name; // 獲取原始角色名稱，例如 'admin'
+  return USER_ROLE_NAMES[roleKey] || roleKey || '未知'; // 從映射中查找，如果找不到則顯示原始值
+});
 
 const handleLogout = () => {
   authStore.logout();

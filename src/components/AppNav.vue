@@ -113,7 +113,10 @@ const openDropdown = (menu) => {
     if (menuElement && buttonElement) {
       const rect = buttonElement.getBoundingClientRect();
       // Calculate top relative to the viewport + current scroll position
+      // Add a small offset (e.g., 4px) to ensure it's not directly on the button edge.
       menuElement.style.top = `${rect.bottom + window.scrollY + 4}px`; 
+      // Ensure the menu is visible by setting its display property if it's not already
+      menuElement.style.display = 'block'; 
     }
   }
 };
@@ -121,6 +124,15 @@ const openDropdown = (menu) => {
 // 關閉指定的下拉選單
 const closeDropdown = (menu) => {
   dropdowns[menu] = false;
+  // For mobile, explicitly hide the element after closing to prevent layout issues
+  // This might be redundant if v-show correctly handles display: none
+  if (window.innerWidth <= 768) {
+      let menuElement = null;
+      if (menu === 'dataAnalysis') menuElement = dataAnalysisMenuRef.value;
+      else if (menu === 'records') menuElement = recordsMenuRef.value;
+      else if (menu === 'management') menuElement = managementMenuRef.value;
+      if (menuElement) menuElement.style.display = 'none';
+  }
 };
 </script>
 
@@ -128,6 +140,8 @@ const closeDropdown = (menu) => {
 /* 專屬於此元件的樣式 */
 .dropdown-menu-floating {
   position: absolute;
+  /* `v-show` 會自動控制 `display: none;` 和 `display: block;` */
+  /* display: none;  這裡移除，因為 v-show 會處理 */
   z-index: 50;
   top: 100%;
   left: 0;
