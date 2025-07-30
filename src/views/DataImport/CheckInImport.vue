@@ -46,10 +46,11 @@
         <p v-if="selectedFile" class="text-gray-500 text-sm mt-2">已選擇檔案: {{ selectedFile.name }}</p>
         
         <div class="mt-4">
-          <label for="encodingSelector" class="block text-sm font-medium text-gray-700 mb-1">選擇檔案編碼(請看說明)</label>
+          <label for="encodingSelector" class="block text-sm font-medium text-gray-700 mb-1">選擇檔案編碼 (若檔案內容顯示亂碼請切換)</label>
           <select id="encodingSelector" v-model="selectedEncoding" class="w-full pl-4 pr-10 py-2 border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-indigo-400">
+            <option :value="null" disabled>-- 請選擇檔案編碼(下拉有備註) --</option>
             <option value="UTF-8">UTF-8 (推薦/範例檔)</option>
-            <option value="Big5">Big5 (繁體中文/雲科單一匯出的)</option>
+            <option value="Big5">Big5 (繁體中文/雲科單一活動系統匯出)</option>
             <option value="GBK">GBK (簡體中文)</option>
             <option value="ISO-8859-1">ISO-8859-1 (西方語言)</option>
           </select>
@@ -57,7 +58,7 @@
       </div>
 
       <div class="text-center pt-2">
-        <button @click="processImport" :disabled="!selectedFile" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3 px-8 rounded-lg text-lg transition shadow-lg hover:shadow-xl disabled:bg-gray-400 disabled:cursor-not-allowed">
+        <button @click="processImport" :disabled="!selectedFile || !selectedEncoding" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3 px-8 rounded-lg text-lg transition shadow-lg hover:shadow-xl disabled:bg-gray-400 disabled:cursor-not-allowed">
           開始匯入
         </button>
       </div>
@@ -95,7 +96,7 @@ import { useUiStore } from '@/store/ui';
 import { useDataStore } from '@/store/data';
 import * as api from '@/services/api'; 
 import { formatDateTime, parseFlexibleDateTime, isValidCardNumber, getDeviceId } from '@/utils';
-import { CHECKIN_IMPORT_HEADERS } from '@/utils/constants'; // 引入匯入簽到表頭的常數定義
+import { CHECKIN_IMPORT_HEADERS } from '@/utils/constants';
 
 // 獲取 Pinia store 實例
 const uiStore = useUiStore();
@@ -106,7 +107,7 @@ const selectedEventId = ref(null); // 選定的活動 ID，預設為 null (不�
 const actionType = ref('簽到'); // 預設匯入類型為 '簽到'
 const selectedFile = ref(null); // 已選擇的檔案
 const importResult = ref(null); // 匯入結果，用於顯示成功、自動建立、失敗筆數等
-const selectedEncoding = ref('UTF-8'); // 新增檔案編碼選擇，預設為 UTF-8
+const selectedEncoding = ref(null); // 【修改點】檔案編碼選擇，預設為 null，強制使用者選擇
 
 // 組件掛載後執行
 onMounted(async () => {
@@ -120,12 +121,17 @@ onMounted(async () => {
 const handleFileSelect = (event) => {
   selectedFile.value = event.target.files[0]; // 獲取使用者選擇的第一個檔案
   importResult.value = null; // 選擇新檔案時重置匯入結果，清除舊的顯示
+  selectedEncoding.value = null; // 【新增】選擇新檔案時，重置編碼選擇，強制重新選擇
 };
 
 // 處理匯入流程的主函數
 const processImport = async () => {
   if (!selectedFile.value) {
     uiStore.showMessage('請選擇一個 CSV 檔案。', 'info'); // 如果沒有選擇檔案，顯示提示訊息
+    return;
+  }
+  if (!selectedEncoding.value) { // 【新增】檢查是否選擇了編碼
+    uiStore.showMessage('請選擇檔案的編碼。', 'info');
     return;
   }
 
@@ -135,7 +141,7 @@ const processImport = async () => {
   let csvText;
   try {
     const reader = new FileReader();
-    // 【修改點】使用使用者選擇的編碼來讀取檔案，解決中文亂碼問題
+    // 使用使用者選擇的編碼來讀取檔案
     reader.readAsText(selectedFile.value, selectedEncoding.value);
     csvText = await new Promise((resolve, reject) => {
       reader.onload = (e) => resolve(e.target.result); // 檔案讀取成功
@@ -161,16 +167,14 @@ const processImport = async () => {
     let nameIndex = -1, idIndex = -1, timeIndex = -1;
 
     // 使用 CHECKIN_IMPORT_HEADERS 常數來動態尋找欄位索引
-    // 遍歷常數中定義的每種欄位類型 (NAME, IDENTIFIER, TIMESTAMP)
     for (const [key, possibleNames] of Object.entries(CHECKIN_IMPORT_HEADERS)) {
-        // 遍歷該欄位類型可能的所有名稱
         for (const name of possibleNames) {
-            const index = headers.indexOf(name); // 查找當前名稱在實際標頭中的索引
-            if (index !== -1) { // 如果找到
-                if (key === 'NAME') nameIndex = index; // 設置姓名欄位索引
-                else if (key === 'IDENTIFIER') idIndex = index; // 設置識別碼欄位索引
-                else if (key === 'TIMESTAMP') timeIndex = index; // 設置時間欄位索引
-                break; // 找到後跳出內層循環，避免重複設置
+            const index = headers.indexOf(name);
+            if (index !== -1) {
+                if (key === 'NAME') nameIndex = index;
+                else if (key === 'IDENTIFIER') idIndex = index;
+                else if (key === 'TIMESTAMP') timeIndex = index;
+                break; 
             }
         }
     }
@@ -315,6 +319,7 @@ const processImport = async () => {
     selectedFile.value = null; // 清空檔案選擇
     const fileInput = document.getElementById('importCheckinFile');
     if(fileInput) fileInput.value = ''; // 清空檔案輸入框的顯示
+    selectedEncoding.value = null; // 【新增】匯入完成或失敗後，也重置編碼選擇
   }
 };
 
