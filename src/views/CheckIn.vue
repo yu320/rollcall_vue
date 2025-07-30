@@ -25,7 +25,7 @@
         <select id="eventSelector" v-model="selectedEventId" class="w-full pl-4 pr-10 py-3 border border-gray-300 rounded-lg text-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white">
           <option :value="null">-- 不選擇活動 (測試用) --</option>
           <option v-for="event in sortedEvents" :key="event.id" :value="event.id" :class="{'text-gray-500': isEventEnded(event.end_time)}">
-            {{ event.name }} ({{ formatDateTime(event.start_time, 'yyyy-MM-dd') }})
+            {{ event.name }} ({{ formatDateTime(event.start_time, 'yyyy-MM-dd HH:mm:ss') }})
             <span v-if="isEventEnded(event.end_time)">(已結束)</span>
           </option>
         </select>
