@@ -249,14 +249,15 @@ export async function updatePersonnelTags(id, tags) {
 // --- Events API ---
 
 export async function fetchEvents() {
-    // [FIXED] Removed `const supabase = getSupabase();` and now using the imported `supabase` client directly.
     const { data, error } = await supabase
         .from('events')
         .select(`
             *,
-            profiles:created_by(nickname)
+            profiles:created_by(nickname),
+            event_participants(personnel_id)
         `)
         .order('start_time', { ascending: false });
+
     if (error) throw error;
     return data.map(event => ({
         ...event,
@@ -264,44 +265,38 @@ export async function fetchEvents() {
     }));
 }
 
-export async function createEvent(eventData) {
-    // [FIXED] Removed `const supabase = getSupabase();`
-    const { data, error } = await supabase.from('events').insert([eventData]).select();
+export async function fetchEventParticipants(eventId) {
+    const { data, error } = await supabase
+        .from('event_participants')
+        .select('personnel(*)')
+        .eq('event_id', eventId);
     if (error) throw error;
-    if (data && data.length > 0) {
-        recordAuditLog({
-            action_type: 'CREATE',
-            target_table: 'events',
-            target_id: data[0].id,
-            description: `新增活動: ${data[0].name}`,
-            new_value: data[0]
-        });
-    }
-    return data;
+    return data.map(p => p.personnel);
 }
 
-export async function updateEvent(id, eventData) {
-    // [FIXED] Removed `const supabase = getSupabase();`
-    const { data: oldData, error: fetchError } = await supabase.from('events').select('*').eq('id', id).single();
-    if (fetchError) console.warn("更新活動前無法獲取舊資料用於稽核:", fetchError.message);
+export async function saveEvent(eventData, participantIds = []) {
+    const { data, error } = await supabase.rpc('save_event_with_participants', {
+        event_data: eventData,
+        participant_ids: participantIds
+    });
 
-    const { data, error } = await supabase.from('events').update(eventData).eq('id', id).select();
     if (error) throw error;
-    if (data && data.length > 0) {
-        recordAuditLog({
-            action_type: 'UPDATE',
-            target_table: 'events',
-            target_id: data[0].id,
-            description: `更新活動: ${data[0].name}`,
-            old_value: oldData || null,
-            new_value: data[0]
-        });
-    }
-    return data;
+
+    const action = eventData.id ? 'UPDATE' : 'CREATE';
+    const description = action === 'CREATE' ? `新增活動: ${eventData.name}` : `更新活動: ${eventData.name}`;
+
+    recordAuditLog({
+        action_type: action,
+        target_table: 'events',
+        target_id: data[0].id,
+        description: description,
+        new_value: { event: data[0], participants: participantIds }
+    });
+    
+    return data[0];
 }
 
 export async function deleteEvent(id) {
-    // [FIXED] Removed `const supabase = getSupabase();`
     const { data: oldData, error: fetchError } = await supabase.from('events').select('*').eq('id', id).single();
     if (fetchError) console.warn("刪除活動前無法獲取舊資料用於稽核:", fetchError.message);
 
