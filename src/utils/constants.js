@@ -24,3 +24,20 @@ export const USER_ROLE_NAMES = {
     sdc: '宿委會',
     sdsc: '宿服'
 };
+
+// --- 匯入功能相關常數 ---
+// CheckInImport 頁面可能出現的標頭名稱
+export const CHECKIN_IMPORT_HEADERS = {
+    NAME: ['姓名'],
+    IDENTIFIER: ['學號/卡號', '學號', '卡號', '教職員生編號'], // 識別碼的可能名稱
+    TIMESTAMP: ['刷卡時間', 'IC靠卡時間'] // 時間的可能名稱
+};
+
+// PersonnelImport 頁面可能出現的標頭名稱
+export const PERSONNEL_IMPORT_HEADERS = {
+    NAME: ['姓名'],
+    CODE: ['學號', '教職員生編號'], // 學號的可能名稱
+    CARD_NUMBER: ['卡號'],
+    BUILDING: ['棟別', '棟'], // 棟別的可能名稱
+    TAGS: ['標籤', 'Tags'] // 標籤的可能名稱
+};
