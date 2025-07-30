@@ -1,12 +1,9 @@
 <template>
   <div class="page-container" :style="pageStyle">
-    <!-- Canvas 用於繪製滑鼠軌跡和 Matrix 特效 -->
     <canvas ref="canvasEl" class="effects-canvas"></canvas>
 
-    <!-- 背景星星 (加入光速特效 class) -->
     <div class="stars" id="stars-container" :class="{ 'lightspeed': easterEggs.lightspeed.active }"></div>
     
-    <!-- 飛行的 UFO (加入彩蛋的 class 綁定) -->
     <div class="ufo" :class="{ 'ufo-abducting': easterEggs.konami.activated }">
         <svg width="120" height="70" viewBox="0 0 120 70" fill="none" xmlns="http://www.w3.org/2000/svg">
             <ellipse cx="60" cy="30" rx="40" ry="15" fill="#73D2DE"/>
@@ -15,13 +12,10 @@
             <ellipse cx="60" cy="20" rx="20" ry="10" fill="#06D6A0"/>
             <circle cx="60" cy="20" r="5" fill="#FFD166"/>
         </svg>
-        <!-- 彩蛋：牽引光束 -->
         <div class="tractor-beam"></div>
     </div>
 
-    <!-- 主要內容 -->
     <div class="relative z-10 flex flex-col items-center justify-center min-h-screen px-4 text-center">
-        <!-- 太空人 (加入點擊事件和桶滾特效 class) -->
         <div 
           class="astronaut mb-6" 
           id="astronaut" 
@@ -35,7 +29,6 @@
             </svg>
         </div>
         
-        <!-- 404 標題 (加入彩蛋的 class 綁定) -->
         <h1 class="error-text text-8xl font-bold text-white mb-2" :class="{ 'text-abducted': easterEggs.konami.activated }">404</h1>
         <h2 class="text-3xl font-semibold text-white mb-6">哎呀！頁面走丟了</h2>
         <p class="text-lg text-white max-w-md mb-8 bg-white/20 p-4 rounded-xl backdrop-blur-sm">
@@ -285,6 +278,13 @@ onUnmounted(() => {
     window.removeEventListener('keydown', handleKeyDown);
     window.removeEventListener('mousemove', handleMouseMove);
     window.removeEventListener('resize', setupCanvas);
+    // Reset any persistent effects when component is unmounted
+    easterEggs.konami.activated = false;
+    easterEggs.lightspeed.active = false;
+    easterEggs.matrix.active = false;
+    easterEggs.color.currentIndex = 0; // Reset to default color
+    easterEggs.astronaut.isRolling = false;
+    easterEggs.astronaut.clicks = 0;
 });
 
 </script>
@@ -380,6 +380,7 @@ onUnmounted(() => {
 @keyframes bounce {
     0%, 100% { transform: translateY(0); }
     50% { transform: translateY(-20px); }
+    100% { transform: translateY(0); } /* Ensure it ends at the start position */
 }
 
 .btn {
