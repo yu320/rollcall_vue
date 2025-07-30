@@ -199,7 +199,7 @@ const XiaoLongBaoIcon = {
   template: `
     <svg viewBox="0 0 24 24" fill="currentColor" class="text-green-500">
       <path d="M12 2a10 10 0 1 0 10 10A10 10 0 0 0 12 2zm0 18a8 8 0 1 1 8-8 8 8 0 0 1-8 8z"></path>
-      <path d="M12 10a4 4 0 0 1 4 4c0 1.1-.9 2-2 2s-2-.9-2-2v-4zM12 10a4 4 0 0 0-4 4c0 1.1.9 2 2 2s2-.9 2-2v-4z"></path>
+      <path d="M12 10a4 4 0 (1 4 4c0 1.1-.9 2-2 2s-2-.9-2-2v-4zM12 10a4 4 0 (0-4 4c0 1.1.9 2 2 2s2-.9 2-2v-4z"></path>
       <circle cx="12" cy="7" r="1" fill="#FFD166"></circle>
     </svg>
   `
@@ -251,12 +251,14 @@ const ufoActive = ref(false);
 let ufoTimeout;
 
 const triggerUFO = () => {
+  // Only trigger if not already active to prevent overlapping animations
   if (!ufoActive.value) {
     ufoActive.value = true;
     ufoTimeout = setTimeout(() => {
       ufoActive.value = false;
-      setTimeout(triggerUFO, Math.random() * 20000 + 10000);
-    }, 15000);
+      // Schedule next UFO appearance after a random delay
+      setTimeout(triggerUFO, Math.random() * 20000 + 10000); // 10-30 seconds
+    }, 15000); // UFO flight duration is 15 seconds as per CSS
   }
 };
 
@@ -264,6 +266,7 @@ const triggerUFO = () => {
 // --- 背景點擊色調變化彩蛋 ---
 const bgHue = ref(0);
 const handleBackgroundClick = (event) => {
+  // Only change hue if click is not on a feature card or floating snack
   if (!event.target.closest('.feature-card') && !event.target.closest('.floating-snack')) {
     bgHue.value = (bgHue.value + 30) % 360;
   }
@@ -275,16 +278,18 @@ const pressedKeys = ref([]);
 
 const handleKeyDown = (event) => {
   pressedKeys.value.push(event.key.toLowerCase());
+  // Keep the sequence limited to the length of konamiSequence
   if (pressedKeys.value.length > konamiSequence.length) {
     pressedKeys.value.shift();
   }
 
+  // Check if the current sequence matches the konami sequence
   if (pressedKeys.value.join('') === konamiSequence.join('')) {
     snacksSparkling.value = true;
     setTimeout(() => {
       snacksSparkling.value = false;
-    }, 1500);
-    pressedKeys.value = [];
+    }, 1500); // Sparkle duration
+    pressedKeys.value = []; // Reset sequence after activation
   }
 };
 
@@ -294,11 +299,11 @@ const triggerCosmicDust = (event) => {
   const cardElement = event.currentTarget;
   const rect = cardElement.getBoundingClientRect();
 
-  for (let i = 0; i < 5; i++) { // 每次懸停產生5個粒子
+  for (let i = 0; i < 5; i++) { // Generate 5 particles per hover
     const dust = document.createElement('div');
     dust.classList.add('cosmic-dust-particle');
     
-    // 隨機在卡片邊緣生成粒子
+    // Randomly generate particles around the card edges
     const side = Math.floor(Math.random() * 4); // 0:top, 1:right, 2:bottom, 3:left
     let startX, startY, endX, endY;
 
@@ -328,12 +333,13 @@ const triggerCosmicDust = (event) => {
     dust.style.top = `${startY}px`;
     dust.style.width = `${Math.random() * 3 + 1}px`; // 1px to 4px
     dust.style.height = dust.style.width;
-    dust.style.backgroundColor = `hsl(${Math.random() * 30 + 200}, 100%, 80%)`; // 藍白色調
+    dust.style.backgroundColor = `hsl(${Math.random() * 30 + 200}, 100%, 80%)`; // Blue-white hue
     dust.style.setProperty('--end-x', `${endX - startX}px`);
     dust.style.setProperty('--end-y', `${endY - startY}px`);
 
     document.body.appendChild(dust);
 
+    // Remove particle after animation ends
     dust.addEventListener('animationend', () => {
       dust.remove();
     });
@@ -343,6 +349,7 @@ const triggerCosmicDust = (event) => {
 
 // --- Lifecycle Hooks ---
 onMounted(() => {
+  // Function to dynamically create stars in the background
   const createHomeStars = () => {
     const container = document.querySelector('.home-stars');
     if (!container) return;
@@ -358,22 +365,24 @@ onMounted(() => {
       container.appendChild(star);
     }
   };
-  createHomeStars();
+  createHomeStars(); // Call on mount
 
+  // Start spawning floating snacks
   snackSpawnInterval = setInterval(() => {
-    if (floatingSnacks.value.length < 5) {
+    if (floatingSnacks.value.length < 5) { // Maintain a max of 5 snacks on screen at a time
       floatingSnacks.value.push(createSnack());
     }
-    if (floatingSnacks.value.length > 10) {
+    if (floatingSnacks.value.length > 10) { // Prune older snacks if too many
       floatingSnacks.value.shift();
     }
-  }, 3000);
+  }, 3000); // Every 3 seconds
 
-  triggerUFO(); // 初始觸發一次飛碟
+  triggerUFO(); // Initial trigger for the UFO
 
+  // Add global event listener for keyboard input
   window.addEventListener('keydown', handleKeyDown);
 
-  // 開發者控制台提示
+  // Console message for developers
   console.log(
     `%c
       ██████╗░██████╗░██╗░░░██╗
@@ -399,11 +408,14 @@ onMounted(() => {
 });
 
 onUnmounted(() => {
+  // Clear all intervals and timeouts when the component is unmounted
   clearInterval(snackSpawnInterval);
   clearTimeout(ufoTimeout);
+  // Remove global event listeners
   window.removeEventListener('keydown', handleKeyDown);
-  // Remove floating snacks from the DOM if any remain
-  floatingSnacks.value = [];
+  // Ensure all dynamically added floating snacks are removed from the DOM
+  floatingSnacks.value = []; // Clear the ref, Vue handles reactive cleanup of these
+  // Manually remove any lingering cosmic dust particles from the body
   const cosmicDustParticles = document.querySelectorAll('.cosmic-dust-particle');
   cosmicDustParticles.forEach(p => p.remove());
 });
@@ -551,7 +563,7 @@ onUnmounted(() => {
   height: 100%;
   pointer-events: none; /* 預設不阻擋下方事件 */
   overflow: hidden;
-  z-index: 1; /* 在背景之上，內容之下 */
+  z-index: 11; /* Changed from 1 to 11 to appear above feature cards */
 }
 
 .floating-snack {
@@ -631,32 +643,27 @@ onUnmounted(() => {
 
 /* --- 隱藏文字樣式 --- */
 .hidden-message {
-  user-select: none; /* 防止直接選取 */
-  -webkit-user-select: none; /* For Webkit browsers */
-  -moz-user-select: none; /* For Firefox */
-  -ms-user-select: none; /* For Internet Explorer/Edge */
-  color: transparent; /* 預設文字透明 */
-  text-shadow: 0 0 8px rgba(0,0,0,0.5); /* 模糊陰影模擬隱藏 */
-  transition: color 0.3s ease, text-shadow 0.3s ease;
+  /* user-select: none; /* 移除此行，讓文字可以選取 */
+  /* -webkit-user-select: none; */
+  /* -moz-user-select: none; */
+  /* -ms-user-select: none; */
+  color: var(--custom-rich-black); /* 預設文字改為可見的深色 */
+  text-shadow: none; /* 移除陰影 */
+  transition: none; /* 移除過渡效果 */
 }
 
-/* 當滑鼠選取文字時，顯示文字 */
-.hidden-message::selection {
-  background-color: transparent; /* 保持背景透明 */
-  color: #eff6e0; /* 顯示文字顏色 */
-  text-shadow: none; /* 移除陰影 */
-}
+/* 移除 ::selection 和 :hover .unselectable 相關的覆蓋樣式 */
+/* 當文字不再隱藏時，這些樣式就不再需要 */
+
 /* For older browsers that don't support ::selection pseudo-element for custom text selection behavior */
-.hidden-message:hover .unselectable {
-  color: #eff6e0; /* 顯示文字顏色 */
-  text-shadow: none; /* 移除陰影 */
-}
+/* 這些 hover 效果也移除，因為文字現在是可見的 */
+
 
 /* --- 飛碟穿越彩蛋樣式 --- */
 .ufo-flyby {
   position: absolute;
   top: 10%; /* 隨機起始高度 */
-  left: -100px; /* 從螢幕左側外開始 */
+  left: -150px; /* From off-screen left */
   z-index: 15; /* 在浮動小吃之上，在內容之下 */
   opacity: 0;
   transition: opacity 0.5s ease-in-out;
@@ -669,12 +676,13 @@ onUnmounted(() => {
 }
 
 @keyframes ufo-across-screen {
-  0% { transform: translateX(0) translateY(0); }
-  25% { transform: translateX(50vw) translateY(20px); }
-  50% { transform: translateX(100vw) translateY(-10px); }
-  75% { transform: translateX(150vw) translateY(30px); }
-  100% { transform: translateX(200vw) translateY(0); opacity: 0; }
+  0% { left: -150px; transform: translateX(0) translateY(0); opacity: 1; }
+  25% { transform: translateX(50vw) translateY(30px); }
+  50% { transform: translateX(100vw) translateY(-20px); } /* Use 100vw for full viewport width traverse */
+  75% { transform: translateX(150vw) translateY(10px); }
+  100% { left: calc(100% + 150px); transform: translateX(0) translateY(0); opacity: 0; } /* Use calc for off-screen right */
 }
+
 
 /* --- 卡片標題微晃彩蛋樣式 --- */
 @keyframes wiggle-title {
