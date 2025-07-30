@@ -38,16 +38,31 @@
           <div v-for="card in summaryCards" :key="card.title" class="bg-white rounded-xl shadow-md p-6 border border-gray-200 hover:shadow-lg transition-shadow" v-html="card.html"></div>
         </div>
         <div class="bg-white rounded-xl shadow-md p-6 border border-gray-200">
-          <h3 class="text-xl font-bold text-gray-800 mb-6">活動參與趨勢</h3>
+          <div class="flex justify-between items-center mb-6">
+            <h3 class="text-xl font-bold text-gray-800">活動參與趨勢</h3>
+            <button @click="downloadChart(chartInstances.attendanceTrend, '活動參與趨勢')" class="p-2 text-gray-500 hover:text-gray-800 rounded-full hover:bg-gray-100 transition" aria-label="下載圖表">
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+            </button>
+          </div>
           <div class="h-72"><canvas ref="attendanceTrendChartCanvas"></canvas></div>
         </div>
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <div class="bg-white rounded-xl shadow-md p-6 border border-gray-200">
-            <h3 class="text-xl font-bold text-gray-800 mb-6">簽到狀態分佈 (準時/遲到)</h3>
+            <div class="flex justify-between items-center mb-6">
+              <h3 class="text-xl font-bold text-gray-800">簽到狀態分佈 (準時/遲到)</h3>
+              <button @click="downloadChart(chartInstances.attendancePie, '簽到狀態分佈')" class="p-2 text-gray-500 hover:text-gray-800 rounded-full hover:bg-gray-100 transition" aria-label="下載圖表">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+              </button>
+            </div>
             <div class="h-72"><canvas ref="attendancePieChartCanvas"></canvas></div>
           </div>
           <div class="bg-white rounded-xl shadow-md p-6 border border-gray-200">
-            <h3 class="text-xl font-bold text-gray-800 mb-6">出席狀態分佈</h3>
+            <div class="flex justify-between items-center mb-6">
+              <h3 class="text-xl font-bold text-gray-800">出席狀態分佈</h3>
+              <button @click="downloadChart(chartInstances.attendanceStatusPie, '出席狀態分佈')" class="p-2 text-gray-500 hover:text-gray-800 rounded-full hover:bg-gray-100 transition" aria-label="下載圖表">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+              </button>
+            </div>
             <div class="h-72"><canvas ref="attendanceStatusPieChartCanvas"></canvas></div>
           </div>
         </div>
@@ -97,7 +112,12 @@
       
       <div v-show="activeTab === 'building'" class="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div class="bg-white rounded-xl shadow-md p-6 border border-gray-200">
-            <h3 class="text-xl font-bold text-gray-800 mb-6">棟別活動參與率比較</h3>
+            <div class="flex justify-between items-center mb-6">
+              <h3 class="text-xl font-bold text-gray-800">棟別活動參與率比較</h3>
+              <button @click="downloadChart(chartInstances.buildingAttendance, '棟別活動參與率比較')" class="p-2 text-gray-500 hover:text-gray-800 rounded-full hover:bg-gray-100 transition" aria-label="下載圖表">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+              </button>
+            </div>
             <div class="h-96"><canvas ref="buildingAttendanceChartCanvas"></canvas></div>
         </div>
         <div class="bg-white rounded-xl shadow-md p-6 border border-gray-200">
@@ -232,7 +252,6 @@ watch([startDate, endDate, buildingFilter], () => {
 
 watch(activityFilter, () => {
     // Note: Activity filter is now applied on the frontend, so no full re-process needed.
-    // If performance becomes an issue, this could be changed to re-run processReportData.
 });
 
 
@@ -330,17 +349,14 @@ const processReportData = (records, allPersonnel, allEvents, currentBuildingFilt
     });
 
     const activityStats = Object.values(eventGroups).map(group => {
-        // 【*** 核心修正 ***】
-        // 根據活動的 participant_scope 決定基礎的應到人員
         let basePersonnelForEvent;
         if (group.eventInfo.participant_scope === 'SPECIFIC') {
             const specificParticipantIds = new Set((group.eventInfo.event_participants || []).map(ep => ep.personnel_id));
             basePersonnelForEvent = allPersonnel.filter(p => specificParticipantIds.has(p.id));
-        } else { // 'ALL' scope
+        } else {
             basePersonnelForEvent = allPersonnel;
         }
 
-        // 在正確的基礎上應用棟別過濾
         const personnelForEvent = currentBuildingFilter === 'all' 
             ? basePersonnelForEvent 
             : basePersonnelForEvent.filter(p => p.building === currentBuildingFilter);
@@ -593,6 +609,23 @@ const exportReportData = () => {
     URL.revokeObjectURL(url);
     uiStore.showMessage('報表已匯出', 'success');
 };
+
+// 【*** 核心修正 ***】新增下載圖表的函式
+const downloadChart = (chartInstance, baseFilename) => {
+  if (!chartInstance) {
+    uiStore.showMessage('圖表尚未準備好，無法下載。', 'warning');
+    return;
+  }
+  
+  const timestamp = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
+  const filename = `${baseFilename}_${startDate.value}_至_${endDate.value}.png`;
+
+  const link = document.createElement('a');
+  link.href = chartInstance.toBase64Image();
+  link.download = filename;
+  link.click();
+};
+
 </script>
 
 <style scoped>
