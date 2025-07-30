@@ -1,59 +1,118 @@
 <template>
-  <header class="bg-white shadow-lg">
-    <div class="container mx-auto px-4 py-5 flex flex-wrap justify-between items-center gap-4">
-      <div class="flex items-center">
-        <img :src="logoUrl" alt="簽到系統Logo" class="h-12 w-12 rounded-full shadow-md mr-4">
-        <div>
-          <h1 class="text-3xl md:text-4xl font-extrabold text-indigo-800">點名系統</h1>
-          <p class="text-gray-500 text-sm md:text-base mt-1">使用前要匯入名單&創建活動</p>
+  <header class="bg-white shadow-sm">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div class="flex justify-between items-center h-16">
+        <div class="flex items-center">
+          <img class="h-8 w-auto" src="@/assets/logo.jpg" alt="Logo">
+          <h1 class="ml-3 text-xl font-semibold text-gray-800">簽到系統</h1>
         </div>
-      </div>
-
-      <div v-if="isLoggedIn && user" class="flex items-center gap-4 flex-wrap justify-center sm:justify-end w-full sm:w-auto">
-        <span class="text-gray-700 font-medium px-3 py-1 bg-gray-100 rounded-full order-first sm:order-none">
-          歡迎, {{ user.nickname }} ({{ userRoleName }})
-        </span>
-        <!-- [MODIFIED] Button text changed from "修改我的密碼" to "修改個人資料" -->
-        <button @click="openEditProfileModal" class="bg-blue-500 hover:bg-blue-600 text-white font-medium py-2 px-4 rounded-lg transition duration-300 transform hover:scale-105 shadow-sm">
-          修改個人資料
-        </button>
-        <button @click="handleLogout" class="bg-red-500 hover:bg-red-600 text-white font-medium py-2 px-4 rounded-lg transition duration-300 transform hover:scale-105 shadow-sm">
-          登出
-        </button>
+        <div v-if="authStore.isLoggedIn" class="flex items-center space-x-4">
+          <span class="text-sm font-medium text-gray-600">歡迎, {{ userDisplayName }}</span>
+          <button @click="openProfileModal" class="bg-blue-500 hover:bg-blue-600 text-white py-2 px-4 rounded-md text-sm font-medium transition-colors">
+            修改個人資料
+          </button>
+          <button @click="handleLogout" class="bg-red-500 hover:bg-red-600 text-white py-2 px-4 rounded-md text-sm font-medium transition-colors">
+            登出
+          </button>
+        </div>
       </div>
     </div>
   </header>
+
+  <!-- Profile Edit Modal -->
+  <Modal :show="isProfileModalOpen" @close="closeProfileModal">
+    <template #title>修改個人資料</template>
+    <template #body>
+      <form @submit.prevent="handleSaveChanges" class="space-y-4">
+        <div>
+          <label for="email" class="block text-sm font-medium text-gray-700">電子郵件 (帳號)</label>
+          <input type="email" id="email" :value="authStore.user ? authStore.user.email : ''" class="mt-1 block w-full p-2 border border-gray-300 rounded-md shadow-sm bg-gray-100 cursor-not-allowed" disabled>
+        </div>
+        <div>
+          <label for="nickname" class="block text-sm font-medium text-gray-700">暱稱</label>
+          <input type="text" id="nickname" v-model="editableProfile.nickname" placeholder="請輸入您的暱稱" class="mt-1 block w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500">
+        </div>
+        <hr/>
+        <div>
+          <label for="new_password" class="block text-sm font-medium text-gray-700">新密碼 (留空則不修改)</label>
+          <input type="password" id="new_password" v-model="newPassword" placeholder="請輸入新密碼" class="mt-1 block w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500">
+        </div>
+        <div>
+          <label for="confirm_password" class="block text-sm font-medium text-gray-700">確認新密碼</label>
+          <input type="password" id="confirm_password" v-model="confirmPassword" placeholder="請再次輸入新密碼" class="mt-1 block w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500">
+        </div>
+        <p v-if="passwordError" class="text-sm text-red-600">{{ passwordError }}</p>
+      </form>
+    </template>
+    <template #footer>
+      <button @click="closeProfileModal" type="button" class="bg-white py-2 px-4 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 hover:bg-gray-50">
+        取消
+      </button>
+      <button @click="handleSaveChanges" type="submit" class="ml-3 inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700">
+        儲存變更
+      </button>
+    </template>
+  </Modal>
 </template>
 
 <script setup>
-import { computed } from 'vue';
+import { computed, ref } from 'vue';
 import { useAuthStore } from '@/store/auth';
-import { useUiStore } from '@/store/ui';
-import logoUrl from '@/assets/logo.jpg';
-import { USER_ROLE_NAMES } from '@/utils/constants'; // 確保引入 USER_ROLE_NAMES
+import Modal from '@/components/Modal.vue';
 
 const authStore = useAuthStore();
-const uiStore = useUiStore();
 
-const isLoggedIn = computed(() => authStore.isLoggedIn);
-const user = computed(() => authStore.user);
-
-// 修正 userRoleName，使其從映射中獲取中文名稱
-const userRoleName = computed(() => {
-  const roleKey = authStore.user?.roles?.name; // 獲取原始角色名稱，例如 'admin'
-  return USER_ROLE_NAMES[roleKey] || roleKey || '未知'; // 從映射中查找，如果找不到則顯示原始值
+const userDisplayName = computed(() => {
+    return authStore.user?.nickname || authStore.user?.email || '使用者';
 });
+
+// Modal State
+const isProfileModalOpen = ref(false);
+const editableProfile = ref({ nickname: '' });
+const newPassword = ref('');
+const confirmPassword = ref('');
+const passwordError = ref('');
 
 const handleLogout = () => {
   authStore.logout();
 };
 
-// [MODIFIED] Renamed from openChangePasswordModal to openEditProfileModal
-const openEditProfileModal = () => {
-    // Emit an event that the root component (App.vue) can listen to
-    // [MODIFIED] Event name changed to reflect profile editing
-    const event = new CustomEvent('open-edit-profile-modal');
-    window.dispatchEvent(event);
+const openProfileModal = () => {
+  newPassword.value = '';
+  confirmPassword.value = '';
+  passwordError.value = '';
+  // 從 store 中取得當前的暱稱
+  editableProfile.value.nickname = authStore.user?.nickname || '';
+  isProfileModalOpen.value = true;
+};
+
+const closeProfileModal = () => {
+  isProfileModalOpen.value = false;
+};
+
+const handleSaveChanges = async () => {
+  passwordError.value = '';
+  
+  // 檢查密碼是否需要更新
+  if (newPassword.value) {
+    if (newPassword.value.length < 6) {
+      passwordError.value = '密碼長度不能少於 6 個字元。';
+      return;
+    }
+    if (newPassword.value !== confirmPassword.value) {
+      passwordError.value = '兩次輸入的密碼不一致。';
+      return;
+    }
+  }
+
+  // 呼叫 store 中的 action
+  const success = await authStore.updateUserProfile(
+    editableProfile.value.nickname,
+    newPassword.value // 如果為空字串，api 層應處理不更新密碼
+  );
+
+  if (success) {
+    closeProfileModal();
+  }
 };
 </script>
-
