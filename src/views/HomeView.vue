@@ -17,16 +17,7 @@
     <div class="home-stars" :style="{ '--star-hue-rotate': `${bgHue}deg` }"></div>
     <div class="home-floating-element"></div>
 
-    <div class="ufo-flyby" :class="{ 'ufo-active': ufoActive }">
-      <svg width="60" height="35" viewBox="0 0 120 70" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <ellipse cx="60" cy="30" rx="40" ry="15" fill="#A8DADC"/>
-        <ellipse cx="60" cy="30" rx="30" ry="10" fill="#457B9D"/>
-        <path d="M40 30C40 30 50 40 60 40C70 40 80 30 80 30" stroke="#F1FAEE" stroke-width="2"/>
-        <ellipse cx="60" cy="20" rx="20" ry="10" fill="#E63946"/>
-        <circle cx="60" cy="20" r="5" fill="#F1FAEE"/>
-      </svg>
-    </div>
-
+    <!-- 飛碟元素已移除 -->
 
     <div class="floating-snacks-container">
       <div
@@ -157,7 +148,7 @@
       </router-link>
     </div>
 
-    <div class="text-center mt-12 text-gray-500 hidden-message">
+    <div class="text-center mt-12 hidden-message">
       <p>
         這是一個隱藏的訊息：<span class="unselectable">「祝你們活動順利！！🎁還有其他的地方有彩蛋喔～」</span>
       </p>
@@ -177,9 +168,10 @@ const canViewAny = (permissions) => permissions.some(permission => authStore.has
 
 const triggerWelcomeAnimation = () => {
   showWelcomeAnimation.value = true;
+  // 動畫時長結束後，將 showWelcomeAnimation 設為 false，移除 animate-wiggle 類別，動畫停止
   setTimeout(() => {
     showWelcomeAnimation.value = false;
-  }, 1000); // 動畫時長
+  }, 1000); 
 };
 
 // --- 台灣小吃彩蛋數據與邏輯 ---
@@ -199,7 +191,7 @@ const XiaoLongBaoIcon = {
   template: `
     <svg viewBox="0 0 24 24" fill="currentColor" class="text-green-500">
       <path d="M12 2a10 10 0 1 0 10 10A10 10 0 0 0 12 2zm0 18a8 8 0 1 1 8-8 8 8 0 0 1-8 8z"></path>
-      <path d="M12 10a4 4 0 (1 4 4c0 1.1-.9 2-2 2s-2-.9-2-2v-4zM12 10a4 4 0 (0-4 4c0 1.1.9 2 2 2s2-.9 2-2v-4z"></path>
+      <path d="M12 10a4 4 0 0 1 4 4c0 1.1-.9 2-2 2s-2-.9-2-2v-4zM12 10a4 4 0 0 0-4 4c0 1.1.9 2 2 2s2-.9 2-2v-4z"></path>
       <circle cx="12" cy="7" r="1" fill="#FFD166"></circle>
     </svg>
   `
@@ -248,19 +240,9 @@ const triggerSnackEffect = (snack) => {
 
 // --- 飛碟穿越彩蛋 ---
 const ufoActive = ref(false);
-let ufoTimeout;
+// ufoTimeout 變數已移除，因為飛碟元素已移除
 
-const triggerUFO = () => {
-  // Only trigger if not already active to prevent overlapping animations
-  if (!ufoActive.value) {
-    ufoActive.value = true;
-    ufoTimeout = setTimeout(() => {
-      ufoActive.value = false;
-      // Schedule next UFO appearance after a random delay
-      setTimeout(triggerUFO, Math.random() * 20000 + 10000); // 10-30 seconds
-    }, 15000); // UFO flight duration is 15 seconds as per CSS
-  }
-};
+// triggerUFO 函數已移除，因為飛碟元素已移除
 
 
 // --- 背景點擊色調變化彩蛋 ---
@@ -377,7 +359,7 @@ onMounted(() => {
     }
   }, 3000); // Every 3 seconds
 
-  triggerUFO(); // Initial trigger for the UFO
+  // triggerUFO(); // 飛碟元素已移除，所以此行也移除
 
   // Add global event listener for keyboard input
   window.addEventListener('keydown', handleKeyDown);
@@ -410,7 +392,7 @@ onMounted(() => {
 onUnmounted(() => {
   // Clear all intervals and timeouts when the component is unmounted
   clearInterval(snackSpawnInterval);
-  clearTimeout(ufoTimeout);
+  // clearTimeout(ufoTimeout); // 飛碟元素已移除，所以此行也移除
   // Remove global event listeners
   window.removeEventListener('keydown', handleKeyDown);
   // Ensure all dynamically added floating snacks are removed from the DOM
@@ -643,46 +625,28 @@ onUnmounted(() => {
 
 /* --- 隱藏文字樣式 --- */
 .hidden-message {
-  /* user-select: none; /* 移除此行，讓文字可以選取 */
-  /* -webkit-user-select: none; */
-  /* -moz-user-select: none; */
-  /* -ms-user-select: none; */
-  color: var(--custom-rich-black); /* 預設文字改為可見的深色 */
+  user-select: none; /* 防止直接選取 */
+  -webkit-user-select: none; /* For Webkit browsers */
+  -moz-user-select: none; /* For Firefox */
+  -ms-user-select: none; /* For Internet Explorer/Edge */
+  color: transparent; /* 預設文字透明 */
+  text-shadow: 0 0 8px rgba(0,0,0,0.5); /* 模糊陰影模擬隱藏 */
+  transition: color 0.3s ease, text-shadow 0.3s ease;
+}
+
+/* 當滑鼠選取文字時，顯示文字 */
+.hidden-message::selection {
+  background-color: transparent; /* 保持背景透明 */
+  color: var(--custom-rich-black); /* 顯示文字顏色 */
   text-shadow: none; /* 移除陰影 */
-  transition: none; /* 移除過渡效果 */
 }
-
-/* 移除 ::selection 和 :hover .unselectable 相關的覆蓋樣式 */
-/* 當文字不再隱藏時，這些樣式就不再需要 */
-
 /* For older browsers that don't support ::selection pseudo-element for custom text selection behavior */
-/* 這些 hover 效果也移除，因為文字現在是可見的 */
-
-
-/* --- 飛碟穿越彩蛋樣式 --- */
-.ufo-flyby {
-  position: absolute;
-  top: 10%; /* 隨機起始高度 */
-  left: -150px; /* From off-screen left */
-  z-index: 15; /* 在浮動小吃之上，在內容之下 */
-  opacity: 0;
-  transition: opacity 0.5s ease-in-out;
-  pointer-events: none; /* 不可點擊 */
+.hidden-message:hover .unselectable {
+  color: var(--custom-rich-black); /* 顯示文字顏色 */
+  text-shadow: none; /* 移除陰影 */
 }
 
-.ufo-flyby.ufo-active {
-  animation: ufo-across-screen 15s linear forwards; /* 飛越螢幕動畫 */
-  opacity: 1;
-}
-
-@keyframes ufo-across-screen {
-  0% { left: -150px; transform: translateX(0) translateY(0); opacity: 1; }
-  25% { transform: translateX(50vw) translateY(30px); }
-  50% { transform: translateX(100vw) translateY(-20px); } /* Use 100vw for full viewport width traverse */
-  75% { transform: translateX(150vw) translateY(10px); }
-  100% { left: calc(100% + 150px); transform: translateX(0) translateY(0); opacity: 0; } /* Use calc for off-screen right */
-}
-
+/* 飛碟相關的 CSS 樣式已移除 */
 
 /* --- 卡片標題微晃彩蛋樣式 --- */
 @keyframes wiggle-title {
@@ -694,7 +658,7 @@ onUnmounted(() => {
 }
 
 .group-hover\:animate-wiggle-title {
-    animation: wiggle-title 0.3s ease-in-out infinite; /* 輕微搖晃 */
+    animation: wiggle-title 0.3s ease-in-out; /* 輕微搖晃，移除 infinite，只播放一次 */
 }
 
 /* --- 宇宙塵埃粒子樣式 --- */
