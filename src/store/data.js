@@ -1,71 +1,178 @@
-import { supabase } from '@/services/supabase';
+// src/store/data.js
+import { defineStore } from 'pinia';
+import { ref, computed } from 'vue';
+import * as api from '@/services/api';
+import { useUiStore } from './ui';
 
-export default {
-  namespaced: true,
-  state: {
-    // 將初始狀態從 null 改為空陣列 []，這是更安全的做法
-    personnel: [],
-    events: [],
-    dailyRecords: [],
-    activityRecords: [],
-  },
-  getters: {
-    allPersonnel: (state) => state.personnel,
-    allEvents: (state) => state.events,
-    getPersonnelById: (state) => (id) => {
-      // 確保 state.personnel 存在
-      if (!state.personnel) return null;
-      return state.personnel.find(p => p.id === id);
-    },
-    getEventById: (state) => (id) => {
-      if (!state.events) return null;
-      return state.events.find(e => e.id === id);
+export const useDataStore = defineStore('data', () => {
+  const uiStore = useUiStore();
+
+  // --- State ---
+  const personnel = ref([]);
+  const events = ref([]);
+  const roles = ref([]);
+  const permissions = ref([]);
+
+  // --- Getters (as computed properties) ---
+  const getPersonnelById = computed(() => {
+    return (id) => personnel.value.find(p => p.id === id);
+  });
+
+  const getEventById = computed(() => {
+    return (id) => events.value.find(e => e.id === id);
+  });
+
+  const getInputColorClass = (input) => {
+    if (!input) return '';
+    const lastChar = input.slice(-1).toLowerCase();
+    if (/\d/.test(lastChar)) {
+        return `code-digit-${lastChar}`;
+    } else if (/[a-z]/.test(lastChar)) {
+        return `code-${lastChar}`;
     }
-  },
-  mutations: {
-    // 確保提交的永遠是陣列
-    SET_PERSONNEL(state, personnel) {
-      state.personnel = personnel || [];
-    },
-    SET_EVENTS(state, events) {
-      state.events = events || [];
-    },
-    SET_DAILY_RECORDS(state, records) {
-      state.dailyRecords = records || [];
-    },
-    SET_ACTIVITY_RECORDS(state, records) {
-      state.activityRecords = records || [];
+    return '';
+  };
+
+  // --- Actions ---
+  async function fetchAllPersonnel() {
+    try {
+      const data = await api.fetchAllPersonnel();
+      personnel.value = data || [];
+    } catch (error) {
+      uiStore.showMessage(`讀取人員資料失敗: ${error.message}`, 'error');
+      personnel.value = [];
     }
-  },
-  actions: {
-    // 獲取人員資料
-    async fetchPersonnel({ commit, state }) {
-      // 如果已有資料，則不重複獲取
-      if (state.personnel && state.personnel.length > 0) {
-        return;
+  }
+
+  async function fetchEvents() {
+    try {
+        const data = await api.fetchEvents();
+        events.value = data || [];
+    } catch (error) {
+        uiStore.showMessage(`讀取活動資料失敗: ${error.message}`, 'error');
+        events.value = [];
+    }
+  }
+
+  async function createEvent(eventData) {
+    try {
+      const newEvent = await api.createEvent(eventData);
+      if (newEvent && newEvent.length > 0) {
+        // 將新活動加到列表頂部
+        events.value.unshift(newEvent[0]);
+        await fetchEvents(); // 重新獲取以確保 created_by 等關聯資料正確
+        return newEvent[0];
       }
+    } catch (error) {
+      uiStore.showMessage(`建立活動失敗: ${error.message}`, 'error');
+      throw error;
+    }
+  }
+
+  async function updateEvent(eventData) {
+    try {
+      const updatedEvent = await api.updateEvent(eventData.id, eventData);
+       if (updatedEvent && updatedEvent.length > 0) {
+        const index = events.value.findIndex(e => e.id === eventData.id);
+        if (index !== -1) {
+          events.value[index] = updatedEvent[0];
+        }
+        await fetchEvents(); // 重新獲取以確保 created_by 等關聯資料正確
+        return updatedEvent[0];
+      }
+    } catch (error) {
+      uiStore.showMessage(`更新活動失敗: ${error.message}`, 'error');
+      throw error;
+    }
+  }
+
+  async function deleteEvent(eventId) {
+    try {
+      await api.deleteEvent(eventId);
+      events.value = events.value.filter(e => e.id !== eventId);
+      uiStore.showMessage('活動已成功刪除', 'success');
+      return true;
+    } catch (error) {
+      uiStore.showMessage(`刪除活動失敗: ${error.message}`, 'error');
+      throw error;
+    }
+  }
+
+  async function savePerson(personData) {
+    try {
+      let savedPerson;
+      if (personData.id) { // Update existing person
+        savedPerson = await api.updatePersonnel(personData.id, personData);
+        const index = personnel.value.findIndex(p => p.id === personData.id);
+        if (index !== -1) {
+          personnel.value[index] = savedPerson;
+        }
+        uiStore.showMessage('人員資料更新成功', 'success');
+      } else { // Create new person
+        savedPerson = await api.createPersonnel(personData);
+        personnel.value.push(savedPerson);
+        uiStore.showMessage('人員新增成功', 'success');
+      }
+      return true;
+    } catch (error) {
+      uiStore.showMessage(`儲存人員資料失敗: ${error.message}`, 'error');
+      return false;
+    }
+  }
+
+  async function batchDeletePersonnel(ids) {
+    uiStore.setLoading(true);
+    try {
+        await api.batchDeletePersonnel(ids);
+        personnel.value = personnel.value.filter(p => !ids.includes(p.id));
+        uiStore.showMessage(`成功刪除 ${ids.length} 位人員`, 'success');
+    } catch (error) {
+        uiStore.showMessage(`刪除人員失敗: ${error.message}`, 'error');
+    } finally {
+        uiStore.setLoading(false);
+    }
+  }
+
+
+  async function fetchRolesAndPermissions() {
+    try {
+        const data = await api.fetchAllRolesAndPermissions();
+        roles.value = data || [];
+    } catch (error) {
+        uiStore.showMessage(`讀取角色列表失敗: ${error.message}`, 'error');
+        roles.value = [];
+    }
+  }
+  
+  async function fetchAllPermissions() {
       try {
-        const { data, error } = await supabase.from('personnel').select('*');
-        if (error) throw error;
-        commit('SET_PERSONNEL', data);
+          const data = await api.fetchAllPermissions();
+          permissions.value = data || [];
       } catch (error) {
-        console.error('Error fetching personnel:', error.message);
-        commit('SET_PERSONNEL', []); // 發生錯誤時，確保狀態是乾淨的空陣列
+          uiStore.showMessage(`讀取權限列表失敗: ${error.message}`, 'error');
+          permissions.value = [];
       }
-    },
-    // 獲取活動資料
-    async fetchEvents({ commit, state }) {
-      if (state.events && state.events.length > 0) {
-        return;
-      }
-      try {
-        const { data, error } = await supabase.from('events').select('*').order('start_time', { ascending: false });
-        if (error) throw error;
-        commit('SET_EVENTS', data);
-      } catch (error) {
-        console.error('Error fetching events:', error.message);
-        commit('SET_EVENTS', []); // 發生錯誤時，確保狀態是乾淨的空陣列
-      }
-    },
-  },
-};
+  }
+
+  return {
+    // State
+    personnel,
+    events,
+    roles,
+    permissions,
+    // Getters
+    getPersonnelById,
+    getEventById,
+    getInputColorClass,
+    // Actions
+    fetchAllPersonnel,
+    fetchEvents,
+    createEvent,
+    updateEvent,
+    deleteEvent,
+    savePerson,
+    batchDeletePersonnel,
+    fetchRolesAndPermissions,
+    fetchAllPermissions,
+  };
+});
