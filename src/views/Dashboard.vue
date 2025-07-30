@@ -1,6 +1,5 @@
 <template>
   <div class="space-y-8">
-    <!-- Header and Event Selector -->
     <div class="bg-white rounded-xl shadow-lg p-6 md:p-8 border border-indigo-200">
       <div class="flex flex-col md:flex-row justify-between items-center gap-4">
         <h2 class="text-3xl font-bold text-indigo-800">活動儀錶板</h2>
@@ -14,26 +13,20 @@
       </div>
     </div>
 
-    <!-- Loading State -->
     <div v-if="isLoading" class="text-center py-16 text-gray-500">
       <div class="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-indigo-500 mx-auto mb-4"></div>
       <p>正在載入儀錶板數據...</p>
     </div>
 
-    <!-- Data Display -->
     <div v-else-if="dashboardData" class="space-y-8">
-      <!-- Summary Cards -->
       <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-6">
         <div v-for="(card, index) in dashboardData.summaryCards" :key="index" class="bg-white rounded-xl shadow p-5 border border-gray-200 hover:shadow-lg transition-shadow" v-html="card"></div>
       </div>
 
-      <!-- Details & Charts -->
       <div class="grid grid-cols-1 lg:grid-cols-5 gap-8">
-        <!-- Attendees Table -->
         <div class="lg:col-span-3 bg-white rounded-xl shadow-lg border border-gray-200 flex flex-col">
           <div class="p-4 border-b flex flex-wrap justify-between items-center gap-3">
             <h3 class="text-xl font-bold text-gray-800">出席人員詳情</h3>
-            <!-- 【新增】每頁顯示筆數選擇器 -->
             <div v-if="dashboardData.attendees.length > 0" class="flex items-center gap-2">
                 <label for="attendees-page-size" class="text-sm font-medium text-gray-600">每頁顯示:</label>
                 <select id="attendees-page-size" v-model.number="attendeesPagination.pageSize" class="border border-gray-300 rounded-md text-sm py-1 px-2 focus:outline-none focus:ring-1 focus:ring-indigo-500">
@@ -55,8 +48,7 @@
                 </tr>
               </thead>
               <tbody class="bg-white divide-y divide-gray-100">
-                 <!-- 【修改】v-for 改為遍歷 paginatedAttendees -->
-                <tr v-for="attendee in paginatedAttendees" :key="attendee.personnel_id" class="hover:bg-gray-50">
+                 <tr v-for="attendee in paginatedAttendees" :key="attendee.personnel_id" class="hover:bg-gray-50">
                   <td data-label="姓名" class="px-6 py-4 font-medium text-gray-800">{{ attendee.name }}</td>
                   <td data-label="學號" class="px-6 py-4 text-gray-600">{{ attendee.code }}</td>
                   <td data-label="狀態" class="px-6 py-4"><span :class="getStatusClass(attendee.status)">{{ attendee.status }}</span></td>
@@ -67,7 +59,6 @@
             </table>
              <div v-if="!dashboardData || dashboardData.attendees.length === 0" class="text-center py-10 text-gray-500">此活動尚無人員簽到</div>
           </div>
-          <!-- 【新增】分頁控制項 -->
           <div v-if="dashboardData && dashboardData.attendees.length > 0 && attendeesPagination.totalPages > 1" class="p-4 border-t flex justify-center items-center space-x-4 text-sm">
               <button @click="attendeesPagination.currentPage--" :disabled="attendeesPagination.currentPage === 1" class="px-3 py-1 border rounded-md disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-100 transition">
                   上一頁
@@ -81,7 +72,6 @@
           </div>
         </div>
 
-        <!-- Charts -->
         <div class="lg:col-span-2 space-y-8">
           <div class="bg-white rounded-xl shadow-lg p-6 border border-gray-200">
             <h3 class="text-xl font-bold text-gray-800 mb-4">簽到狀態分佈</h3>
@@ -95,7 +85,6 @@
       </div>
     </div>
     
-    <!-- Initial State -->
     <div v-else class="text-center py-16 text-gray-500 bg-white rounded-xl shadow-lg">
       <p class="text-lg">請從上方下拉選單中選擇一個活動來查看其儀錶板。</p>
     </div>
@@ -120,10 +109,9 @@ const selectedEventId = ref(null);
 const isLoading = ref(true);
 const dashboardData = ref(null);
 
-// 【新增】出席人員列表的分頁狀態
 const attendeesPagination = ref({
   currentPage: 1,
-  pageSize: 10, // 預設每頁顯示 10 筆
+  pageSize: 10,
   totalPages: 1,
 });
 
@@ -143,7 +131,6 @@ watch(isLoading, (newIsLoading) => {
   }
 });
 
-// 【新增】監聽每頁筆數的變化
 watch(() => attendeesPagination.value.pageSize, () => {
     if (dashboardData.value && dashboardData.value.attendees) {
         attendeesPagination.value.currentPage = 1;
@@ -173,7 +160,6 @@ const sortedEvents = computed(() => {
     return [...dataStore.events].sort((a, b) => new Date(b.start_time) - new Date(a.start_time));
 });
 
-// 【新增】計算屬性，用於獲取當前頁的出席人員
 const paginatedAttendees = computed(() => {
   if (!dashboardData.value || !dashboardData.value.attendees) {
     return [];
@@ -215,11 +201,14 @@ const updateDashboard = async () => {
   isLoading.value = true;
   uiStore.setLoading(true);
   try {
+    // 【*** 核心修正 1 ***】
+    // 這裡的 RPC 函數 get_event_dashboard_data 已經在後端處理了應到人數的計算邏輯
+    // 所以前端只需直接呼叫並使用其返回的數據即可。
     const data = await api.getDashboardData(selectedEventId.value);
     
-    const allPersonnel = dataStore.personnel;
-    const expectedCount = allPersonnel.length;
-
+    // data.summary.expectedCount 已經是根據活動設定（全體或指定）計算好的應到人數
+    const expectedCount = data.summary.expectedCount;
+    
     dashboardData.value = {
         summaryCards: [
             createSummaryCard('應到人數', expectedCount, 'users'),
@@ -235,7 +224,6 @@ const updateDashboard = async () => {
         }
     };
     
-    // 【新增】更新分頁資訊
     if (dashboardData.value && dashboardData.value.attendees) {
         attendeesPagination.value.currentPage = 1;
         attendeesPagination.value.totalPages = Math.ceil(dashboardData.value.attendees.length / attendeesPagination.value.pageSize);
