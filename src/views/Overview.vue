@@ -7,13 +7,25 @@
 
     <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
       <!-- Recent Activity -->
-      <div class="lg:col-span-2 bg-white rounded-xl shadow-lg border border-gray-200">
-        <h3 class="text-xl font-bold text-gray-800 p-4 border-b">近期活動記錄</h3>
-        <div v-if="isLoading" class="text-center py-10">
+      <div class="lg:col-span-2 bg-white rounded-xl shadow-lg border border-gray-200 flex flex-col">
+        <div class="p-4 border-b flex flex-wrap justify-between items-center gap-3">
+            <h3 class="text-xl font-bold text-gray-800">近期活動記錄</h3>
+            <!-- 【新增】近期活動記錄的分頁大小選擇器 -->
+            <div v-if="recentRecords.length > 0" class="flex items-center gap-2">
+                <label for="records-page-size" class="text-sm font-medium text-gray-600">每頁顯示:</label>
+                <select id="records-page-size" v-model.number="recentRecordsPagination.pageSize" class="border border-gray-300 rounded-md text-sm py-1 px-2 focus:outline-none focus:ring-1 focus:ring-indigo-500">
+                    <option value="5">5</option>
+                    <option value="10">10</option>
+                    <option value="20">20</option>
+                </select>
+            </div>
+        </div>
+        <div v-if="isLoading" class="text-center py-10 flex-grow flex items-center justify-center">
             <p class="text-gray-500">正在載入近期記錄...</p>
         </div>
-        <div v-else-if="recentRecords.length > 0" class="divide-y divide-gray-100">
-          <div v-for="record in recentRecords" :key="record.id" class="p-4 flex items-center justify-between hover:bg-gray-50">
+        <div v-else-if="recentRecords.length > 0" class="divide-y divide-gray-100 flex-grow">
+          <!-- 【修改】v-for 改為遍歷 paginatedRecentRecords -->
+          <div v-for="record in paginatedRecentRecords" :key="record.id" class="p-4 flex items-center justify-between hover:bg-gray-50">
             <div class="flex items-center">
               <div :class="['w-10 h-10 rounded-full flex items-center justify-center mr-4', getActionTypeClass(record.action_type).bg]">
                 <svg xmlns="http://www.w3.org/2000/svg" :class="['h-5 w-5', getActionTypeClass(record.action_type).text]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -31,28 +43,63 @@
                 <p class="text-sm text-gray-500">{{ formatDateTime(record.created_at, 'yyyy-MM-dd HH:mm:ss') }}</p>
               </div>
             </div>
-             <span :class="['status-badge', getStatusClass(record.status)]">{{ record.status }}</span>
+             <span class="status-badge" :data-status="record.status">{{ record.status }}</span>
           </div>
         </div>
-        <div v-else class="text-center py-10 text-gray-500">
-            <p>最近 24 小時內沒有任何活動記錄。</p>
+        <div v-else class="text-center py-10 flex-grow flex items-center justify-center">
+            <p class="text-gray-500">最近 24 小時內沒有任何活動記錄。</p>
+        </div>
+        <!-- 【新增】近期活動記錄的分頁控制項 -->
+        <div v-if="!isLoading && recentRecords.length > 0 && recentRecordsPagination.totalPages > 1" class="p-4 border-t flex justify-center items-center space-x-4 text-sm">
+            <button @click="recentRecordsPagination.currentPage--" :disabled="recentRecordsPagination.currentPage === 1" class="px-3 py-1 border rounded-md disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-100 transition">
+                上一頁
+            </button>
+            <span>
+                第 {{ recentRecordsPagination.currentPage }} / {{ recentRecordsPagination.totalPages }} 頁
+            </span>
+            <button @click="recentRecordsPagination.currentPage++" :disabled="recentRecordsPagination.currentPage === recentRecordsPagination.totalPages" class="px-3 py-1 border rounded-md disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-100 transition">
+                下一頁
+            </button>
         </div>
       </div>
 
       <!-- Upcoming Events -->
-      <div class="bg-white rounded-xl shadow-lg border border-gray-200">
-        <h3 class="text-xl font-bold text-gray-800 p-4 border-b">即將開始的活動</h3>
-        <div v-if="isLoading" class="text-center py-10">
+      <div class="bg-white rounded-xl shadow-lg border border-gray-200 flex flex-col">
+        <div class="p-4 border-b flex flex-wrap justify-between items-center gap-3">
+            <h3 class="text-xl font-bold text-gray-800">即將開始的活動</h3>
+            <!-- 【新增】即將開始的活動的分頁大小選擇器 -->
+            <div v-if="upcomingEvents.length > 0" class="flex items-center gap-2">
+                <label for="events-page-size" class="text-sm font-medium text-gray-600">每頁顯示:</label>
+                <select id="events-page-size" v-model.number="upcomingEventsPagination.pageSize" class="border border-gray-300 rounded-md text-sm py-1 px-2 focus:outline-none focus:ring-1 focus:ring-indigo-500">
+                    <option value="5">5</option>
+                    <option value="10">10</option>
+                </select>
+            </div>
+        </div>
+        <div v-if="isLoading" class="text-center py-10 flex-grow flex items-center justify-center">
             <p class="text-gray-500">正在載入活動...</p>
         </div>
-        <div v-else-if="upcomingEvents.length > 0" class="divide-y divide-gray-100">
-            <div v-for="event in upcomingEvents" :key="event.id" class="p-4 hover:bg-gray-50">
+        <div v-else-if="upcomingEvents.length > 0" class="divide-y divide-gray-100 flex-grow">
+            <!-- 【修改】v-for 改為遍歷 paginatedUpcomingEvents -->
+            <div v-for="event in paginatedUpcomingEvents" :key="event.id" class="p-4 hover:bg-gray-50">
                 <p class="font-semibold text-indigo-700">{{ event.name }}</p>
                 <p class="text-sm text-gray-600">{{ formatDateTime(event.start_time, 'MM/dd HH:mm') }} 開始</p>
             </div>
         </div>
-        <div v-else class="text-center py-10 text-gray-500">
-            <p>目前沒有即將開始的活動。</p>
+        <div v-else class="text-center py-10 flex-grow flex items-center justify-center">
+            <p class="text-gray-500">目前沒有即將開始的活動。</p>
+        </div>
+        <!-- 【新增】即將開始的活動的分頁控制項 -->
+        <div v-if="!isLoading && upcomingEvents.length > 0 && upcomingEventsPagination.totalPages > 1" class="p-4 border-t flex justify-center items-center space-x-4 text-sm">
+            <button @click="upcomingEventsPagination.currentPage--" :disabled="upcomingEventsPagination.currentPage === 1" class="px-3 py-1 border rounded-md disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-100 transition">
+                上一頁
+            </button>
+            <span>
+                第 {{ upcomingEventsPagination.currentPage }} / {{ upcomingEventsPagination.totalPages }} 頁
+            </span>
+            <button @click="upcomingEventsPagination.currentPage++" :disabled="upcomingEventsPagination.currentPage === upcomingEventsPagination.totalPages" class="px-3 py-1 border rounded-md disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-100 transition">
+                下一頁
+            </button>
         </div>
       </div>
     </div>
@@ -72,110 +119,131 @@
 </template>
 
 <script setup>
-import { ref, onMounted, computed, nextTick, watch } from 'vue'; // [FIXED] 引入 watch
+import { ref, onMounted, computed, nextTick, watch } from 'vue';
 import { useUiStore } from '@/store/ui';
-import { useDataStore } from '@/store/data'; // 使用 Pinia 的 dataStore
+import { useDataStore } from '@/store/data';
 import * as api from '@/services/api'; 
-import { createSummaryCard, formatDateTime } from '@/utils/index'; // 確保引入 createSummaryCard 和 formatDateTime
+import { createSummaryCard, formatDateTime } from '@/utils/index';
 import { parseISO, isFuture } from 'date-fns';
-import Chart from 'chart.js/auto'; // 引入 Chart.js
-import 'chartjs-adapter-date-fns'; // 引入日期適配器
+import Chart from 'chart.js/auto';
+import 'chartjs-adapter-date-fns';
 
 const uiStore = useUiStore();
-const dataStore = useDataStore(); // 使用 Pinia 的 dataStore
+const dataStore = useDataStore();
 const isLoading = ref(true);
 
 const summaryCards = ref([]);
 const recentRecords = ref([]);
 
-// Chart.js 實例的引用
+// 【新增】為兩個列表分別建立分頁狀態
+const recentRecordsPagination = ref({
+    currentPage: 1,
+    pageSize: 5,
+    totalPages: 1,
+});
+const upcomingEventsPagination = ref({
+    currentPage: 1,
+    pageSize: 5,
+    totalPages: 1,
+});
+
 let overviewStatusChartInstance = null;
 let overviewActivityTrendChartInstance = null;
 
-// Canvas 元素的模板引用
 const overviewStatusChartCanvas = ref(null);
 const overviewActivityTrendChartCanvas = ref(null);
 
-// [FIXED] 新增 watch 來監聽 isLoading 狀態，確保在 DOM 渲染後才執行圖表渲染
-watch(isLoading, (newVal) => {
-  if (newVal === false) {
-    // 使用 nextTick 確保 v-if="!isLoading" 的區塊已經被渲染到畫面上
+watch(isLoading, (newIsLoading) => {
+  if (newIsLoading === false) {
     nextTick(() => {
       renderAllCharts();
     });
   }
 });
 
+// 【新增】監聽資料和每頁筆數的變化，以更新分頁
+watch(recentRecords, (newRecords) => {
+    recentRecordsPagination.value.currentPage = 1;
+    recentRecordsPagination.value.totalPages = Math.ceil(newRecords.length / recentRecordsPagination.value.pageSize);
+});
+watch(() => recentRecordsPagination.value.pageSize, () => {
+    recentRecordsPagination.value.currentPage = 1;
+    recentRecordsPagination.value.totalPages = Math.ceil(recentRecords.value.length / recentRecordsPagination.value.pageSize);
+});
 
-// 銷毀圖表實例的輔助函數
+const upcomingEvents = computed(() => {
+    return dataStore.events
+        .filter(event => isFuture(parseISO(event.start_time)))
+        .sort((a, b) => new Date(a.start_time) - new Date(b.start_time));
+});
+
+watch(upcomingEvents, (newEvents) => {
+    upcomingEventsPagination.value.currentPage = 1;
+    upcomingEventsPagination.value.totalPages = Math.ceil(newEvents.length / upcomingEventsPagination.value.pageSize);
+});
+watch(() => upcomingEventsPagination.value.pageSize, () => {
+    upcomingEventsPagination.value.currentPage = 1;
+    upcomingEventsPagination.value.totalPages = Math.ceil(upcomingEvents.value.length / upcomingEventsPagination.value.pageSize);
+});
+
+
+// 【新增】計算屬性，用於獲取當前頁的列表項
+const paginatedRecentRecords = computed(() => {
+    const start = (recentRecordsPagination.value.currentPage - 1) * recentRecordsPagination.value.pageSize;
+    const end = start + recentRecordsPagination.value.pageSize;
+    return recentRecords.value.slice(start, end);
+});
+
+const paginatedUpcomingEvents = computed(() => {
+    const start = (upcomingEventsPagination.value.currentPage - 1) * upcomingEventsPagination.value.pageSize;
+    const end = start + upcomingEventsPagination.value.pageSize;
+    return upcomingEvents.value.slice(start, end);
+});
+
+
 const destroyChart = (chartInstance) => {
   if (chartInstance) {
     chartInstance.destroy();
   }
-  return null; // 返回 null 以便重新賦值
+  return null;
 };
-
 
 onMounted(async () => {
   isLoading.value = true;
-  uiStore.setLoading(true); // 顯示全局載入遮罩
+  uiStore.setLoading(true);
 
   try {
-    // 平行獲取數據以提高效率
     const [_, __, records] = await Promise.all([
-      dataStore.fetchAllPersonnel(), // 確保人員資料已載入
-      dataStore.fetchEvents(),      // 確保活動資料已載入
-      api.fetchRecentRecords(24) // 獲取最近 24 小時的記錄
+      dataStore.fetchAllPersonnel(),
+      dataStore.fetchEvents(),
+      api.fetchRecentRecords(24 * 7) // 增加獲取記錄的時間範圍，以提供更多分頁內容
     ]);
     
     recentRecords.value = records || [];
-    generateSummary(); // 根據獲取到的數據生成摘要卡片
-
-    // [REMOVED] 移除此處的圖表渲染呼叫，交由 watch 處理
-    // await nextTick(); 
-    // renderAllCharts();
+    generateSummary();
 
   } catch (error) {
     uiStore.showMessage(`無法載入總覽資訊: ${error.message}`, 'error');
   } finally {
-    isLoading.value = false; // 這個狀態改變會觸發上面的 watch
-    uiStore.setLoading(false); // 隱藏全局載入遮罩
+    isLoading.value = false;
+    uiStore.setLoading(false);
   }
 });
 
-// 生成摘要卡片數據
 const generateSummary = () => {
     const personnelCount = dataStore.personnel.length;
     const eventCount = dataStore.events.length;
     const checkInToday = recentRecords.value.filter(r => r.action_type === '簽到').length;
     const checkOutToday = recentRecords.value.filter(r => r.action_type === '簽退').length;
 
-    // 使用 utils/index.js 中的 createSummaryCard 函數
     summaryCards.value = [
         createSummaryCard('總人員數', personnelCount, 'users'),
         createSummaryCard('總活動數', eventCount, 'calendar'),
-        createSummaryCard('今日簽到人次', checkInToday, 'user-check'),
-        createSummaryCard('今日簽退人次', checkOutToday, 'user-minus'),
+        createSummaryCard('近期簽到人次', checkInToday, 'user-check'),
+        createSummaryCard('近期簽退人次', checkOutToday, 'user-minus'),
     ];
 };
 
-// 計算屬性：獲取即將開始的活動
-const upcomingEvents = computed(() => {
-    return dataStore.events
-        .filter(event => isFuture(parseISO(event.start_time))) // 過濾出未來活動
-        .sort((a, b) => new Date(a.start_time) - new Date(b.start_time)) // 按時間排序
-        .slice(0, 5); // 顯示前 5 個
-});
-
-// 根據記錄狀態返回對應的 CSS 類別
-const getStatusClass = (status) => {
-  if (status && status.includes('準時')) return 'bg-green-100 text-green-800';
-  if (status && status.includes('遲到')) return 'bg-yellow-100 text-yellow-800';
-  if (status && status.includes('失敗')) return 'bg-red-100 text-red-800';
-  return 'bg-gray-100 text-gray-800';
-};
-
-// 根據操作類型返回對應的背景和文字顏色類別
 const getActionTypeClass = (actionType) => {
     if(actionType === '簽到') {
         return { bg: 'bg-blue-100', text: 'text-blue-600' };
@@ -183,20 +251,15 @@ const getActionTypeClass = (actionType) => {
     return { bg: 'bg-orange-100', text: 'text-orange-600' };
 };
 
-// 渲染所有圖表的總函數
 const renderAllCharts = () => {
     renderOverviewStatusChart();
     renderOverviewActivityTrendChart();
 };
 
-// 渲染「總操作狀態分佈」圓餅圖
 const renderOverviewStatusChart = () => {
-    overviewStatusChartInstance = destroyChart(overviewStatusChartInstance); // 銷毀舊圖表並清空引用
+    overviewStatusChartInstance = destroyChart(overviewStatusChartInstance);
 
-    if (!overviewStatusChartCanvas.value) {
-        console.warn("無法找到 'overviewStatusChartCanvas' 元素，跳過圖表渲染。");
-        return; 
-    }
+    if (!overviewStatusChartCanvas.value) return; 
 
     const checkInSuccess = recentRecords.value.filter(r => r.action_type === '簽到' && r.success).length;
     const checkOutSuccess = recentRecords.value.filter(r => r.action_type === '簽退' && r.success).length;
@@ -209,7 +272,7 @@ const renderOverviewStatusChart = () => {
             labels: ['簽到成功', '簽退成功', '操作失敗'],
             datasets: [{
                 data: [checkInSuccess, checkOutSuccess, failures],
-                backgroundColor: ['#10B981', '#3B82F6', '#EF4444'], // 綠、藍、紅
+                backgroundColor: ['#10B981', '#3B82F6', '#EF4444'],
                 borderColor: '#FFFFFF',
                 borderWidth: 2,
             }]
@@ -222,14 +285,10 @@ const renderOverviewStatusChart = () => {
     });
 };
 
-// 渲染「近期活動趨勢」折線圖
 const renderOverviewActivityTrendChart = () => {
-    overviewActivityTrendChartInstance = destroyChart(overviewActivityTrendChartInstance); // 銷毀舊圖表並清空引用
+    overviewActivityTrendChartInstance = destroyChart(overviewActivityTrendChartInstance);
 
-    if (!overviewActivityTrendChartCanvas.value) {
-        console.warn("無法找到 'overviewActivityTrendChartCanvas' 元素，跳過圖表渲染。");
-        return; 
-    }
+    if (!overviewActivityTrendChartCanvas.value) return; 
 
     const sortedEvents = [...dataStore.events].sort((a, b) => new Date(a.start_time) - new Date(b.start_time));
     const recentEvents = sortedEvents.slice(Math.max(sortedEvents.length - 10, 0)); 
