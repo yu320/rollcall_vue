@@ -364,8 +364,8 @@ const processReportData = (records, allPersonnel, allEvents, currentBuildingFilt
         const shouldAttendCount = personnelForEvent.length;
         const shouldAttendIds = new Set(personnelForEvent.map(p => p.id));
 
-        const checkInRecords = group.records.filter(r => r.action_type === '簽到' && shouldAttendIds.has(r.personnel_id));
-        const checkOutRecords = group.records.filter(r => r.action_type === '簽退' && shouldAttendIds.has(r.personnel_id));
+        const checkInRecords = group.records.filter(r => r.action_type === '簽到' && r.personnel_id && shouldAttendIds.has(r.personnel_id));
+        const checkOutRecords = group.records.filter(r => r.action_type === '簽退' && r.personnel_id && shouldAttendIds.has(r.personnel_id));
 
         const attendedPersonnelIds = new Set(checkInRecords.map(r => r.personnel_id));
         const attendedCount = attendedPersonnelIds.size;
