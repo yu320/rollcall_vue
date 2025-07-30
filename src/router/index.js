@@ -25,7 +25,7 @@ const NotFound = () => import('@/views/NotFoundView.vue');
 // --- 路由定義 ---
 const routes = [
   { path: '/login', name: 'Login', component: Login, meta: { requiresAuth: false } },
-  { path: '/', name: 'Overview', component: Overview, meta: { requiresAuth: true, permission: 'overview:view' } },
+  { path: '/overview', name: 'Overview', component: Overview, meta: { requiresAuth: true, permission: 'overview:view' } },
   { path: '/checkin', name: 'CheckIn', component: CheckIn, meta: { requiresAuth: true, permission: 'checkin:use' } },
   { path: '/dashboard', name: 'Dashboard', component: Dashboard, meta: { requiresAuth: true, permission: 'reports:view' } },
   { path: '/report', name: 'Report', component: Report, meta: { requiresAuth: true, permission: 'reports:view' } },
