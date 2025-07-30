@@ -104,35 +104,29 @@ export const useDataStore = defineStore('data', () => {
       return [];
     }
   }
-  
-  async function createEvent(eventData) {
-    uiStore.setLoading(true);
+
+  async function fetchEventParticipants(eventId) {
     try {
-        const result = await api.createEvent(eventData);
-        await fetchEvents(); // Re-fetch to get the latest list
-        return result[0]; // Return the created event object
+      return await api.fetchEventParticipants(eventId);
     } catch (error) {
-        uiStore.showMessage(`建立活動失敗: ${error.message}`, 'error');
-        return null;
-    } finally {
-        uiStore.setLoading(false);
+      uiStore.showMessage(`讀取活動參與者失敗: ${error.message}`, 'error');
+      return [];
     }
   }
 
-  async function updateEvent(eventData) {
+  async function saveEvent(eventData, participantIds) {
     uiStore.setLoading(true);
     try {
-        const result = await api.updateEvent(eventData.id, eventData);
-        await fetchEvents(); // Re-fetch to update the list
-        return result[0]; // Return the updated event object
+      const savedEvent = await api.saveEvent(eventData, participantIds);
+      await fetchEvents(); // Re-fetch to get the latest list with participant counts
+      return savedEvent;
     } catch (error) {
-        uiStore.showMessage(`更新活動失敗: ${error.message}`, 'error');
-        return null;
+      uiStore.showMessage(`儲存活動失敗: ${error.message}`, 'error');
+      return null;
     } finally {
-        uiStore.setLoading(false);
+      uiStore.setLoading(false);
     }
   }
-
 
   async function deleteEvent(id) {
     uiStore.setLoading(true);
@@ -188,13 +182,13 @@ export const useDataStore = defineStore('data', () => {
     permissions,
     getPersonnelById,
     getEventById,
-    getInputColorClass, // [NEW] Expose the function
+    getInputColorClass,
     fetchAllPersonnel,
     savePerson,
     batchDeletePersonnel,
     fetchEvents,
-    createEvent,
-    updateEvent,
+    fetchEventParticipants,
+    saveEvent,
     deleteEvent,
     fetchRolesAndPermissions,
     fetchAllPermissions,
