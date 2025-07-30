@@ -145,7 +145,7 @@ const processImport = async () => {
     }
 
     // 解析 CSV 標頭，移除可能的 BOM 字符 
-    const headerLine = lines[0].replace(/^\uFEFF/, '').trim();
+    const headerLine = lines[0]..replace(/^\uFEFF/, '').trim();
     const headers = headerLine.split(',').map(h => h.trim().replace(/^"|"$/g, ''));
     
     let nameIndex, idIndex, timeIndex;
@@ -177,12 +177,11 @@ const processImport = async () => {
         await dataStore.fetchAllPersonnel();
     }
     
-    // 【*** 核心修正 ***】
-    // 直接使用 dataStore.personnel，不要加上 .value
+    // 【*** 核心修正：修正打字錯誤 ***】
     const allPersonnel = dataStore.personnel; 
-    const personnelMapByIdentifier = new Map();
+    const personnelMapByIdentifier = new Map(); // 正確的變數名稱
     allPersonnel.forEach(p => {
-        personnelMapByIdententifier.set(p.code.toLowerCase(), p);
+        personnelMapByIdentifier.set(p.code.toLowerCase(), p);
         personnelMapByIdentifier.set(String(p.card_number), p);
     });
 
