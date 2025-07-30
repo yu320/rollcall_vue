@@ -90,6 +90,7 @@ import { useUiStore } from '@/store/ui';
 import { useDataStore } from '@/store/data';
 import * as api from '@/services/api'; // 引入 api
 import { formatDateTime, parseFlexibleDateTime, isValidCardNumber, getDeviceId } from '@/utils'; // 引入所需的 utils 函數 
+import { CHECKIN_IMPORT_HEADERS } from '@/utils/constants'; // 引入新常數
 
 const uiStore = useUiStore();
 const dataStore = useDataStore();
@@ -143,26 +144,28 @@ const processImport = async () => {
       throw new Error("CSV 檔案為空或只有標頭。");
     }
 
-    // 解析 CSV 標頭，移除可能的 BOM 字符
+    // 解析 CSV 標頭，移除可能的 BOM 字符 
     const headerLine = lines[0].replace(/^\uFEFF/, '').trim();
     const headers = headerLine.split(',').map(h => h.trim().replace(/^"|"$/g, ''));
     
     let nameIndex, idIndex, timeIndex;
 
-    // 嘗試識別兩種可能的標頭格式
-    // 格式一: '姓名', '學號/卡號', '刷卡時間'
-    if (headers.includes('姓名') && headers.includes('學號/卡號') && headers.includes('刷卡時間')) {
-        nameIndex = headers.indexOf('姓名');
-        idIndex = headers.indexOf('學號/卡號');
-        timeIndex = headers.indexOf('刷卡時間');
-    } 
-    // 格式二: '姓名', '教職員生編號', 'IC靠卡時間'
-    else if (headers.includes('姓名') && headers.includes('教職員生編號') && headers.includes('IC靠卡時間')) {
-        nameIndex = headers.indexOf('姓名');
-        idIndex = headers.indexOf('教職員生編號');
-        timeIndex = headers.indexOf('IC靠卡時間');
-    } else {
-        throw new Error("CSV 標頭格式不符。請確認欄位包含 '姓名', '學號/卡號', '刷卡時間' 或 '姓名', '教職員生編號', 'IC靠卡時間'。");
+    // 查找實際的標頭索引
+    const findHeaderIndex = (possibleNames) => {
+      for (const name of possibleNames) {
+        const index = headers.indexOf(name);
+        if (index !== -1) return index;
+      }
+      return -1; // 如果都沒找到
+    };
+
+    nameIndex = findHeaderIndex(CHECKIN_IMPORT_HEADERS.NAME);
+    idIndex = findHeaderIndex(CHECKIN_IMPORT_HEADERS.IDENTIFIER);
+    timeIndex = findHeaderIndex(CHECKIN_IMPORT_HEADERS.TIMESTAMP);
+
+    // 檢查所有必要欄位是否都找到
+    if (nameIndex === -1 || idIndex === -1 || timeIndex === -1) {
+      throw new Error(`CSV 標頭格式不符。請確認檔案包含以下必要欄位之一: 姓名 (${CHECKIN_IMPORT_HEADERS.NAME.join('/')}), 識別碼 (${CHECKIN_IMPORT_HEADERS.IDENTIFIER.join('/')}), 時間 (${CHECKIN_IMPORT_HEADERS.TIMESTAMP.join('/')})。`);
     }
 
     const dataLines = lines.slice(1);
@@ -179,7 +182,7 @@ const processImport = async () => {
     const allPersonnel = dataStore.personnel; 
     const personnelMapByIdentifier = new Map();
     allPersonnel.forEach(p => {
-        personnelMapByIdentifier.set(p.code.toLowerCase(), p);
+        personnelMapByIdententifier.set(p.code.toLowerCase(), p);
         personnelMapByIdentifier.set(String(p.card_number), p);
     });
 
@@ -320,4 +323,3 @@ const downloadSample = () => {
   主要的 Tailwind CSS 樣式定義在 `src/assets/styles/tailwind.css` 和 `src/assets/styles/main.css` 中。
 */
 </style>
-
