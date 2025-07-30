@@ -41,3 +41,23 @@ export const PERSONNEL_IMPORT_HEADERS = {
     BUILDING: ['棟別', '棟'], // 棟別的可能名稱
     TAGS: ['標籤', 'Tags'] // 標籤的可能名稱
 };
+
+// --- 日期時間解析相關常數 ---
+// 彈性日期時間解析函數 (parseFlexibleDateTime) 可能支援的格式
+export const DATETIME_PARSE_FORMATS = [
+    "yyyy/MM/dd HH:mm:ss",     // 2025/06/05 18:34:01 (24小時制)
+    "yyyy/M/d HH:mm:ss",      // 2025/6/5 18:34:01
+    "yyyy-MM-dd HH:mm:ss",    // 2025-06-05 18:34:01
+    "yyyy/MM/dd hh:mm:ss a",  // 2025/06/05 06:34:01 PM (12小時制帶AM/PM)
+    "yyyy/M/d hh:mm:ss a",    // 2025/6/5 06:34:01 PM (12小時制帶AM/PM)
+    "yyyy-MM-dd hh:mm:ss a",  // 2025-06-05 06:34:01 PM
+    "yyyy/MM/dd HH:mm",       // 2025/06/05 18:34
+    "yyyy-MM-dd HH:mm",       // 2025-06-05 18:34
+    "yyyy/MM/dd",             // 2025/06/05
+    "yyyy-MM-dd",             // 2025-06-05
+    "MM/dd/yyyy",             // 06/05/2025
+    "M/d/yyyy",               // 6/5/2025
+    "HH:mm:ss",               // 18:34:01
+    "HH:mm",                  // 18:34
+    // 可以根據實際需要增加更多可能的時間格式
+];
