@@ -1,7 +1,7 @@
 # 報到管理系統 - 整合與修正後資料庫設定與遷移腳本
 ---
     -- 作者: Hong
-    -- 版本: 2.3.0 (新增活動指定參與人員功能)
+    -- 版本: 4.0.0 (新增活動指定參與人員功能)
     -- 描述: 這個 SQL 腳本為通用版本，可用於全新資料庫的初始化，
     --       或安全地更新現有資料庫以符合最新架構。
 ---
@@ -596,6 +596,8 @@ $$;
 COMMENT ON FUNCTION public.import_checkin_records_with_personnel_creation(jsonb[], uuid, text) IS '批次匯入簽到記錄，如果人員不存在則自動創建，並根據活動時間計算狀態';
 
 -- [NEW] 4.5 save_event_with_participants
+-- [FIXED] 4.5 save_event_with_participants
+-- 修正了 event_id 變數與欄位名稱衝突導致的 "ambiguous reference" 錯誤
 DROP FUNCTION IF EXISTS public.save_event_with_participants(jsonb, uuid[]);
 CREATE OR REPLACE FUNCTION public.save_event_with_participants(
     event_data jsonb,
@@ -605,19 +607,22 @@ RETURNS SETOF public.events
 LANGUAGE plpgsql
 AS $$
 DECLARE
-    event_id uuid;
+    v_event_id uuid; -- 【*** 核心修正 ***】將變數 event_id 改名為 v_event_id 來避免歧義
 BEGIN
+    -- 判斷是更新還是新增
     IF event_data ? 'id' AND event_data->>'id' IS NOT NULL THEN
-        event_id := (event_data->>'id')::uuid;
+        -- 更新現有活動
+        v_event_id := (event_data->>'id')::uuid;
         UPDATE public.events
         SET
             name = event_data->>'name',
             start_time = (event_data->>'start_time')::timestamptz,
             end_time = (event_data->>'end_time')::timestamptz,
             participant_scope = event_data->>'participant_scope',
-            created_by = (event_data->>'created_by')::uuid -- Ensure created_by can be updated if needed, or remove if always set on creation
-        WHERE id = event_id;
+            created_by = (event_data->>'created_by')::uuid
+        WHERE id = v_event_id;
     ELSE
+        -- 新增活動
         INSERT INTO public.events (name, start_time, end_time, created_by, participant_scope)
         VALUES (
             event_data->>'name',
@@ -625,23 +630,29 @@ BEGIN
             (event_data->>'end_time')::timestamptz,
             (event_data->>'created_by')::uuid,
             event_data->>'participant_scope'
-        ) RETURNING id INTO event_id;
+        ) RETURNING id INTO v_event_id;
     END IF;
 
+    -- 根據適用對象更新參與人員列表
     IF event_data->>'participant_scope' = 'SPECIFIC' THEN
-        DELETE FROM public.event_participants WHERE event_id = event_id;
+        -- 【*** 核心修正 ***】在 WHERE 條件中使用 v_event_id，明確指定刪除此活動的參與者
+        DELETE FROM public.event_participants WHERE event_id = v_event_id;
+        
         IF array_length(participant_ids, 1) > 0 THEN
             INSERT INTO public.event_participants (event_id, personnel_id)
-            SELECT event_id, unnest(participant_ids);
+            SELECT v_event_id, unnest(participant_ids);
         END IF;
     ELSE
-        -- If scope is 'ALL' or anything else, clear specific participants
-        DELETE FROM public.event_participants WHERE event_id = event_id;
+        -- 如果適用對象是 'ALL' 或其他，則清空指定參與者
+        -- 【*** 核心修正 ***】在 WHERE 條件中使用 v_event_id
+        DELETE FROM public.event_participants WHERE event_id = v_event_id;
     END IF;
 
-    RETURN QUERY SELECT * FROM public.events WHERE id = event_id;
+    -- 返回被新增或更新的活動資料
+    RETURN QUERY SELECT * FROM public.events WHERE id = v_event_id;
 END;
 $$;
+
 COMMENT ON FUNCTION public.save_event_with_participants(jsonb, uuid[]) IS '新增或更新一個活動，並管理其指定的參與人員列表。';
 
 

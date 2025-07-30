@@ -1,18 +1,15 @@
 <template>
   <div class="space-y-8">
-    <!-- 頁面標題和篩選器 -->
     <div class="bg-white rounded-xl shadow-lg p-6 md:p-8 border border-indigo-200">
       <div class="flex flex-col md:flex-row justify-between items-center mb-6 gap-4">
         <h2 class="text-3xl font-bold text-indigo-800">活動報表分析</h2>
         <div class="flex flex-col md:flex-row space-y-3 md:space-y-0 md:space-x-3 items-center w-full md:w-auto">
-          <!-- 日期範圍篩選器 -->
           <div class="flex items-center gap-2 flex-wrap justify-center">
             <label for="reportStartDate" class="text-sm font-medium text-gray-700 whitespace-nowrap">日期範圍:</label>
             <input type="date" id="reportStartDate" v-model="startDate" class="text-sm border border-gray-300 rounded-md px-3 py-2 focus:ring-2 focus:ring-indigo-300">
             <span class="text-gray-500">至</span>
             <input type="date" id="reportEndDate" v-model="endDate" class="text-sm border border-gray-300 rounded-md px-3 py-2 focus:ring-2 focus:ring-indigo-300">
           </div>
-          <!-- 匯出按鈕 -->
           <button @click="exportReportData" class="w-full md:w-auto bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-md text-sm flex items-center justify-center transition shadow-sm hover:shadow-md">
             <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
@@ -22,7 +19,6 @@
         </div>
       </div>
 
-      <!-- 報表分頁 -->
       <div class="border-b border-gray-200">
         <nav class="-mb-px flex space-x-6" aria-label="Tabs">
           <button @click="activeTab = 'participation'" :class="['report-tab', { 'active': activeTab === 'participation' }]">活動參與統計</button>
@@ -32,13 +28,11 @@
       </div>
     </div>
 
-    <!-- 報表內容 -->
     <div v-if="isLoading" class="text-center py-16 text-gray-500 bg-white rounded-xl shadow-lg">
       <div class="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-indigo-500 mx-auto mb-4"></div>
       <p>正在載入報表數據...</p>
     </div>
     <div v-else>
-      <!-- 活動參與統計 -->
       <div v-show="activeTab === 'participation'" class="space-y-6">
         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-6">
           <div v-for="card in summaryCards" :key="card.title" class="bg-white rounded-xl shadow-md p-6 border border-gray-200 hover:shadow-lg transition-shadow" v-html="card.html"></div>
@@ -101,7 +95,6 @@
         </div>
       </div>
       
-      <!-- 棟別活動分析 -->
       <div v-show="activeTab === 'building'" class="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div class="bg-white rounded-xl shadow-md p-6 border border-gray-200">
             <h3 class="text-xl font-bold text-gray-800 mb-6">棟別活動參與率比較</h3>
@@ -123,7 +116,6 @@
         </div>
       </div>
 
-      <!-- 人員活動參與報表 -->
       <div v-show="activeTab === 'personnel'" class="space-y-6">
         <div class="bg-white rounded-xl shadow-md p-6 border border-gray-200">
             <h3 class="text-xl font-bold text-gray-800 mb-4">人員搜尋</h3>
@@ -234,9 +226,15 @@ const filteredActivityStats = computed(() => {
 const summaryCards = computed(() => processedReportStats.value?.summaryCards || []);
 const buildingOnTimeRank = computed(() => processedReportStats.value?.buildingOnTimeRank || []);
 
-watch([startDate, endDate, activityFilter, buildingFilter], () => {
+watch([startDate, endDate, buildingFilter], () => {
     updateReportView();
 });
+
+watch(activityFilter, () => {
+    // Note: Activity filter is now applied on the frontend, so no full re-process needed.
+    // If performance becomes an issue, this could be changed to re-run processReportData.
+});
+
 
 watch(activeTab, (newTab) => {
     if (newTab === 'participation' || newTab === 'building') {
@@ -293,8 +291,6 @@ const updateReportView = async () => {
 
         rawData.value = await api.fetchRecordsByDateRange(start, end);
         
-        // 【*** 核心修正 1 ***】
-        // 直接傳遞 store 的 state，而不是加上 .value
         processedReportStats.value = processReportData(
             rawData.value, 
             dataStore.personnel, 
@@ -315,22 +311,18 @@ const updateReportView = async () => {
 };
 
 const processReportData = (records, allPersonnel, allEvents, currentBuildingFilter) => {
-    // 【*** 核心修正 2 ***】
-    // 增加防禦性檢查，確保傳入的 allEvents 是陣列
     if (!Array.isArray(allEvents)) {
         console.error("processReportData: allEvents is not an array.", allEvents);
-        // 返回一個空的結構，避免後續的 .find 錯誤
         return { summaryCards: [], activityStats: [], buildingOnTimeRank: [] };
     }
 
     const eventGroups = {};
     records.forEach(r => {
-        if (!r.event_id || !r.personnel_id) return; 
+        if (!r.event_id || !r.personnel_id) return;
         if (!eventGroups[r.event_id]) {
-            // 在這裡，allEvents 已經被確認是陣列，可以安全地使用 .find
             const event = allEvents.find(e => e.id === r.event_id);
             eventGroups[r.event_id] = { 
-                eventInfo: event || { id: r.event_id, name: '未知活動', start_time: new Date().toISOString() }, 
+                eventInfo: event || { id: r.event_id, name: '未知活動', start_time: new Date().toISOString(), participant_scope: 'ALL', event_participants: [] }, 
                 records: [] 
             };
         }
@@ -338,11 +330,26 @@ const processReportData = (records, allPersonnel, allEvents, currentBuildingFilt
     });
 
     const activityStats = Object.values(eventGroups).map(group => {
-        const personnelForEvent = currentBuildingFilter === 'all' ? allPersonnel : allPersonnel.filter(p => p.building === currentBuildingFilter);
-        const shouldAttendCount = personnelForEvent.length;
+        // 【*** 核心修正 ***】
+        // 根據活動的 participant_scope 決定基礎的應到人員
+        let basePersonnelForEvent;
+        if (group.eventInfo.participant_scope === 'SPECIFIC') {
+            const specificParticipantIds = new Set((group.eventInfo.event_participants || []).map(ep => ep.personnel_id));
+            basePersonnelForEvent = allPersonnel.filter(p => specificParticipantIds.has(p.id));
+        } else { // 'ALL' scope
+            basePersonnelForEvent = allPersonnel;
+        }
 
-        const checkInRecords = group.records.filter(r => r.action_type === '簽到' && r.personnel_id);
-        const checkOutRecords = group.records.filter(r => r.action_type === '簽退' && r.personnel_id);
+        // 在正確的基礎上應用棟別過濾
+        const personnelForEvent = currentBuildingFilter === 'all' 
+            ? basePersonnelForEvent 
+            : basePersonnelForEvent.filter(p => p.building === currentBuildingFilter);
+        
+        const shouldAttendCount = personnelForEvent.length;
+        const shouldAttendIds = new Set(personnelForEvent.map(p => p.id));
+
+        const checkInRecords = group.records.filter(r => r.action_type === '簽到' && shouldAttendIds.has(r.personnel_id));
+        const checkOutRecords = group.records.filter(r => r.action_type === '簽退' && shouldAttendIds.has(r.personnel_id));
 
         const attendedPersonnelIds = new Set(checkInRecords.map(r => r.personnel_id));
         const attendedCount = attendedPersonnelIds.size;
@@ -353,7 +360,7 @@ const processReportData = (records, allPersonnel, allEvents, currentBuildingFilt
 
         const absentCount = shouldAttendCount - attendedCount;
 
-        const onTimePersonnelIds = new Set(checkInRecords.filter(r => r.status === '準時' && r.personnel_id).map(r => r.personnel_id));
+        const onTimePersonnelIds = new Set(checkInRecords.filter(r => r.status === '準時').map(r => r.personnel_id));
         const onTimeCount = onTimePersonnelIds.size;
         const lateCount = attendedCount - onTimeCount;
         
