@@ -204,8 +204,8 @@ const processImport = async () => {
       line = line.trim();
       if (!line) return; // 跳過空行
 
-      // 使用正則表達式來處理包含逗號的引號包圍的字段，確保正確分割
-      const parts = line.match(/(".*?"|[^",]+)(?=\s*,|\s*$)/g) || [];
+      // 【核心修正】改用更簡單的 split 方法來處理，使其能應對額外欄位
+      const parts = line.split(',');
       const cleanedParts = parts.map(p => (p || '').trim().replace(/^"|"$/g, '')); // 清理每個部分
 
       // 根據識別到的索引獲取數據
