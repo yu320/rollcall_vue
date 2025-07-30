@@ -2,7 +2,6 @@
   <div class="bg-white rounded-xl shadow-lg p-6 border border-indigo-200">
     <h2 class="text-3xl font-bold text-indigo-800 mb-6">活動報到記錄</h2>
     
-    <!-- Filters -->
     <div class="mb-6 flex flex-col sm:flex-row items-start sm:items-end gap-4">
       <div class="w-full sm:w-auto flex-grow">
         <label for="eventSelector" class="block text-gray-700 font-medium mb-2">選擇活動</label>
@@ -24,7 +23,6 @@
       </div>
     </div>
 
-    <!-- Records Table Container -->
     <div v-if="isLoading" class="py-12 text-center text-gray-500">
       <p>正在載入記錄...</p>
     </div>
@@ -32,10 +30,12 @@
       <div class="flex flex-col sm:flex-row justify-between items-center mb-4 gap-3">
           <h3 class="text-2xl font-bold text-gray-800">{{ selectedEventName }} ({{ groupedRecords.length }} 人)</h3>
           <div class="flex gap-3 w-full sm:w-auto">
-            <button v-if="selectedPersonnel.length > 0 && canModifyRecords" @click="confirmBatchDelete" class="w-1/2 sm:w-auto bg-red-600 hover:bg-red-700 text-white font-medium py-2 px-4 rounded-lg transition shadow-sm">
+            <button v-if="selectedPersonnel.length > 0 && canModifyRecords" @click="confirmBatchDelete" class="w-1/2 sm:w-auto bg-red-600 hover:bg-red-700 text-white font-medium py-2 px-4 rounded-lg transition shadow-sm flex items-center justify-center">
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm4 0a1 1 0 012 0v6a1 1 0 11-2 0V8z" clip-rule="evenodd" /></svg>
               批次刪除 ({{ selectedPersonnel.length }})
             </button>
-            <button @click="exportToCSV" class="w-1/2 sm:w-auto bg-emerald-600 hover:bg-emerald-700 text-white font-medium py-2 px-4 rounded-lg transition shadow-sm">
+            <button @click="exportToCSV" class="w-1/2 sm:w-auto bg-emerald-600 hover:bg-emerald-700 text-white font-medium py-2 px-4 rounded-lg transition shadow-sm flex items-center justify-center">
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
               匯出 CSV
             </button>
           </div>
@@ -54,7 +54,6 @@
               </tr>
             </thead>
             <tbody class="bg-white divide-y divide-gray-100">
-              <!-- Added data-label attributes for responsive view -->
               <tr v-for="record in paginatedRecords" :key="record.personnelId" class="hover:bg-gray-50">
                 <td data-label="選取" class="px-6 py-4"><input type="checkbox" v-model="selectedPersonnel" :value="record.personnelId" :disabled="!canModifyRecords"></td>
                 <td data-label="學號" class="px-6 py-4 whitespace-nowrap text-sm text-gray-800">{{ record.code }}</td>
@@ -63,15 +62,16 @@
                 <td data-label="簽退時間" class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{{ record.checkOutTime ? formatDateTime(record.checkOutTime, 'HH:mm:ss') : '—' }}</td>
                 <td data-label="狀態" class="px-6 py-4 whitespace-nowrap"><span class="status-badge" :class="record.statusClass">{{ record.statusText }}</span></td>
                 <td data-label="操作" class="px-6 py-4 whitespace-nowrap text-right">
-                  <button v-if="canModifyRecords" @click="confirmSingleDelete(record)" class="text-red-600 hover:text-red-800 text-sm font-medium">刪除</button>
+                  <button v-if="canModifyRecords" @click="confirmSingleDelete(record)" class="text-red-600 hover:text-red-800 text-sm font-medium p-1 rounded-full hover:bg-red-100">
+                      <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                  </button>
                   <span v-else class="text-gray-400">—</span>
                 </td>
               </tr>
             </tbody>
           </table>
         </div>
-        <!-- Pagination Controls -->
-         <div class="flex justify-center items-center space-x-4 p-4 text-sm" v-if="pagination.totalPages > 1">
+        <div class="flex justify-center items-center space-x-4 p-4 text-sm" v-if="pagination.totalPages > 1">
           <button @click="pagination.currentPage--" :disabled="pagination.currentPage === 1" class="px-3 py-1 border rounded-md disabled:opacity-50 disabled:cursor-not-allowed">上一頁</button>
           <span>第 {{ pagination.currentPage }} / {{ pagination.totalPages }} 頁</span>
           <button @click="pagination.currentPage++" :disabled="pagination.currentPage === pagination.totalPages" class="px-3 py-1 border rounded-md disabled:opacity-50 disabled:cursor-not-allowed">下一頁</button>

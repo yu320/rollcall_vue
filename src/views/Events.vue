@@ -5,7 +5,8 @@
         <h2 class="text-3xl font-bold text-indigo-800">活動管理</h2>
         <p class="text-gray-700 mt-2">管理所有簽到活動，並可指定特定參與人員。</p>
       </div>
-      <button @click="openModal()" class="mt-4 md:mt-0 w-full md:w-auto bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-2 px-6 rounded-lg">
+      <button @click="openModal()" class="mt-4 md:mt-0 w-full md:w-auto bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-2 px-6 rounded-lg flex items-center justify-center">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4" /></svg>
         新增活動
       </button>
     </div>
@@ -178,17 +179,30 @@ onMounted(async () => {
   isLoading.value = true;
   uiStore.setLoading(true);
   try {
+    // 平行載入活動和人員資料
     await Promise.all([
       dataStore.fetchEvents(),
       dataStore.fetchAllPersonnel()
     ]);
+
+    // 如果有活動，預設選擇第一個活動並載入其記錄
+    if (dataStore.events.length > 0) {
+      selectedEventId.value = dataStore.events[0].id;
+      await loadRecords();
+    }
   } catch (error) {
-    // Error is handled in the store
+    uiStore.showMessage(`初始化活動記錄頁面失敗: ${error.message}`, 'error');
   } finally {
-    isLoading.value = false;
     uiStore.setLoading(false);
   }
 });
+
+// 判斷活動是否已結束
+const isEventEnded = (endTime) => {
+    if (!endTime) return false;
+    return isPast(parseISO(endTime));
+};
+
 
 const openModal = async (event = null) => {
   isEditing.value = !!event;

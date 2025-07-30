@@ -3,7 +3,6 @@
     <h2 class="text-3xl font-bold mb-6 text-indigo-800">角色與權限管理</h2>
     
     <div class="flex flex-col md:flex-row gap-8">
-      <!-- Roles List -->
       <div class="md:w-1/3">
         <h3 class="text-xl font-semibold mb-4 text-gray-700">角色列表</h3>
         <div v-if="isLoading" class="text-center py-4 text-gray-500">
@@ -25,7 +24,6 @@
         </div>
       </div>
 
-      <!-- Permissions Matrix -->
       <div class="md:w-2/3">
         <div v-if="isLoading" class="flex items-center justify-center h-full bg-gray-50 rounded-lg p-8">
             <p class="text-gray-500 text-center">
@@ -57,7 +55,8 @@
             </div>
           </div>
            <div class="mt-6 flex justify-end">
-            <button @click="updatePermissions" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-6 rounded-lg transition shadow-md">
+            <button @click="updatePermissions" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-6 rounded-lg transition shadow-md flex items-center justify-center">
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" /></svg>
               儲存變更
             </button>
           </div>

@@ -2,7 +2,6 @@
   <div class="bg-white rounded-xl shadow-lg p-6 mb-8 border border-indigo-200">
     <h2 class="text-3xl font-bold text-indigo-800 mb-6">人員管理</h2>
     
-    <!-- Actions Bar -->
     <div class="flex flex-col md:flex-row justify-between items-center gap-4 mb-6">
       <div class="relative w-full md:w-1/3">
         <input type="text" v-model="filters.searchTerm" placeholder="搜尋姓名、學號、卡號..." class="w-full border rounded-lg pl-10 pr-4 py-2 focus:ring-2 focus:ring-indigo-400">
@@ -20,27 +19,31 @@
           <option value="24">每頁 24 筆</option>
           <option value="48">每頁 48 筆</option>
         </select>
-        <button @click="openModal()" class="w-full sm:w-auto bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-2 px-6 rounded-lg shadow-sm transition">新增人員</button>
+        <button @click="openModal()" class="w-full sm:w-auto bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-2 px-6 rounded-lg shadow-sm transition flex items-center justify-center">
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4" /></svg>
+          新增人員
+        </button>
       </div>
     </div>
     
-    <!-- Batch Actions Bar -->
     <div v-if="selectedPersonnel.length > 0" class="mb-4 p-3 bg-indigo-50 border border-indigo-200 rounded-lg flex flex-wrap items-center gap-4">
         <span class="text-sm font-medium text-indigo-800">{{ selectedPersonnel.length }} 位已選取</span>
         <div class="flex items-center gap-2 flex-wrap">
-            <button @click="confirmBatchDelete" class="bg-red-600 hover:bg-red-700 text-white font-medium py-1 px-3 rounded-lg text-sm shadow-sm transition">
+            <button @click="confirmBatchDelete" class="bg-red-600 hover:bg-red-700 text-white font-medium py-1 px-3 rounded-lg text-sm shadow-sm transition flex items-center justify-center">
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm4 0a1 1 0 012 0v6a1 1 0 11-2 0V8z" clip-rule="evenodd" /></svg>
               刪除選取
             </button>
-            <button @click="openBatchAddTagsModal" class="bg-blue-600 hover:bg-blue-700 text-white font-medium py-1 px-3 rounded-lg text-sm transition shadow-sm">
+            <button @click="openBatchAddTagsModal" class="bg-blue-600 hover:bg-blue-700 text-white font-medium py-1 px-3 rounded-lg text-sm transition shadow-sm flex items-center justify-center">
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M7 7h.01M7 3h5c.512 0 1.02.052 1.514.156M21 12v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h5m2 2l-2 2m4-4l-2 2" /></svg>
               批量增加標籤
             </button>
-            <button @click="exportSelectedPersonnelData" class="bg-emerald-600 hover:bg-emerald-700 text-white font-medium py-1 px-3 rounded-lg text-sm transition shadow-sm">
+            <button @click="exportSelectedPersonnelData" class="bg-emerald-600 hover:bg-emerald-700 text-white font-medium py-1 px-3 rounded-lg text-sm transition shadow-sm flex items-center justify-center">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
                 匯出選取
             </button>
         </div>
     </div>
 
-    <!-- Personnel Cards -->
     <div v-if="isLoading" class="text-center py-12">
       <div class="animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-indigo-500 mx-auto"></div>
       <p class="mt-4 text-gray-600">正在載入人員資料...</p>
@@ -102,7 +105,6 @@
       <p>找不到符合條件的人員，或尚未新增任何人員。</p>
     </div>
 
-    <!-- Pagination Controls -->
     <div v-if="!isLoading && sortedPersonnel.length > 0 && pagination.totalPages > 1" class="mt-6 flex justify-center items-center space-x-4 text-sm">
         <button @click="pagination.currentPage--" :disabled="pagination.currentPage === 1" class="px-3 py-1 border rounded-md disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-100 transition">
             上一頁
@@ -115,7 +117,6 @@
         </button>
     </div>
 
-    <!-- Add/Edit Personnel Modal -->
     <Modal :show="isModalOpen" @close="closeModal">
       <template #header>{{ isEditing ? '編輯人員' : '新增人員' }}</template>
       <form @submit.prevent="handleSave">
@@ -148,7 +149,6 @@
       </form>
     </Modal>
 
-    <!-- Batch Add Tags Modal -->
     <Modal :show="isBatchAddTagsModalOpen" @close="closeBatchAddTagsModal">
       <template #header>批量增加標籤</template>
       <form @submit.prevent="handleBatchAddTags">
