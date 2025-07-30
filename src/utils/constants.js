@@ -45,19 +45,43 @@ export const PERSONNEL_IMPORT_HEADERS = {
 // --- 日期時間解析相關常數 ---
 // 彈性日期時間解析函數 (parseFlexibleDateTime) 可能支援的格式
 export const DATETIME_PARSE_FORMATS = [
-    "yyyy/MM/dd HH:mm:ss",     // 2025/06/05 18:34:01 (24小時制)
-    "yyyy/M/d HH:mm:ss",      // 2025/6/5 18:34:01
-    "yyyy-MM-dd HH:mm:ss",    // 2025-06-05 18:34:01
-    "yyyy/MM/dd hh:mm:ss a",  // 2025/06/05 06:34:01 PM (12小時制帶AM/PM)
-    "yyyy/M/d hh:mm:ss a",    // 2025/6/5 06:34:01 PM (12小時制帶AM/PM)
-    "yyyy-MM-dd hh:mm:ss a",  // 2025-06-05 06:34:01 PM
-    "yyyy/MM/dd HH:mm",       // 2025/06/05 18:34
-    "yyyy-MM-dd HH:mm",       // 2025-06-05 18:34
-    "yyyy/MM/dd",             // 2025/06/05
-    "yyyy-MM-dd",             // 2025-06-05
-    "MM/dd/yyyy",             // 06/05/2025
-    "M/d/yyyy",               // 6/5/2025
-    "HH:mm:ss",               // 18:34:01
-    "HH:mm",                  // 18:34
-    // 可以根據實際需要增加更多可能的時間格式
+    // 最精確和常見的格式優先
+    "yyyy/MM/dd HH:mm:ss",      // 2025/06/05 18:34:01 (24小時制)
+    "yyyy-MM-dd HH:mm:ss",      // 2025-06-05 18:34:01
+    "yyyy/MM/dd hh:mm:ss a",    // 2025/06/05 06:34:01 PM (12小時制帶AM/PM)
+    "yyyy-MM-dd hh:mm:ss a",    // 2025-06-05 06:34:01 PM
+
+    // 處理單數字月份/日期
+    "yyyy/M/d HH:mm:ss",        // 2025/6/5 18:34:01
+    "yyyy-M-d HH:mm:ss",        // 2025-6-5 18:34:01
+    "yyyy/M/d hh:mm:ss a",      // **新增** 2025/6/5 06:34:01 PM (處理單數字月/日和前導零小時)
+    "yyyy-M-d hh:mm:ss a",      // **新增** 2025-6-5 06:34:01 PM
+
+    // 處理小時無前導零的情況 (即使輸入有前導零，也增加彈性)
+    "yyyy/MM/dd h:mm:ss a",     // **新增** 2025/06/05 6:34:01 PM
+    "yyyy-MM/dd h:mm:ss a",     // **新增** 2025-06-05 6:34:01 PM
+    "yyyy/M/d h:mm:ss a",       // **新增** 2025/6/5 6:34:01 PM
+    "yyyy-M-d h:mm:ss a",       // **新增** 2025-6-5 6:34:01 PM
+
+    // 無秒數的格式
+    "yyyy/MM/dd HH:mm",         // 2025/06/05 18:34
+    "yyyy-MM-dd HH:mm",         // 2025-06-05 18:34
+    "yyyy/M/d HH:mm",           // 2025/6/5 18:34
+    "yyyy-M-d HH:mm",           // 2025-6-5 18:34
+
+    // 純日期格式
+    "yyyy/MM/dd",               // 2025/06/05
+    "yyyy-MM-dd",               // 2025-06-05
+    "yyyy/M/d",                 // 2025/6/5
+    "yyyy-M-d",                 // 2025-6-5
+    "MM/dd/yyyy",               // 06/05/2025
+    "M/d/yyyy",                 // 6/5/2025
+
+    // 純時間格式
+    "HH:mm:ss",                 // 18:34:01
+    "HH:mm",                    // 18:34
+    "h:mm:ss a",                // 6:34:01 PM
+    "hh:mm:ss a",               // 06:34:01 PM
+    "h:mm a",                   // 6:34 PM
+    "hh:mm a",                  // 06:34 PM
 ];
