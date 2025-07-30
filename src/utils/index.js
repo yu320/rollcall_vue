@@ -111,7 +111,8 @@ export function createSummaryCard(title, value, iconName, changeData = null) {
 
     switch (iconName) {
         case 'users':
-            iconSvgPath = '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 016-6h6a6 6 0 016 6v1h-3" />';
+            // 【*** 核心修正 ***】更換為一個清晰且完整的 user icon SVG 路徑
+            iconSvgPath = '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />';
             bgColorClass = 'bg-blue-100'; textColorClass = 'text-blue-500'; break;
         case 'user-check':
             iconSvgPath = '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2" /><circle cx="8.5" cy="7" r="4" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 11l2 2 4-4" />';
@@ -136,7 +137,6 @@ export function createSummaryCard(title, value, iconName, changeData = null) {
     }
     
     let trendIconAndText = '';
-    // 檢查 changeData 是否為有效的物件
     if (changeData && typeof changeData === 'object' && changeData.hasOwnProperty('absolute') && changeData.hasOwnProperty('percentage')) {
         const absoluteChange = changeData.absolute;
         const percentageChange = changeData.percentage;
@@ -144,28 +144,25 @@ export function createSummaryCard(title, value, iconName, changeData = null) {
         let trendColorClass = 'text-gray-500';
         let trendSvgPath;
         let trendText;
-        const changeThreshold = 0.1; // 一個小的閾值，用於將微小變化視為持平
+        const changeThreshold = 0.1;
 
         if (percentageChange > changeThreshold) {
             trendColorClass = 'text-green-500';
-            trendSvgPath = '<polyline points="23 6 13.5 15.5 8.5 10.5 1 18"></polyline><polyline points="17 6 23 6 23 12"></polyline>'; // trending-up
+            trendSvgPath = '<polyline points="23 6 13.5 15.5 8.5 10.5 1 18"></polyline><polyline points="17 6 23 6 23 12"></polyline>';
         } else if (percentageChange < -changeThreshold) {
             trendColorClass = 'text-red-500';
-            trendSvgPath = '<polyline points="23 18 13.5 8.5 8.5 13.5 1 6"></polyline><polyline points="17 18 23 18 23 12"></polyline>'; // trending-down
+            trendSvgPath = '<polyline points="23 18 13.5 8.5 8.5 13.5 1 6"></polyline><polyline points="17 18 23 18 23 12"></polyline>';
         } else {
-            trendSvgPath = '<line x1="5" y1="12" x2="19" y2="12"></line>'; // minus icon for neutral
+            trendSvgPath = '<line x1="5" y1="12" x2="19" y2="12"></line>';
         }
 
-        // 決定趨勢文字內容
         if (title.includes('參與率')) {
-            // 對於參與率，顯示百分點 (pp) 變化 
             if (Math.abs(absoluteChange) > changeThreshold) {
                  trendText = `${absoluteChange > 0 ? '+' : ''}${absoluteChange.toFixed(1)} %`;
             } else {
                  trendText = '持平';
             }
         } else {
-            // 對於活動數、簽到/退人次，顯示絕對數量變化
             if (Math.round(absoluteChange) !== 0) {
                 trendText = `${absoluteChange > 0 ? '+' : ''}${Math.round(absoluteChange)}`;
             } else {
@@ -183,17 +180,17 @@ export function createSummaryCard(title, value, iconName, changeData = null) {
         `;
     }
     
-    // 將標題中的括號內容換行並縮小字體
     const formattedTitle = title.replace(/(\s*\([^)]+\))/g, '<br><span class="text-xs font-normal">$1</span>');
 
     return `
-        <div class="flex items-start w-full">
+        <div class="flex items-center w-full">
             <div class="${bgColorClass} p-3 rounded-lg mr-4 flex-shrink-0">
                 <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 ${textColorClass}" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                     ${iconSvgPath}
                 </svg>
             </div>
-            <div class="flex-grow min-w-0 flex flex-col items-center"> <p class="text-sm text-gray-500 font-medium">${formattedTitle}</p>
+            <div class="flex-grow min-w-0 flex flex-col items-center">
+                <p class="text-sm text-gray-500 font-medium text-center">${formattedTitle}</p>
                 <div class="flex items-baseline mt-1">
                     <p class="text-2xl font-bold text-gray-800">${value}</p>
                     ${trendIconAndText}
@@ -202,4 +199,3 @@ export function createSummaryCard(title, value, iconName, changeData = null) {
         </div>
     `;
 }
-
