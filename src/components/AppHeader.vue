@@ -51,9 +51,8 @@ const handleLogout = () => {
 // [MODIFIED] Renamed from openChangePasswordModal to openEditProfileModal
 const openEditProfileModal = () => {
     // Emit an event that the root component (App.vue) can listen to
-    // [MODIFIED] Event name changed to reflect profile editing
-    const event = new CustomEvent('open-edit-profile-modal');
+    // [FIXED] Event name changed to match the listener in App.vue
+    const event = new CustomEvent('open-profile-modal');
     window.dispatchEvent(event);
 };
 </script>
-

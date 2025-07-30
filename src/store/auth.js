@@ -117,7 +117,13 @@ export const useAuthStore = defineStore('auth', () => {
   async function updateUserProfile(nickname, newPassword) {
     uiStore.setLoading(true);
     try {
-        await api.updateUserProfile(user.value.id, nickname, newPassword);
+        // [FIXED] Pass payload as an object to the API function
+        const payload = { nickname: nickname };
+        if (newPassword) {
+            payload.password = newPassword;
+        }
+        await api.updateUserProfile(user.value.id, payload);
+        
         // If nickname changed, update the user object in store
         if (user.value) {
             user.value.nickname = nickname;
