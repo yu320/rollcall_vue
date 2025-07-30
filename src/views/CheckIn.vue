@@ -1,7 +1,9 @@
 <template>
   <div class="max-w-2xl mx-auto">
+    <!-- 主要簽到卡片 -->
     <div class="bg-white rounded-xl shadow-lg p-8 border-2 border-dashed border-gray-300">
       <div class="text-center mb-8">
+        <!-- Original top SVG, keeping it as it was before the last request -->
         <svg xmlns="http://www.w3.org/2000/svg" class="h-16 w-16 mx-auto text-indigo-500 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
         </svg>
@@ -9,6 +11,7 @@
         <p class="text-gray-500 mt-2">請將學生證放置於刷卡機或是手動輸入學號進行報到</p>
       </div>
 
+      <!-- 簽到/簽退模式選擇 -->
       <div class="mb-6 flex justify-center gap-4">
         <label class="inline-flex items-center cursor-pointer p-3 border-2 rounded-lg" :class="checkinMode === '簽到' ? 'border-indigo-500 bg-indigo-50' : 'border-transparent'">
           <input type="radio" v-model="checkinMode" value="簽到" class="form-radio h-5 w-5 text-indigo-600">
@@ -20,55 +23,38 @@
         </label>
       </div>
 
+      <!-- 活動選擇 -->
       <div class="mb-6">
         <label for="eventSelector" class="block text-sm font-medium text-gray-700 mb-2">選擇活動</label>
         <select id="eventSelector" v-model="selectedEventId" class="w-full pl-4 pr-10 py-3 border border-gray-300 rounded-lg text-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white">
           <option :value="null">-- 不選擇活動 (測試用) --</option>
           <option v-for="event in sortedEvents" :key="event.id" :value="event.id" :class="{'text-gray-500': isEventEnded(event.end_time)}">
-            {{ event.name }} ({{ formatDateTime(event.start_time, 'yyyy-MM-dd HH:mm:ss') }})
+            {{ event.name }} ({{ formatDateTime(event.start_time, 'yyyy-MM-dd') }})
             <span v-if="isEventEnded(event.end_time)">(已結束)</span>
           </option>
         </select>
       </div>
 
-<form @submit.prevent="handleCheckIn">
-  <div class="relative">
-    <!-- 學生證 SVG Icon -->
-    <svg xmlns="http://www.w3.org/2000/svg"
-         class="h-6 w-6 absolute left-4 top-1/2 -translate-y-1/2 transition-colors"
-         :class="hasError ? 'text-red-500' : 'text-gray-400'"
-         fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-      <path stroke-linecap="round" stroke-linejoin="round"
-            d="M10 6H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
-    </svg>
+      <!-- 輸入框與按鈕 -->
+      <form @submit.prevent="handleCheckIn">
+        <div class="relative">
+          <!-- UPDATED SVG ICON INSIDE INPUT FIELD -->
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-gray-400 absolute left-4 top-1/2 -translate-y-1/2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <rect x="3" y="4" width="18" height="16" rx="2" ry="2" stroke-width="2" stroke="currentColor" />
+            <circle cx="9" cy="10" r="2" stroke="currentColor" stroke-width="2" />
+            <path d="M6 16c0-1.5 2-2.5 3-2.5s3 1 3 2.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+            <line x1="14" y1="9" x2="18" y2="9" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+            <line x1="14" y1="13" x2="18" y2="13" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+          </svg>
+          <input v-model="checkinInput" type="text" id="checkInInput" class="w-full pl-14 pr-4 py-4 border border-gray-300 rounded-lg text-lg focus:outline-none focus:ring-2 focus:ring-indigo-500" placeholder="輸入學號/卡號">
+        </div>
+        <button type="submit" class="mt-6 w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-4 px-4 rounded-lg text-lg transition duration-300 ease-in-out transform hover:scale-105">
+          {{ checkinButtonText }}
+        </button>
+      </form>
+    </div>
 
-    <!-- 輸入欄 -->
-    <input
-      v-model="checkinInput"
-      ref="checkinField"
-      type="text"
-      id="checkInInput"
-      class="w-full pl-14 pr-4 py-4 rounded-lg text-lg border transition-all focus:outline-none focus:ring-2"
-      :class="hasError
-        ? 'border-red-500 ring-red-300 animate-shake'
-        : 'border-gray-300 focus:ring-indigo-500'"
-      placeholder="輸入學號/卡號"
-      :disabled="isLoading"
-    />
-  </div>
-
-  <!-- 送出按鈕 -->
-  <button
-    type="submit"
-    class="mt-6 w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-4 px-4 rounded-lg text-lg transition duration-300 ease-in-out transform hover:scale-105 disabled:opacity-50"
-    :disabled="isLoading"
-  >
-    <span v-if="isLoading">處理中...</span>
-    <span v-else>{{ checkinButtonText }}</span>
-  </button>
-</form>
-
-
+    <!-- 報到結果顯示 -->
     <div v-if="checkInResult" class="bg-white rounded-xl shadow-lg overflow-hidden border border-gray-200 mt-8">
       <div :class="checkInResult.statusColorClass" class="px-6 py-4 text-center">
         <div class="check-in-animation inline-flex items-center justify-center w-16 h-16 rounded-full text-white mb-4" :class="checkInResult.statusBgColorClass">
@@ -86,6 +72,7 @@
       </div>
     </div>
 
+    <!-- 今日暫存記錄 -->
     <div class="mt-10">
       <div class="flex flex-col sm:flex-row justify-between items-center mb-6 gap-4">
         <h3 class="text-2xl font-bold text-gray-800">今日暫存記錄 ({{ tempRecords.length }} 筆)</h3>
