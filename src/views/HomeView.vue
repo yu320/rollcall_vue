@@ -1,16 +1,18 @@
 <template>
   <div class="container mx-auto px-4 py-8">
-    <div class="bg-gradient-to-br from-custom-rich-black to-custom-midnight-green text-custom-beige rounded-xl shadow-lg p-8 md:p-12 text-center mb-8">
+    <div class="bg-gradient-to-br from-custom-rich-black/90 to-custom-midnight-green/90 text-custom-beige rounded-xl shadow-lg p-8 md:p-12 text-center mb-8">
       <h1 class="text-4xl md:text-5xl font-extrabold mb-4">歡迎使用報到管理系統</h1>
       <p class="text-xl md:text-2xl opacity-90">請選擇您要前往的功能頁面，開始您的工作。</p>
     </div>
 
-    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
       <!-- 報到卡片 -->
       <router-link to="/checkin" class="feature-card group" v-if="canView('checkin:use')">
-        <div class="icon-wrapper bg-custom-air-force-blue text-custom-beige group-hover:bg-custom-ash-gray">
-          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-8 h-8">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M10 6H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V8a2 2 0 00-2-2h-5m-4 0V5a2 2 0 114 0v1m-4 0a2 2 0 104 0m-5 8a2 2 0 100-4 2 2 0 000 4zm0 0c1.306 0 2.417.835 2.83 2M9 14a3.001 3.001 0 00-2.83 2M15 11h3m-3 4h2" />
+        <div class="icon-wrapper">
+          <!-- 新 icon: 證件卡 + 打勾 -->
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-10 h-10">
+            <rect x="3" y="5" width="18" height="14" rx="2" ry="2" stroke-linejoin="round"/>
+            <path stroke-linecap="round" stroke-linejoin="round" d="M8 10h8M8 14h4M9 18l3 3 6-6"/>
           </svg>
         </div>
         <h2 class="card-title">報到系統</h2>
@@ -19,9 +21,10 @@
 
       <!-- 總覽卡片 -->
       <router-link to="/overview" class="feature-card group" v-if="canView('overview:view')">
-        <div class="icon-wrapper bg-custom-air-force-blue text-custom-beige group-hover:bg-custom-ash-gray">
-          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-8 h-8">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 12l8.954-8.955c.297-.297.77-.297 1.067 0l4.096 4.096A2.25 2.25 0 0116 13.5v2.25m-5-10.242-4.5 4.5a2.25 2.25 0 00-3.182 3.182V21M12 12.75l12-4.5" />
+        <div class="icon-wrapper">
+          <!-- 新 icon: 圖表統計 -->
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-10 h-10">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M3 17h4v-6H3v6zM9 17h4v-10H9v10zM15 17h4v-4h-4v4z"/>
           </svg>
         </div>
         <h2 class="card-title">系統總覽</h2>
@@ -30,9 +33,11 @@
 
       <!-- 儀表板卡片 -->
       <router-link to="/dashboard" class="feature-card group" v-if="canView('reports:view')">
-        <div class="icon-wrapper bg-custom-air-force-blue text-custom-beige group-hover:bg-custom-ash-gray">
-          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-8 h-8">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M9 9l10.5-9m0 0H9m3 3h5m-3 12a5.25 5.25 0 10-10.5 0 5.25 5.25 0 0010.5 0z" />
+        <div class="icon-wrapper">
+          <!-- 新 icon: 儀表盤 -->
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-10 h-10">
+            <circle cx="12" cy="12" r="9" stroke-linejoin="round"/>
+            <path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6l4 2"/>
           </svg>
         </div>
         <h2 class="card-title">活動儀表板</h2>
@@ -41,9 +46,10 @@
 
       <!-- 報表卡片 -->
       <router-link to="/report" class="feature-card group" v-if="canView('reports:view')">
-        <div class="icon-wrapper bg-custom-air-force-blue text-custom-beige group-hover:bg-custom-ash-gray">
-          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-8 h-8">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V8.25A2.25 2.25 0 015.25 6h13.5A2.25 2.25 0 0121 8.25v10.5A2.25 2.25 0 0118.75 21H5.25A2.25 2.25 0 013 18.75z" />
+        <div class="icon-wrapper">
+          <!-- 新 icon: 文件報表 -->
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-10 h-10">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6M9 16h6M9 8h6M7 20h10a2 2 0 002-2V6a2 2 0 00-2-2H7a2 2 0 00-2 2v12a2 2 0 002 2z"/>
           </svg>
         </div>
         <h2 class="card-title">活動報表分析</h2>
@@ -56,9 +62,12 @@
         class="feature-card group"
         v-if="canViewAny(['personnel:read', 'events:create', 'personnel:create', 'records:create'])"
       >
-        <div class="icon-wrapper bg-custom-air-force-blue text-custom-beige group-hover:bg-custom-ash-gray">
-          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-8 h-8">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 5.25H12m-8.25 0H3m8.25 0h8.25m-8.25 0H12M9 3v4.5m0 0V21m-3.75-9H12m-8.25 0H3m8.25 0h8.25m-8.25 0H12M9 15v4.5m0 0V21m3-15h.75m-1.5 0H21M12 6v1.5m0 0V21m3-15h.75m-1.5 0H21M15 12v4.5m0 0V21" />
+        <div class="icon-wrapper">
+          <!-- 新 icon: 使用者管理 -->
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-10 h-10">
+            <circle cx="12" cy="7" r="4" stroke-linejoin="round"/>
+            <path stroke-linecap="round" stroke-linejoin="round" d="M6 21v-2a4 4 0 018 0v2"/>
+            <path stroke-linecap="round" stroke-linejoin="round" d="M18 21v-2a4 4 0 00-3-3.87"/>
           </svg>
         </div>
         <h2 class="card-title">資料管理</h2>
@@ -71,15 +80,16 @@
         class="feature-card group"
         v-if="canViewAny(['accounts:manage_users', 'accounts:manage'])"
       >
-        <div class="icon-wrapper bg-custom-air-force-blue text-custom-beige group-hover:bg-custom-ash-gray">
-          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-8 h-8">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8H7.5m-1.5 0H3m8.25 0H12M9 6v1.5m0 0V21m3-15h.75m-1.5 0H21M12 6v1.5m0 0V21m3-15h.75m-1.5 0H21M15 12v4.5m0 0V21" />
+        <div class="icon-wrapper">
+          <!-- 新 icon: 齒輪設定 -->
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-10 h-10">
+            <circle cx="12" cy="12" r="3" stroke-linejoin="round"/>
+            <path stroke-linecap="round" stroke-linejoin="round" d="M19.4 15a1.7 1.7 0 00.33 2.03l.06.06a2 2 0 01-2.83 2.83l-.06-.06a1.7 1.7 0 00-2.03-.33 1.7 1.7 0 00-1 1.52V21a2 2 0 01-4 0v-.09a1.7 1.7 0 00-1-1.52 1.7 1.7 0 00-2.03.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06a1.7 1.7 0 00.33-2.03 1.7 1.7 0 00-1.52-1H3a2 2 0 010-4h.09a1.7 1.7 0 001.52-1 1.7 1.7 0 00-.33-2.03l-.06-.06a2 2 0 012.83-2.83l.06.06a1.7 1.7 0 002.03.33h.01a1.7 1.7 0 001-1.52V3a2 2 0 014 0v.09a1.7 1.7 0 001 1.52z"/>
           </svg>
         </div>
         <h2 class="card-title">系統管理</h2>
         <p class="card-description">管理使用者帳號及角色權限分配。</p>
       </router-link>
-
     </div>
   </div>
 </template>
@@ -89,40 +99,51 @@ import { useAuthStore } from '@/store/auth';
 
 const authStore = useAuthStore();
 
-// 檢查使用者是否擁有特定權限
 const canView = (permission) => authStore.hasPermission(permission);
-
-// 檢查使用者是否擁有任一權限（用於顯示父類別卡片）
 const canViewAny = (permissions) => permissions.some(permission => authStore.hasPermission(permission));
 </script>
 
 <style scoped>
-/* Custom colors for this page only */
 .bg-custom-rich-black { background-color: #01161e; }
-.text-custom-rich-black { color: #01161e; }
 .bg-custom-midnight-green { background-color: #124559; }
-.text-custom-midnight-green { color: #124559; }
 .bg-custom-air-force-blue { background-color: #598392; }
-.text-custom-air-force-blue { color: #598392; }
 .bg-custom-ash-gray { background-color: #aec3b0; }
-.text-custom-ash-gray { color: #aec3b0; }
-.bg-custom-beige { background-color: #eff6e0; }
 .text-custom-beige { color: #eff6e0; }
-
+.text-custom-midnight-green { color: #124559; }
 
 .feature-card {
-  @apply bg-white rounded-xl shadow-lg p-6 border border-gray-200 flex flex-col items-center text-center transition-all duration-300 hover:shadow-xl hover:-translate-y-1;
+  @apply relative overflow-hidden bg-white rounded-xl shadow-lg p-6 border border-gray-200 flex flex-col items-center text-center transition-transform duration-300 hover:shadow-2xl hover:-translate-y-1 hover:scale-105;
+}
+
+.feature-card::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(135deg, #598392 0%, #aec3b0 100%);
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  border-radius: 1rem;
+  z-index: 0;
+}
+
+.feature-card:hover::before {
+  opacity: 0.1;
+}
+
+.feature-card > * {
+  position: relative;
+  z-index: 10;
 }
 
 .icon-wrapper {
-  @apply w-16 h-16 rounded-full flex items-center justify-center mb-4 transition-colors duration-300;
+  @apply w-20 h-20 rounded-full flex items-center justify-center mb-4 transition-colors duration-300 bg-custom-ash-gray text-custom-midnight-green group-hover:bg-custom-air-force-blue group-hover:text-white;
 }
 
 .card-title {
-  @apply text-xl font-bold text-gray-800 mb-2;
+  @apply text-2xl font-extrabold text-gray-900 mb-2;
 }
 
 .card-description {
-  @apply text-sm text-gray-600 mb-4;
+  @apply text-base text-gray-700;
 }
 </style>
