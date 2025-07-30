@@ -21,11 +21,14 @@ const CheckInImport = () => import('@/views/DataImport/CheckInImport.vue');
 const AccountManagement = () => import('@/views/System/AccountManagement.vue');
 const Permissions = () => import('@/views/System/Permissions.vue');
 const NotFound = () => import('@/views/NotFoundView.vue');
+const HomeView = () => import('@/views/HomeView.vue'); // 新增：引入 HomeView
+
 
 // --- 路由定義 ---
 const routes = [
   { path: '/login', name: 'Login', component: Login, meta: { requiresAuth: false } },
-  { path: '/overview', name: 'Overview', component: Overview, meta: { requiresAuth: true, permission: 'overview:view' } },
+  { path: '/', name: 'Home', component: HomeView, meta: { requiresAuth: true } }, // 設置為登入後首頁
+  { path: '/overview', name: 'Overview', component: Overview, meta: { requiresAuth: true, permission: 'overview:view' } }, // 總覽頁面保持原路由
   { path: '/checkin', name: 'CheckIn', component: CheckIn, meta: { requiresAuth: true, permission: 'checkin:use' } },
   { path: '/dashboard', name: 'Dashboard', component: Dashboard, meta: { requiresAuth: true, permission: 'reports:view' } },
   { path: '/report', name: 'Report', component: Report, meta: { requiresAuth: true, permission: 'reports:view' } },
