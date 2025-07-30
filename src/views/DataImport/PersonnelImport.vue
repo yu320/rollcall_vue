@@ -65,6 +65,7 @@ import { useRouter } from 'vue-router'; // 引入 useRouter 以便導入後跳�
 import { useUiStore } from '@/store/ui';
 import { useDataStore } from '@/store/data'; // 引入 dataStore 以便更新人員資料
 import * as api from '@/services/api'; // 引入 api
+import { PERSONNEL_IMPORT_HEADERS } from '@/utils/constants'; // 引入新常數
 
 const uiStore = useUiStore();
 const dataStore = useDataStore(); // 獲取 dataStore 實例
@@ -97,7 +98,7 @@ const importFromText = () => {
     return;
   }
   // 手動輸入也需要模擬 CSV 標頭以便解析器正確工作
-  const dataWithHeader = `姓名,學號,卡號,棟別,標籤\n${text}`;
+  const dataWithHeader = `姓名,學號,卡號,棟別,標籤\n${text}`; // 這裡的標頭需要與 PERSONNEL_IMPORT_HEADERS 兼容
   processImport(dataWithHeader, 'manual'); // 傳遞來源類型
 };
 
@@ -111,19 +112,28 @@ const processImport = async (csvText, source) => {
       throw new Error("沒有有效的資料可供匯入，請檢查檔案內容或輸入格式。");
     }
 
-    // 解析 CSV 標頭
-    const headerLine = lines[0].replace(/^\uFEFF/, '').trim(); // 移除可能的 BOM
+    // 解析 CSV 標頭，移除可能的 BOM 
+    const headerLine = lines[0].replace(/^\uFEFF/, '').trim(); 
     const headers = headerLine.split(',').map(h => h.trim().replace(/^"|"$/g, ''));
 
-    // 確定各欄位的索引
-    const nameIndex = headers.indexOf('姓名');
-    const codeIndex = headers.indexOf('學號');
-    const cardNumberIndex = headers.indexOf('卡號');
-    const buildingIndex = headers.indexOf('棟別');
-    const tagsIndex = headers.indexOf('標籤');
+    // 查找實際的標頭索引
+    const findHeaderIndex = (possibleNames) => {
+      for (const name of possibleNames) {
+        const index = headers.indexOf(name);
+        if (index !== -1) return index;
+      }
+      return -1; // 如果都沒找到
+    };
 
+    const nameIndex = findHeaderIndex(PERSONNEL_IMPORT_HEADERS.NAME);
+    const codeIndex = findHeaderIndex(PERSONNEL_IMPORT_HEADERS.CODE);
+    const cardNumberIndex = findHeaderIndex(PERSONNEL_IMPORT_HEADERS.CARD_NUMBER);
+    const buildingIndex = findHeaderIndex(PERSONNEL_IMPORT_HEADERS.BUILDING);
+    const tagsIndex = findHeaderIndex(PERSONNEL_IMPORT_HEADERS.TAGS);
+
+    // 檢查所有必要欄位是否都找到
     if (nameIndex === -1 || codeIndex === -1 || cardNumberIndex === -1) {
-        throw new Error("CSV 標頭格式不符。請確認包含 '姓名', '學號', '卡號' 等必填欄位。");
+        throw new Error(`CSV 標頭格式不符。請確認檔案包含以下必要欄位之一: 姓名 (${PERSONNEL_IMPORT_HEADERS.NAME.join('/')}), 學號 (${PERSONNEL_IMPORT_HEADERS.CODE.join('/')}), 卡號 (${PERSONNEL_IMPORT_HEADERS.CARD_NUMBER.join('/')})。`);
     }
 
     const personnelToProcess = [];
@@ -136,12 +146,14 @@ const processImport = async (csvText, source) => {
 
       // 使用正則表達式來處理包含逗號的引號包圍的字段
       const parts = line.match(/(".*?"|[^",]+)(?=\s*,|\s*$)/g) || [];
+      const cleanedParts = parts.map(p => (p || '').trim().replace(/^"|"$/g, ''));
       
-      const name = (parts[nameIndex] || '').trim().replace(/^"|"$/g, '');
-      const code = (parts[codeIndex] || '').trim().replace(/^"|"$/g, '');
-      const cardNumber = (parts[cardNumberIndex] || '').trim().replace(/^"|"$/g, '');
-      const building = (parts[buildingIndex] || '').trim().replace(/^"|"$/g, '');
-      const tagsStr = (parts[tagsIndex] || '').trim().replace(/^"|"$/g, '');
+      const name = cleanedParts[nameIndex];
+      const code = cleanedParts[codeIndex];
+      const cardNumber = cleanedParts[cardNumberIndex];
+      // 棟別和標籤是選填，如果索引為 -1 則為 undefined
+      const building = buildingIndex !== -1 ? cleanedParts[buildingIndex] : null;
+      const tagsStr = tagsIndex !== -1 ? cleanedParts[tagsIndex] : '';
       
       // 簡單驗證必填欄位
       if (!name || !code || !cardNumber) {
@@ -225,3 +237,4 @@ const downloadSample = () => {
   URL.revokeObjectURL(link.href);
 };
 </script>
+
