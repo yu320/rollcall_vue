@@ -48,7 +48,7 @@
                 </tr>
               </thead>
               <tbody class="bg-white divide-y divide-gray-100">
-                 <tr v-for="attendee in paginatedAttendees" :key="attendee.personnel_id" class="hover:bg-gray-50">
+                <tr v-for="attendee in paginatedAttendees" :key="attendee.personnel_id" class="hover:bg-gray-50">
                   <td data-label="姓名" class="px-6 py-4 font-medium text-gray-800">{{ attendee.name }}</td>
                   <td data-label="學號" class="px-6 py-4 text-gray-600">{{ attendee.code }}</td>
                   <td data-label="狀態" class="px-6 py-4"><span :class="getStatusClass(attendee.status)">{{ attendee.status }}</span></td>
@@ -74,11 +74,21 @@
 
         <div class="lg:col-span-2 space-y-8">
           <div class="bg-white rounded-xl shadow-lg p-6 border border-gray-200">
-            <h3 class="text-xl font-bold text-gray-800 mb-4">簽到狀態分佈</h3>
+            <div class="flex justify-between items-center mb-4">
+              <h3 class="text-xl font-bold text-gray-800">簽到狀態分佈</h3>
+              <button @click="downloadChart(chartInstances.status, '簽到狀態分佈')" class="p-2 text-gray-500 hover:text-gray-800 rounded-full hover:bg-gray-100 transition" aria-label="下載圖表">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+              </button>
+            </div>
             <div class="h-64"><canvas ref="statusChartCanvas"></canvas></div>
           </div>
           <div class="bg-white rounded-xl shadow-lg p-6 border border-gray-200">
-            <h3 class="text-xl font-bold text-gray-800 mb-4">簽到時間線</h3>
+            <div class="flex justify-between items-center mb-4">
+              <h3 class="text-xl font-bold text-gray-800">簽到時間線</h3>
+               <button @click="downloadChart(chartInstances.timeline, '簽到時間線')" class="p-2 text-gray-500 hover:text-gray-800 rounded-full hover:bg-gray-100 transition" aria-label="下載圖表">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+              </button>
+            </div>
             <div class="h-64"><canvas ref="timelineChartCanvas"></canvas></div>
           </div>
         </div>
@@ -201,12 +211,8 @@ const updateDashboard = async () => {
   isLoading.value = true;
   uiStore.setLoading(true);
   try {
-    // 【*** 核心修正 1 ***】
-    // 這裡的 RPC 函數 get_event_dashboard_data 已經在後端處理了應到人數的計算邏輯
-    // 所以前端只需直接呼叫並使用其返回的數據即可。
     const data = await api.getDashboardData(selectedEventId.value);
     
-    // data.summary.expectedCount 已經是根據活動設定（全體或指定）計算好的應到人數
     const expectedCount = data.summary.expectedCount;
     
     dashboardData.value = {
@@ -329,5 +335,22 @@ const renderCharts = () => {
       }
     });
   }
+};
+
+// 【*** 核心修正 2 ***】新增下載圖表的函式
+const downloadChart = (chartInstance, baseFilename) => {
+  if (!chartInstance) {
+    uiStore.showMessage('圖表尚未準備好，無法下載。', 'warning');
+    return;
+  }
+  
+  const eventName = sortedEvents.value.find(e => e.id === selectedEventId.value)?.name || '未知活動';
+  const timestamp = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
+  const filename = `${eventName}_${baseFilename}_${timestamp}.png`;
+
+  const link = document.createElement('a');
+  link.href = chartInstance.toBase64Image();
+  link.download = filename;
+  link.click();
 };
 </script>
