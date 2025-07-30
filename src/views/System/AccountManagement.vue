@@ -2,7 +2,6 @@
   <div class="p-6 bg-white rounded-xl shadow-lg border border-indigo-200">
     <h2 class="text-3xl font-bold mb-6 text-indigo-800">帳號管理</h2>
 
-    <!-- Section for Batch Account Import -->
     <div v-if="canManageAccounts" class="mb-8 p-6 bg-gray-50 rounded-lg border border-gray-200 shadow-sm">
       <h3 class="text-xl font-bold text-indigo-700 mb-4">批次新增帳號</h3>
       <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4">
@@ -12,6 +11,7 @@
       <input type="file" @change="handleFileSelect" accept=".csv" class="w-full text-gray-700 border border-gray-300 rounded-lg p-2 focus:outline-none focus:ring-2 focus:ring-indigo-400">
       <p v-if="selectedFile" class="text-gray-500 text-sm mt-2">已選擇檔案: {{ selectedFile.name }}</p>
       <button @click="importAccounts" :disabled="!selectedFile" class="mt-5 w-full sm:w-auto bg-emerald-600 hover:bg-emerald-700 text-white font-medium py-2 px-6 rounded-lg transition duration-300 flex items-center justify-center shadow-md hover:shadow-lg disabled:bg-gray-400 disabled:cursor-not-allowed">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
         匯入帳號
       </button>
       <div v-if="importResults.failed.length > 0" class="mt-4 p-3 bg-red-100 text-red-700 rounded-lg text-sm">
@@ -22,7 +22,6 @@
       </div>
     </div>
 
-    <!-- Action bar: Search, Batch Delete, Batch Edit, Add Account -->
     <div class="flex flex-col sm:flex-row justify-between items-center mb-6 gap-4">
       <div class="relative w-full sm:w-auto">
         <input type="text" v-model="searchTerm" placeholder="搜尋 Email 或暱稱..." class="pl-10 pr-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-400 focus:border-indigo-400 w-full sm:w-64">
@@ -30,19 +29,20 @@
       </div>
       <div class="flex items-center gap-3 flex-wrap justify-center sm:justify-end w-full sm:w-auto">
         <button v-if="selectedAccounts.length > 0 && canManageAccounts" @click="confirmBatchDelete" class="w-full sm:w-auto bg-red-600 hover:bg-red-700 text-white font-medium py-2 px-4 rounded-lg transition duration-300 flex items-center justify-center shadow-sm hover:shadow-md">
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm4 0a1 1 0 012 0v6a1 1 0 11-2 0V8z" clip-rule="evenodd" /></svg>
           批次刪除 ({{ selectedAccounts.length }})
         </button>
-        <!-- [NEW] Batch Edit Button -->
         <button v-if="selectedAccounts.length > 0 && canManageAccounts" @click="openBatchEditModal" class="w-full sm:w-auto bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-lg transition duration-300 flex items-center justify-center shadow-sm hover:shadow-md">
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
           批次修改 ({{ selectedAccounts.length }})
         </button>
         <button v-if="canManageAccounts" @click="openModal()" class="w-full sm:w-auto bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-2 px-4 rounded-lg transition duration-300 flex items-center justify-center shadow-md hover:shadow-lg">
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4" /></svg>
           新增單一帳號
         </button>
       </div>
     </div>
 
-    <!-- Accounts Table -->
     <div v-if="isLoading" class="text-center py-10">載入中...</div>
     <div v-else class="bg-white rounded-xl border border-gray-200 overflow-hidden shadow-md table-responsive">
       <table class="min-w-full divide-y divide-gray-200">
@@ -62,8 +62,12 @@
             <td data-label="暱稱" class="px-6 py-4 text-sm text-gray-500">{{ account.nickname || '—' }}</td>
             <td data-label="角色" class="px-6 py-4 text-sm"><span :class="getRoleClass(account.roles?.name)">{{ getRoleDisplayName(account.roles?.name) }}</span></td>
             <td data-label="操作" class="px-6 py-4 text-right text-sm font-medium">
-              <button v-if="canEditAccount(account)" @click="openModal(account)" class="text-indigo-600 hover:text-indigo-800 mr-4">編輯</button>
-              <button v-if="canEditAccount(account)" @click="confirmSingleDelete(account)" class="text-red-600 hover:text-red-800 disabled:text-gray-400 disabled:cursor-not-allowed" :disabled="isCurrentUser(account.id)">刪除</button>
+              <button v-if="canEditAccount(account)" @click="openModal(account)" class="text-indigo-600 hover:text-indigo-800 mr-4 p-1 rounded-full hover:bg-indigo-100" aria-label="編輯帳號">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
+              </button>
+              <button v-if="canEditAccount(account)" @click="confirmSingleDelete(account)" class="text-red-600 hover:text-red-800 p-1 rounded-full hover:bg-red-100 disabled:text-gray-400 disabled:cursor-not-allowed" :disabled="isCurrentUser(account.id)" aria-label="刪除帳號">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+              </button>
               <span v-else class="text-gray-400">—</span>
             </td>
           </tr>
@@ -74,13 +78,11 @@
       </div>
     </div>
 
-    <!-- Add/Edit Account Modal -->
     <Modal :show="isModalOpen" @close="closeModal">
       <template #header>{{ isEditing ? '編輯帳號' : '新增帳號' }}</template>
       <form @submit.prevent="saveAccount">
         <div class="mb-4">
           <label for="accountEmail" class="block text-gray-700 font-medium mb-2">使用者 Email</label>
-          <!-- [MODIFIED] 將 type 改為 text, 以避免瀏覽器預設的 Email 驗證 -->
           <input type="text" id="accountEmail" v-model="editableAccount.email" required class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500">
         </div>
         <div class="mb-4">
@@ -106,7 +108,6 @@
       </form>
     </Modal>
 
-    <!-- [NEW] Batch Edit Modal -->
     <Modal :show="isBatchEditModalOpen" @close="closeBatchEditModal">
       <template #header>批量修改帳號 ({{ selectedAccounts.length }} 個)</template>
       <form @submit.prevent="handleBatchEdit">
@@ -139,7 +140,7 @@ import { ref, onMounted, computed, reactive } from 'vue'; // 引入 reactive
 import { useUiStore } from '@/store/ui';
 import { useAuthStore } from '@/store/auth';
 import { useDataStore } from '@/store/data';
-import * as api from '@/services/api';
+import * => from '@/services/api';
 import Modal from '@/components/Modal.vue';
 import { DEFAULT_EMAIL_DOMAIN, USER_ROLE_NAMES } from '@/utils/constants';
 
@@ -460,7 +461,7 @@ const importAccounts = async () => {
     importResults.value.failed = failedAccounts;
 
     if (failedAccounts.length > 0) {
-        uiStore.showMessage(`批次匯入完成。成功 ${successCount} 筆，失敗 ${failedAccounts.length} 筆。`, 'warning', 5000);
+        uiStore.showMessage(`批次匯入完成。成功 ${successCount} 筆，失敗 ${failedAccounts.length} 筆。失敗帳號: ${failedAccounts.map(f => f.email).join(', ')}`, 'warning', 5000);
     } else {
         uiStore.showMessage(`所有 ${successCount} 筆帳號已成功建立。`, 'success');
     }
