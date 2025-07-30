@@ -125,6 +125,11 @@ const closeModal = () => isModalOpen.value = false;
 
 
 // 儲存活動資料 (新增或編輯)
+// 檔案：src/views/Events.vue
+
+// ... 其他 <script setup> 內的程式碼 ...
+
+// 儲存活動資料 (新增或編輯)
 const saveEvent = async () => {
     const currentUser = authStore.user; // 獲取當前登入使用者
     if (!currentUser) {
@@ -132,32 +137,35 @@ const saveEvent = async () => {
         return;
     }
 
-    const eventData = {
+    // 從表單中準備基礎資料
+    const formData = {
         ...editableEvent.value,
-        // 將 datetime-local 字符串轉換回 ISO 字符串以保存到資料庫
         start_time: new Date(editableEvent.value.start_time).toISOString(),
         end_time: editableEvent.value.end_time ? new Date(editableEvent.value.end_time).toISOString() : null,
     };
 
-    // 只在新增時設定 created_by
-    if (!isEditing.value) {
-        eventData.created_by = currentUser.id; // 將當前登入使用者的 ID 設定為 created_by
-    }
+    // 【*** 核心修正 ***】
+    // 使用解構賦值，將多餘的 'profiles' 關聯資料移除，
+    // 產生一個乾淨的、只包含資料庫欄位的 payload 物件。
+    const { profiles, ...payload } = formData;
 
     uiStore.setLoading(true);
     try {
-        let result = null; // Store the result of the API call
+        let result = null;
         if (isEditing.value) {
-            result = await dataStore.updateEvent(eventData);
+            // 將乾淨的 payload 傳遞給更新函式
+            result = await dataStore.updateEvent(payload);
             if (result) {
-                uiStore.showMessage('活動已成功更新！', 'success'); // Show toast for update
-                closeModal(); // Close the modal after update
+                uiStore.showMessage('活動已成功更新！', 'success');
+                closeModal();
             }
-        } else { // This is for creation
-            result = await dataStore.createEvent(eventData);
-            if (result) { // If creation was successful (result is not null)
-                closeModal(); // Close the input form modal
-                uiStore.showMessage(`活動 "${result.name}" 已成功建立！`, 'success'); // Show toast message with event name
+        } else { // 這是新增操作
+            // 在乾淨的 payload 基礎上，添加 created_by 欄位
+            payload.created_by = currentUser.id;
+            result = await dataStore.createEvent(payload);
+            if (result) {
+                closeModal();
+                uiStore.showMessage(`活動 "${result.name}" 已成功建立！`, 'success');
             }
         }
     } catch(e) {
@@ -167,6 +175,7 @@ const saveEvent = async () => {
     }
 };
 
+// ... 其他 <script setup> 內的程式碼 ...
 // 確認刪除活動
 const confirmDelete = (event) => {
     uiStore.showConfirmation(
