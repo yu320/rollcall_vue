@@ -38,9 +38,7 @@
           </svg>
           <input v-model="checkinInput" type="text" id="checkInInput" class="w-full pl-14 pr-4 py-4 border border-gray-300 rounded-lg text-lg focus:outline-none focus:ring-2 focus:ring-indigo-500" placeholder="輸入學號/卡號">
         </div>
-        <button type="submit" class="mt-6 w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-4 px-4 rounded-lg text-lg transition duration-300 ease-in-out transform hover:scale-105 flex items-center justify-center">
-          <svg v-if="checkinMode === '簽到'" xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" /></svg>
-          <svg v-else xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+        <button type="submit" class="mt-6 w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-4 px-4 rounded-lg text-lg transition duration-300 ease-in-out transform hover:scale-105">
           {{ checkinButtonText }}
         </button>
       </form>
@@ -107,7 +105,7 @@
                 <td data-label="活動" class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{{ getEventName(record.event_id) }}</td>
                 <td data-label="裝置ID" class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 truncate" style="max-width: 150px;">{{ record.device_id || '—' }}</td>
                 <td data-label="操作" class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                  <button @click="handleDeleteTempRecord(record.id)" class="text-gray-400 hover:text-red-600 p-1 rounded-full hover:bg-red-100" aria-label="刪除此筆暫存記錄">
+                  <button @click="handleDeleteTempRecord(record.id)" class="text-gray-400 hover:text-red-600" aria-label="刪除此筆暫存記錄">
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm4 0a1 1 0 012 0v6a1 1 0 11-2 0V8z" clip-rule="evenodd" /></svg>
                   </button>
                 </td>
@@ -124,51 +122,51 @@
 </template>
 
 <script setup>
-import { ref, onMounted, computed, nextTick } from 'vue'; //
-import { useDataStore } from '@/store/data'; //
-import { useUiStore } from '@/store/ui'; //
-import * as api from '@/services/api'; //
-import { formatDateTime, isValidCardNumber, getDeviceId } from '@/utils'; //
-import { isPast, parseISO } from 'date-fns'; //
+import { ref, onMounted, computed, nextTick } from 'vue';// <--- 在這裡加上 nextTick
+import { useDataStore } from '@/store/data';
+import { useUiStore } from '@/store/ui';
+import * as api from '@/services/api';
+import { formatDateTime, isValidCardNumber, getDeviceId } from '@/utils';
+import { isPast, parseISO } from 'date-fns';
 
 // --- Pinia Stores ---
-const dataStore = useDataStore(); //
-const uiStore = useUiStore(); //
+const dataStore = useDataStore();
+const uiStore = useUiStore();
 
 // --- Component State ---
-const checkinInput = ref(''); //
-const selectedEventId = ref(null); //
-const checkinMode = ref('簽到'); //
-const tempRecords = ref([]); //
-const checkInResult = ref(null); //
+const checkinInput = ref('');
+const selectedEventId = ref(null);
+const checkinMode = ref('簽到'); // '簽到' or '簽退'
+const tempRecords = ref([]); // 暫存記錄
+const checkInResult = ref(null); // 報到結果物件
 
 const SS_TEMP_RECORDS_KEY = 'tempCheckInRecords'; // Session Storage Key
 
 // --- Computed Properties ---
-const checkinButtonText = computed(() => `確認${checkinMode.value}`); //
+const checkinButtonText = computed(() => `確認${checkinMode.value}`);
 
 const sortedEvents = computed(() => {
   return [...dataStore.events].sort((a, b) => new Date(b.start_time) - new Date(a.start_time));
-}); //
+});
 
 // --- Lifecycle Hooks ---
 onMounted(async () => {
-  uiStore.setLoading(true); //
+  uiStore.setLoading(true);
   try {
     // 並行獲取活動和人員資料
     await Promise.all([
-      dataStore.fetchEvents(), //
-      dataStore.fetchAllPersonnel(), //
+      dataStore.fetchEvents(),
+      dataStore.fetchAllPersonnel()
     ]);
     // 從 sessionStorage 載入暫存記錄
-    const savedRecords = sessionStorage.getItem(SS_TEMP_RECORDS_KEY); //
+    const savedRecords = sessionStorage.getItem(SS_TEMP_RECORDS_KEY);
     if (savedRecords) {
-      tempRecords.value = JSON.parse(savedRecords); //
+      tempRecords.value = JSON.parse(savedRecords);
     }
   } catch (error) {
-    uiStore.showMessage(`頁面初始化失敗: ${error.message}`, 'error'); //
+    uiStore.showMessage(`頁面初始化失敗: ${error.message}`, 'error');
   } finally {
-    uiStore.setLoading(false); //
+    uiStore.setLoading(false);
   }
 });
 
@@ -180,9 +178,9 @@ onMounted(async () => {
  */
 const getEventName = (eventId) => {
   if (!eventId) return '—';
-  const event = dataStore.events.find((e) => e.id === eventId);
+  const event = dataStore.events.find(e => e.id === eventId);
   return event ? event.name : '未知活動';
-}; //
+};
 
 /**
  * 判斷活動是否已結束
@@ -191,84 +189,73 @@ const getEventName = (eventId) => {
 const isEventEnded = (endTimeIso) => {
   if (!endTimeIso) return false;
   return isPast(parseISO(endTimeIso));
-}; //
+};
 
 // ... 其他 <script setup> 內的程式碼 ...
 
 /**
  * 處理報到/簽退操作
  */
-const handleCheckIn = async () => {
-  // <--- 將函式宣告為 async
+const handleCheckIn = async () => { // <--- 將函式宣告為 async
   const input = checkinInput.value.trim();
   if (!input) return;
 
   const allPersonnel = dataStore.personnel;
-  const selectedEvent = selectedEventId.value
-    ? dataStore.events.find((e) => e.id === selectedEventId.value)
-    : null;
+  const selectedEvent = selectedEventId.value ? dataStore.events.find(e => e.id === selectedEventId.value) : null;
 
   let person;
   let inputType = isValidCardNumber(input) ? '卡號' : '學號';
 
   if (inputType === '卡號') {
-    person = allPersonnel.find((p) => String(p.card_number) === input);
+    person = allPersonnel.find(p => String(p.card_number) === input);
   } else {
-    person = allPersonnel.find((p) => String(p.code).toLowerCase() === input.toLowerCase());
+    person = allPersonnel.find(p => String(p.code).toLowerCase() === input.toLowerCase());
   }
 
   const now = new Date();
   let status = '';
-  let success = false; // Initialize as false, set to true only on successful operation
+  let success = false;
 
   // Step 1: Check if person exists at all
   if (!person) {
-    status = '查無此人'; // Generic "not found"
+    status = '報到失敗 - 查無此人'; // General "person not found"
   } else {
     // Step 2: If person exists, check event-specific participation (if applicable)
     if (selectedEvent && selectedEvent.participant_scope === 'SPECIFIC') {
-      // selectedEvent.event_participants 結構為 [{ personnel_id: 'uuid1' }, { personnel_id: 'uuid2' }]
-      const isParticipant = selectedEvent.event_participants.some((ep) => ep.personnel_id === person.id);
+      const isParticipant = selectedEvent.event_participants.some(ep => ep.personnel_id === person.id);
       if (!isParticipant) {
-        status = '活動查無此人'; // Specific status for this scenario
+        status = '活動查無此人'; // Person found but not for this specific event
       }
     }
   }
 
-  // Step 3: If still no status (meaning person is found and is a valid participant for 'SPECIFIC' event or event is 'ALL'/'null')
+  // Step 3: If still no specific error status, proceed with check-in/check-out logic
   if (status === '') {
     if (checkinMode.value === '簽到') {
-      const alreadyCheckedIn = tempRecords.value.some(
-        (r) => r.personnel_id === person.id && r.event_id === selectedEventId.value && r.action_type === '簽到' && r.success
-      );
+      const alreadyCheckedIn = tempRecords.value.some(r => r.personnel_id === person.id && r.event_id === selectedEventId.value && r.action_type === '簽到' && r.success);
       if (alreadyCheckedIn) {
         status = '重複簽到';
       } else {
-        success = true; // This is a successful check-in
+        success = true;
         if (selectedEvent) {
-          const eventTime = new Date(selectedEvent.start_time); // Use start_time for timeliness
+          const eventTime = selectedEvent.end_time ? new Date(selectedEvent.end_time) : new Date(selectedEvent.start_time);
           status = now > eventTime ? '遲到' : '準時';
         } else {
           status = '成功';
         }
       }
-    } else {
-      // 簽退模式
-      const alreadyCheckedOut = tempRecords.value.some(
-        (r) => r.personnel_id === person.id && r.event_id === selectedEventId.value && r.action_type === '簽退' && r.success
-      );
+    } else { // 簽退模式
+      const alreadyCheckedOut = tempRecords.value.some(r => r.personnel_id === person.id && r.event_id === selectedEventId.value && r.action_type === '簽退' && r.success);
       if (alreadyCheckedOut) {
         status = '重複簽退';
       } else {
-        const hasCheckedIn = tempRecords.value.some(
-          (r) => r.personnel_id === person.id && r.event_id === selectedEventId.value && r.action_type === '簽到' && r.success
-        );
+        const hasCheckedIn = tempRecords.value.some(r => r.personnel_id === person.id && r.event_id === selectedEventId.value && r.action_type === '簽到' && r.success);
         if (!hasCheckedIn && selectedEventId.value) {
           status = '異常(未簽到)';
-          success = true; // Even if "異常", it's a successful processing of checkout attempt
+          success = true;
         } else {
           status = '簽退成功';
-          success = true; // This is a successful check-out
+          success = true;
         }
       }
     }
@@ -279,29 +266,27 @@ const handleCheckIn = async () => {
     created_at: now.toISOString(),
     input,
     input_type: inputType,
-    success, // This is now correctly set based on logic above
+    success,
     name_at_checkin: person ? person.name : null,
     personnel_id: person ? person.id : null,
     device_id: getDeviceId(),
     event_id: selectedEventId.value || null,
-    // Adjust the status string based on the final determined `status`
-    status:
-      status === '查無此人' || status === '活動查無此人' || status === '重複簽到' || status === '重複簽退' || status === '異常(未簽到)'
-        ? status // Use the specific failure/repeat status directly
-        : `${checkinMode.value === '簽到' ? '報到' : '簽退'} ${status}`, // For successful checkins/checkouts
+    status, // Use the determined raw status string
     action_type: checkinMode.value,
   };
 
-  // Add to temporary records and session storage
-  tempRecords.value.unshift(recordData); //
-  sessionStorage.setItem(SS_TEMP_RECORDS_KEY, JSON.stringify(tempRecords.value)); //
+  // 新增到暫存列表頂部並更新 sessionStorage
+  tempRecords.value.unshift(recordData);
+  sessionStorage.setItem(SS_TEMP_RECORDS_KEY, JSON.stringify(tempRecords.value));
 
-  // Display result
-  checkInResult.value = null; //
-  await nextTick(); //
-  displayCheckInResult(person, recordData); //
+  // 1. 先將舊結果清空，讓結果卡片從畫面上消失
+  checkInResult.value = null;
+  // 2. 等待畫面實際更新完成
+  await nextTick();
+  // 3. 再顯示新的報到結果，觸發新的進場動畫
+  displayCheckInResult(person, recordData);
 
-  checkinInput.value = ''; //
+  checkinInput.value = '';
 };
 
 /**
@@ -310,114 +295,84 @@ const handleCheckIn = async () => {
  * @param {object} recordData - 完整的報到記錄物件
  */
 function displayCheckInResult(person, recordData) {
-  const selectedEvent = recordData.event_id ? dataStore.events.find((e) => e.id === recordData.event_id) : null;
+  const selectedEvent = recordData.event_id ? dataStore.events.find(e => e.id === recordData.event_id) : null;
   let statusColorClass, statusBgColorClass, statusTextColorClass, statusIcon, statusText;
 
-  // 根據狀態設定顯示樣式
+  // 根據 recordData.status 設定顯示樣式和文字
   switch (recordData.status) {
-    case '成功': // 【新增】明確指定「成功」狀態的樣式
+    case '成功':
     case '準時':
-      statusColorClass = 'bg-green-100';
-      statusBgColorClass = 'bg-green-500';
-      statusTextColorClass = 'text-green-800';
+      statusColorClass = 'bg-green-100'; statusBgColorClass = 'bg-green-500'; statusTextColorClass = 'text-green-800';
       statusIcon = `<svg xmlns="http://www.w3.org/2000/svg" class="h-10 w-10" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" /></svg>`;
-      statusText = recordData.status === '準時' ? '準時報到' : '報到成功';
+      statusText = (recordData.status === '準時') ? '準時報到' : '報到成功';
       break;
     case '遲到':
-      statusColorClass = 'bg-yellow-100';
-      statusBgColorClass = 'bg-yellow-500';
-      statusTextColorClass = 'text-yellow-800';
+      statusColorClass = 'bg-yellow-100'; statusBgColorClass = 'bg-yellow-500'; statusTextColorClass = 'text-yellow-800';
       statusIcon = `<svg xmlns="http://www.w3.org/2000/svg" class="h-10 w-10" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>`;
       statusText = '遲到';
       break;
-    case '查無此人': // For general "person not found"
-      statusColorClass = 'bg-red-100';
-      statusBgColorClass = 'bg-red-500';
-      statusTextColorClass = 'text-red-800';
+    case '報到失敗 - 查無此人': // 通用「查無此人」（不在系統中）
+    case '簽退失敗 - 查無此人':
+      statusColorClass = 'bg-red-100'; statusBgColorClass = 'bg-red-500'; statusTextColorClass = 'text-red-800';
       statusIcon = `<svg xmlns="http://www.w3.org/2000/svg" class="h-10 w-10" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>`;
-      statusText = '報到失敗 - 查無此人'; // Keep original text
+      statusText = '報到失敗 - 查無此人'; // 保持原有的主卡片文字
       break;
-    case '活動查無此人': // NEW case for person not in specific event
-      statusColorClass = 'bg-red-100';
-      statusBgColorClass = 'bg-red-500';
-      statusTextColorClass = 'text-red-800';
+    case '活動查無此人': // NEW: 特定活動「查無此人」（在系統，但不在活動）
+      statusColorClass = 'bg-red-100'; statusBgColorClass = 'bg-red-500'; statusTextColorClass = 'text-red-800';
       statusIcon = `<svg xmlns="http://www.w3.org/2000/svg" class="h-10 w-10" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>`;
-      statusText = '活動報到失敗 - 查無此人'; // New specific text
+      statusText = '活動報到失敗 - 查無此人'; // 新增的主卡片文字
       break;
     case '簽退成功':
-      statusColorClass = 'bg-blue-100';
-      statusBgColorClass = 'bg-blue-500';
-      statusTextColorClass = 'text-blue-800';
+      statusColorClass = 'bg-blue-100'; statusBgColorClass = 'bg-blue-500'; statusTextColorClass = 'text-blue-800';
       statusIcon = `<svg xmlns="http://www.w3.org/2000/svg" class="h-10 w-10" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>`;
       statusText = '簽退成功';
       break;
     case '異常(未簽到)':
-      statusColorClass = 'bg-red-100';
-      statusBgColorClass = 'bg-red-500';
-      statusTextColorClass = 'text-red-800';
-      statusIcon = `<svg xmlns="http://www.w3.org/2000/svg" class="h-10 w-10" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>`;
+      statusColorClass = 'bg-red-100'; statusBgColorClass = 'bg-red-500'; statusTextColorClass = 'text-red-800';
+      statusIcon = `<svg xmlns="http://www.w3.org/2000/svg" class="h-10 w-10" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>`;
       statusText = '簽退異常 (未簽到)';
       break;
     case '重複簽到':
     case '重複簽退':
-      statusColorClass = 'bg-yellow-100';
-      statusBgColorClass = 'bg-yellow-500';
-      statusTextColorClass = 'text-yellow-800';
+      statusColorClass = 'bg-yellow-100'; statusBgColorClass = 'bg-yellow-500'; statusTextColorClass = 'text-yellow-800';
       statusIcon = `<svg xmlns="http://www.w3.org/2000/svg" class="h-10 w-10" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.228 9.247a4.998 4.998 0 00-.776 2.343M11.603 16.03a6.002 6.002 0 00.99 1.139M15 14l-3-3m0 0l-3-3m3 3l3 3m0 0l3-3m0 0a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>`;
-      statusText = recordData.status;
+      statusText = recordData.status; // 直接使用原始狀態文字
       break;
     default:
-      // 【修改】將預設情況也改為綠色，以處理其他未明確定義的成功狀態
-      statusColorClass = 'bg-green-100';
-      statusBgColorClass = 'bg-green-500';
-      statusTextColorClass = 'text-green-800';
+      statusColorClass = 'bg-green-100'; statusBgColorClass = 'bg-green-500'; statusTextColorClass = 'text-green-800';
       statusIcon = `<svg xmlns="http://www.w3.org/2000/svg" class="h-10 w-10" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" /></svg>`;
-      statusText = '操作成功'; // 使用更通用的文字
+      statusText = '操作成功';
       break;
   }
 
   let personInfoHtml = '';
   if (person) {
-    const eventInfoHtml = selectedEvent
-      ? `<div class="col-span-1 sm:col-span-2 bg-indigo-50 p-3 rounded-lg"><p class="text-sm text-gray-500">活動</p><p class="font-medium text-indigo-800">${selectedEvent.name}</p></div>`
-      : '';
+    const eventInfoHtml = selectedEvent ? `<div class="col-span-1 sm:col-span-2 bg-indigo-50 p-3 rounded-lg"><p class="text-sm text-gray-500">活動</p><p class="font-medium text-indigo-800">${selectedEvent.name}</p></div>` : '';
     personInfoHtml = `
       <div class="text-center mb-4">
-        <div class="inline-flex items-center justify-center w-20 h-20 rounded-full bg-indigo-100 text-indigo-800 text-2xl font-bold mb-2">${person.name.charAt(
-      0
-    )}</div>
+        <div class="inline-flex items-center justify-center w-20 h-20 rounded-full bg-indigo-100 text-indigo-800 text-2xl font-bold mb-2">${person.name.charAt(0)}</div>
         <h3 class="text-xl font-bold">${person.name}</h3>
       </div>
       <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <div class="bg-gray-50 p-3 rounded-lg"><p class="text-sm text-gray-500">學號</p><p class="font-medium ${dataStore.getInputColorClass(
-      person.code
-    )}">${person.code}</p></div>
-        <div class="bg-gray-50 p-3 rounded-lg"><p class="text-sm text-gray-500">卡號</p><p class="font-medium">${
-      person.card_number
-    }</p></div>
+        <div class="bg-gray-50 p-3 rounded-lg"><p class="text-sm text-gray-500">學號</p><p class="font-medium ${dataStore.getInputColorClass(person.code)}">${person.code}</p></div>
+        <div class="bg-gray-50 p-3 rounded-lg"><p class="text-sm text-gray-500">卡號</p><p class="font-medium">${person.card_number}</p></div>
         ${eventInfoHtml}
       </div>`;
   } else {
-    // 這裡的 personInfoHtml 只有在 person 為 null (也就是查無此人) 時才會顯示
-    personInfoHtml = `<div class="bg-gray-50 p-4 rounded-lg text-center"><p class="text-sm text-gray-500">輸入的${recordData.input_type}：<span class="font-medium">${recordData.input}</span></p><p class="text-gray-500 mt-2">請確認輸入是否正確，或聯繫管理員</p></div>`; // 您可以在這裡修改敘述
+    personInfoHtml = `<div class="bg-gray-50 p-4 rounded-lg text-center"><p class="text-sm text-gray-500">輸入的${recordData.input_type}：<span class="font-medium">${recordData.input}</span></p><p class="text-gray-500 mt-2">請確認輸入是否正確，或聯繫管理員</p></div>`;
   }
-
+  
   checkInResult.value = {
-    statusColorClass,
-    statusBgColorClass,
-    statusTextColorClass,
-    statusIcon,
-    statusText,
-    personInfoHtml,
+    statusColorClass, statusBgColorClass, statusTextColorClass, statusIcon, statusText, personInfoHtml
   };
-}
+};
 
 /**
  * 重置報到介面
  */
 const resetCheckIn = () => {
-  checkInResult.value = null; //
-  checkinInput.value = ''; //
+  checkInResult.value = null;
+  checkinInput.value = '';
 };
 
 /**
@@ -425,19 +380,19 @@ const resetCheckIn = () => {
  */
 const saveTodayRecords = async () => {
   if (tempRecords.value.length === 0) {
-    uiStore.showMessage('目前沒有可儲存的報到記錄。', 'info'); //
+    uiStore.showMessage('目前沒有可儲存的報到記錄。', 'info');
     return;
   }
-  uiStore.setLoading(true); //
+  uiStore.setLoading(true);
   try {
-    await api.saveRecords(tempRecords.value); //
-    uiStore.showMessage('今日報到記錄已成功儲存至資料庫。', 'success'); //
-    tempRecords.value = []; //
-    sessionStorage.removeItem(SS_TEMP_RECORDS_KEY); //
+    await api.saveRecords(tempRecords.value);
+    uiStore.showMessage('今日報到記錄已成功儲存至資料庫。', 'success');
+    tempRecords.value = [];
+    sessionStorage.removeItem(SS_TEMP_RECORDS_KEY);
   } catch (error) {
-    uiStore.showMessage(`儲存今日記錄失敗: ${error.message}`, 'error'); //
+    uiStore.showMessage(`儲存今日記錄失敗: ${error.message}`, 'error');
   } finally {
-    uiStore.setLoading(false); //
+    uiStore.setLoading(false);
   }
 };
 
@@ -446,20 +401,22 @@ const saveTodayRecords = async () => {
  */
 const deleteAllTodayRecords = () => {
   if (tempRecords.value.length === 0) {
-    uiStore.showMessage('目前沒有任何報到記錄可刪除。', 'info'); //
+    uiStore.showMessage('目前沒有任何報到記錄可刪除。', 'info');
     return;
   }
   // [FIXED] 使用 uiStore 的確認彈窗
-  uiStore
-    .showConfirmation('確認清除全部暫存記錄', '您確定要清除所有暫存記錄嗎？此操作不會刪除已儲存的資料。', '確認清除', 'bg-red-600 hover:bg-red-700')
-    .then(() => {
-      tempRecords.value = []; //
-      sessionStorage.removeItem(SS_TEMP_RECORDS_KEY); //
-      uiStore.showMessage('已清除所有暫存記錄。', 'success'); //
-    })
-    .catch(() => {
-      // 使用者取消，不執行任何操作
-    });
+  uiStore.showConfirmation(
+    '確認清除全部暫存記錄',
+    '您確定要清除所有暫存記錄嗎？此操作不會刪除已儲存的資料。',
+    '確認清除',
+    'bg-red-600 hover:bg-red-700'
+  ).then(() => {
+    tempRecords.value = [];
+    sessionStorage.removeItem(SS_TEMP_RECORDS_KEY);
+    uiStore.showMessage('已清除所有暫存記錄。', 'success');
+  }).catch(() => {
+    // 使用者取消，不執行任何操作
+  });
 };
 
 /**
@@ -467,20 +424,22 @@ const deleteAllTodayRecords = () => {
  * @param {string} recordId - 要刪除的記錄 ID
  */
 const handleDeleteTempRecord = (recordId) => {
-  const record = tempRecords.value.find((r) => r.id === recordId);
+  const record = tempRecords.value.find(r => r.id === recordId);
   if (!record) return;
 
   // [FIXED] 使用 uiStore 的確認彈窗
-  uiStore
-    .showConfirmation('確認刪除暫存記錄', `您確定要刪除 ${record.name_at_checkin || record.input} 的這筆暫存記錄嗎？`, '確認刪除', 'bg-red-600 hover:bg-red-700')
-    .then(() => {
-      tempRecords.value = tempRecords.value.filter((r) => r.id !== recordId); //
-      sessionStorage.setItem(SS_TEMP_RECORDS_KEY, JSON.stringify(tempRecords.value)); //
-      uiStore.showMessage('暫存記錄已刪除', 'success'); //
-    })
-    .catch(() => {
-      // 使用者取消，不執行任何操作
-    });
+  uiStore.showConfirmation(
+    '確認刪除暫存記錄',
+    `您確定要刪除 ${record.name_at_checkin || record.input} 的這筆暫存記錄嗎？`,
+    '確認刪除',
+    'bg-red-600 hover:bg-red-700'
+  ).then(() => {
+    tempRecords.value = tempRecords.value.filter(r => r.id !== recordId);
+    sessionStorage.setItem(SS_TEMP_RECORDS_KEY, JSON.stringify(tempRecords.value));
+    uiStore.showMessage('暫存記錄已刪除', 'success');
+  }).catch(() => {
+    // 使用者取消，不執行任何操作
+  });
 };
 </script>
 
