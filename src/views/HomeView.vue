@@ -14,8 +14,19 @@
       </p>
     </div>
 
-    <div class="home-stars"></div>
+    <div class="home-stars" :style="{ '--star-hue-rotate': `${bgHue}deg` }"></div>
     <div class="home-floating-element"></div>
+
+    <div class="ufo-flyby" :class="{ 'ufo-active': ufoActive }">
+      <svg width="60" height="35" viewBox="0 0 120 70" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <ellipse cx="60" cy="30" rx="40" ry="15" fill="#A8DADC"/>
+        <ellipse cx="60" cy="30" rx="30" ry="10" fill="#457B9D"/>
+        <path d="M40 30C40 30 50 40 60 40C70 40 80 30 80 30" stroke="#F1FAEE" stroke-width="2"/>
+        <ellipse cx="60" cy="20" rx="20" ry="10" fill="#E63946"/>
+        <circle cx="60" cy="20" r="5" fill="#F1FAEE"/>
+      </svg>
+    </div>
+
 
     <div class="floating-snacks-container">
       <div
@@ -24,7 +35,7 @@
         class="floating-snack"
         :style="{ top: snack.y, left: snack.x, animationDuration: snack.duration }"
         @click="triggerSnackEffect(snack)"
-        :class="{ 'snack-clicked': snack.clicked }"
+        :class="{ 'snack-clicked': snack.clicked, 'snack-sparkle': snacksSparkling }"
       >
         <component :is="snack.iconComponent" class="w-12 h-12 md:w-16 md:h-16" />
       </div>
@@ -34,72 +45,88 @@
       <div v-for="i in 5" :key="i" class="meteor" :style="{ animationDelay: `${i * 3}s` }"></div>
     </div>
 
-    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8 relative z-10">
-      <router-link to="/import/personnel" class="feature-card group" v-if="canView('personnel:create')">
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8 relative z-10" @click="handleBackgroundClick">
+      <router-link to="/import/personnel" class="feature-card group" @mouseover="triggerCosmicDust($event)" v-if="canView('personnel:create')">
         <div class="icon-wrapper bg-sky-200 group-hover:bg-sky-600 group-hover:text-white group-hover:animate-spin-hover">
           <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-10 h-10 text-sky-800 group-hover:text-white">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4m-3 3h22"/>
+            <path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6M9 16h6M9 8h6M5 4h10l4 4v12a2 2 0 01-2 2H5a2 2 0 01-2-2V6a2 2 0 012-2z"/>
           </svg>
         </div>
-        <h2 class="card-title">人員資料匯入</h2>
+        <h2 class="card-title group-hover:animate-wiggle-title">人員資料匯入</h2>
         <p class="card-description">批次新增或更新人員資料，簡化數據管理。</p>
       </router-link>
 
-      <router-link to="/import/checkin" class="feature-card group" v-if="canView('records:create')">
+      <router-link to="/import/checkin" class="feature-card group" @mouseover="triggerCosmicDust($event)" v-if="canView('records:create')">
         <div class="icon-wrapper bg-amber-200 group-hover:bg-amber-600 group-hover:text-white group-hover:animate-wiggle-subtle">
           <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-10 h-10 text-amber-800 group-hover:text-white">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M9 13h6M9 17h6M9 9h.01M12 16h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+            <path stroke-linecap="round" stroke-linejoin="round" d="M12 20h9"/>
+            <path stroke-linecap="round" stroke-linejoin="round" d="M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4 12.5-12.5z"/>
           </svg>
         </div>
-        <h2 class="card-title">簽到記錄匯入</h2>
+        <h2 class="card-title group-hover:animate-wiggle-title">簽到記錄匯入</h2>
         <p class="card-description">從外部來源匯入簽到記錄，自動建立或更新。</p>
       </router-link>
+      
+      <router-link to="/events" class="feature-card group" @mouseover="triggerCosmicDust($event)" v-if="canView('events:create')">
+        <div class="icon-wrapper bg-blue-200 group-hover:bg-blue-600 group-hover:text-white group-hover:animate-spin-hover">
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-10 h-10 text-blue-800 group-hover:text-white">
+            <rect x="3" y="4" width="18" height="18" rx="2" ry="2" stroke-linejoin="round"/>
+            <line x1="16" y1="2" x2="16" y2="6" stroke-linecap="round" stroke-linejoin="round"/>
+            <line x1="8" y1="2" x2="8" y2="6" stroke-linecap="round" stroke-linejoin="round"/>
+            <path stroke-linecap="round" stroke-linejoin="round" d="M12 11v6"/>
+            <path stroke-linecap="round" stroke-linejoin="round" d="M9 14l3 3 3-3"/>
+          </svg>
+        </div>
+        <h2 class="card-title group-hover:animate-wiggle-title">活動管理</h2>
+        <p class="card-description">建立、編輯、刪除活動，並可指定參與人員。</p>
+      </router-link>
 
-      <router-link to="/checkin" class="feature-card group" v-if="canView('checkin:use')">
+      <router-link to="/checkin" class="feature-card group" @mouseover="triggerCosmicDust($event)" v-if="canView('checkin:use')">
         <div class="icon-wrapper bg-emerald-200 group-hover:bg-emerald-600 group-hover:text-white group-hover:animate-spin-hover">
           <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-10 h-10 text-emerald-800 group-hover:text-white">
             <rect x="3" y="5" width="18" height="14" rx="2" ry="2" stroke-linejoin="round"/>
             <path stroke-linecap="round" stroke-linejoin="round" d="M8 10h8M8 14h4M9 18l3 3 6-6"/>
           </svg>
         </div>
-        <h2 class="card-title">報到系統</h2>
+        <h2 class="card-title group-hover:animate-wiggle-title">報到系統</h2>
         <p class="card-description">直觀的介面，支援學號/卡號輸入進行簽到與簽退。</p>
       </router-link>
 
-      <router-link to="/overview" class="feature-card group" v-if="canView('overview:view')">
-        <div class="icon-wrapper bg-blue-200 group-hover:bg-blue-600 group-hover:text-white group-hover:animate-wiggle-subtle">
-          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-10 h-10 text-blue-800 group-hover:text-white">
+      <router-link to="/overview" class="feature-card group" @mouseover="triggerCosmicDust($event)" v-if="canView('overview:view')">
+        <div class="icon-wrapper bg-indigo-200 group-hover:bg-indigo-600 group-hover:text-white group-hover:animate-wiggle-subtle">
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-10 h-10 text-indigo-800 group-hover:text-white">
             <path stroke-linecap="round" stroke-linejoin="round" d="M3 17h4v-6H3v6zM9 17h4v-10H9v10zM15 17h4v-4h-4v4z"/>
           </svg>
         </div>
-        <h2 class="card-title">系統總覽</h2>
+        <h2 class="card-title group-hover:animate-wiggle-title">系統總覽</h2>
         <p class="card-description">提供人員、活動、簽到總數等統計數據與圖表。</p>
       </router-link>
 
-      <router-link to="/dashboard" class="feature-card group" v-if="canView('reports:view')">
+      <router-link to="/dashboard" class="feature-card group" @mouseover="triggerCosmicDust($event)" v-if="canView('reports:view')">
         <div class="icon-wrapper bg-violet-200 group-hover:bg-violet-600 group-hover:text-white group-hover:animate-spin-hover">
           <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-10 h-10 text-violet-800 group-hover:text-white">
             <circle cx="12" cy="12" r="9" stroke-linejoin="round"/>
             <path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6l4 2"/>
           </svg>
         </div>
-        <h2 class="card-title">活動儀表板</h2>
+        <h2 class="card-title group-hover:animate-wiggle-title">活動儀表板</h2>
         <p class="card-description">針對單一活動提供應到/實到人數、簽到時間線分析。</p>
       </router-link>
 
-      <router-link to="/report" class="feature-card group" v-if="canView('reports:view')">
+      <router-link to="/report" class="feature-card group" @mouseover="triggerCosmicDust($event)" v-if="canView('reports:view')">
         <div class="icon-wrapper bg-orange-200 group-hover:bg-orange-600 group-hover:text-white group-hover:animate-wiggle-subtle">
           <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-10 h-10 text-orange-800 group-hover:text-white">
             <path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6M9 16h6M9 8h6M7 20h10a2 2 0 002-2V6a2 2 0 00-2-2H7a2 2 0 00-2 2v12a2 2 0 002 2z"/>
           </svg>
         </div>
-        <h2 class="card-title">活動報表分析</h2>
+        <h2 class="card-title group-hover:animate-wiggle-title">活動報表分析</h2>
         <p class="card-description">提供基於日期範圍的活動參與、棟別、人員分析。</p>
       </router-link>
 
       <router-link
         to="/system/accounts"
         class="feature-card group"
+        @mouseover="triggerCosmicDust($event)"
         v-if="canViewAny(['accounts:manage_users', 'accounts:manage'])"
       >
         <div class="icon-wrapper bg-rose-200 group-hover:bg-rose-600 group-hover:text-white group-hover:animate-spin-hover">
@@ -108,13 +135,14 @@
             <path stroke-linecap="round" stroke-linejoin="round" d="M19.4 15a1.7 1.7 0 00.33 2.03l.06.06a2 2 0 01-2.83 2.83l-.06-.06a1.7 1.7 0 00-2.03-.33 1.7 1.7 0 00-1 1.52V21a2 2 0 01-4 0v-.09a1.7 1.7 0 00-1-1.52 1.7 1.7 0 00-2.03.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06a1.7 1.7 0 00.33-2.03 1.7 1.7 0 00-1.52-1H3a2 2 0 010-4h.09a1.7 1.7 0 001.52-1 1.7 1.7 0 00-.33-2.03l-.06-.06a2 2 0 012.83-2.83l.06.06a1.7 1.7 0 002.03.33h.01a1.7 1.7 0 001-1.52V3a2 2 0 014 0v.09a1.7 1.7 0 001 1.52z"/>
           </svg>
         </div>
-        <h2 class="card-title">系統管理</h2>
+        <h2 class="card-title group-hover:animate-wiggle-title">系統管理</h2>
         <p class="card-description">管理使用者帳號及角色權限分配。</p>
       </router-link>
 
       <router-link
         to="/personnel"
         class="feature-card group"
+        @mouseover="triggerCosmicDust($event)"
         v-if="canViewAny(['personnel:read', 'events:create', 'personnel:create', 'records:create'])"
       >
         <div class="icon-wrapper bg-teal-200 group-hover:bg-teal-600 group-hover:text-white group-hover:animate-spin-hover">
@@ -124,21 +152,21 @@
             <path stroke-linecap="round" stroke-linejoin="round" d="M18 21v-2a4 4 0 00-3-3.87"/>
           </svg>
         </div>
-        <h2 class="card-title">資料管理</h2>
+        <h2 class="card-title group-hover:animate-wiggle-title">資料管理</h2>
         <p class="card-description">管理人員、活動資料，並支援檔案匯入與記錄匯入。</p>
       </router-link>
     </div>
 
     <div class="text-center mt-12 text-gray-500 hidden-message">
       <p>
-        這是一個隱藏的訊息：<span class="unselectable">「感謝您的使用，祝您工作順利！」</span>
+        這是一個隱藏的訊息：<span class="unselectable">「祝你們活動順利！！🎁還有其他的地方有彩蛋喔～」</span>
       </p>
     </div>
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue';
+import { ref, onMounted, onUnmounted } from 'vue';
 import { useAuthStore } from '@/store/auth';
 
 const authStore = useAuthStore();
@@ -155,7 +183,6 @@ const triggerWelcomeAnimation = () => {
 };
 
 // --- 台灣小吃彩蛋數據與邏輯 ---
-// 簡單的 SVG 組件，表示小吃
 const BubbleTeaIcon = {
   template: `
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-pink-400">
@@ -192,6 +219,7 @@ const PineappleCakeIcon = {
 
 const floatingSnacks = ref([]);
 let snackSpawnInterval;
+const snacksSparkling = ref(false);
 
 const createSnack = () => {
   const snackTypes = [
@@ -216,20 +244,114 @@ const triggerSnackEffect = (snack) => {
   setTimeout(() => {
     snack.clicked = false;
   }, 300); // Reset click effect after 0.3s
-  // 可以這裡增加音效或其他效果
 };
 
+// --- 飛碟穿越彩蛋 ---
+const ufoActive = ref(false);
+let ufoTimeout;
+
+const triggerUFO = () => {
+  if (!ufoActive.value) {
+    ufoActive.value = true;
+    ufoTimeout = setTimeout(() => {
+      ufoActive.value = false;
+      setTimeout(triggerUFO, Math.random() * 20000 + 10000);
+    }, 15000);
+  }
+};
+
+
+// --- 背景點擊色調變化彩蛋 ---
+const bgHue = ref(0);
+const handleBackgroundClick = (event) => {
+  if (!event.target.closest('.feature-card') && !event.target.closest('.floating-snack')) {
+    bgHue.value = (bgHue.value + 30) % 360;
+  }
+};
+
+// --- 彩蛋口令 ---
+const konamiSequence = ['e', 'g', 'g'];
+const pressedKeys = ref([]);
+
+const handleKeyDown = (event) => {
+  pressedKeys.value.push(event.key.toLowerCase());
+  if (pressedKeys.value.length > konamiSequence.length) {
+    pressedKeys.value.shift();
+  }
+
+  if (pressedKeys.value.join('') === konamiSequence.join('')) {
+    snacksSparkling.value = true;
+    setTimeout(() => {
+      snacksSparkling.value = false;
+    }, 1500);
+    pressedKeys.value = [];
+  }
+};
+
+// --- 卡片懸停宇宙塵埃彩蛋 ---
+let cosmicDustCounter = 0;
+const triggerCosmicDust = (event) => {
+  const cardElement = event.currentTarget;
+  const rect = cardElement.getBoundingClientRect();
+
+  for (let i = 0; i < 5; i++) { // 每次懸停產生5個粒子
+    const dust = document.createElement('div');
+    dust.classList.add('cosmic-dust-particle');
+    
+    // 隨機在卡片邊緣生成粒子
+    const side = Math.floor(Math.random() * 4); // 0:top, 1:right, 2:bottom, 3:left
+    let startX, startY, endX, endY;
+
+    if (side === 0) { // top edge
+      startX = rect.left + Math.random() * rect.width;
+      startY = rect.top;
+      endX = startX + (Math.random() - 0.5) * 50;
+      endY = startY - Math.random() * 50 - 20;
+    } else if (side === 1) { // right edge
+      startX = rect.right;
+      startY = rect.top + Math.random() * rect.height;
+      endX = startX + Math.random() * 50 + 20;
+      endY = startY + (Math.random() - 0.5) * 50;
+    } else if (side === 2) { // bottom edge
+      startX = rect.left + Math.random() * rect.width;
+      startY = rect.bottom;
+      endX = startX + (Math.random() - 0.5) * 50;
+      endY = startY + Math.random() * 50 + 20;
+    } else { // left edge
+      startX = rect.left;
+      startY = rect.top + Math.random() * rect.height;
+      endX = startX - Math.random() * 50 - 20;
+      endY = startY + (Math.random() - 0.5) * 50;
+    }
+
+    dust.style.left = `${startX}px`;
+    dust.style.top = `${startY}px`;
+    dust.style.width = `${Math.random() * 3 + 1}px`; // 1px to 4px
+    dust.style.height = dust.style.width;
+    dust.style.backgroundColor = `hsl(${Math.random() * 30 + 200}, 100%, 80%)`; // 藍白色調
+    dust.style.setProperty('--end-x', `${endX - startX}px`);
+    dust.style.setProperty('--end-y', `${endY - startY}px`);
+
+    document.body.appendChild(dust);
+
+    dust.addEventListener('animationend', () => {
+      dust.remove();
+    });
+  }
+};
+
+
+// --- Lifecycle Hooks ---
 onMounted(() => {
-  // 輕量級創建背景星星 (模仿 NotFoundView)
   const createHomeStars = () => {
     const container = document.querySelector('.home-stars');
     if (!container) return;
-    for (let i = 0; i < 50; i++) { // 減少星星數量避免過於密集
+    for (let i = 0; i < 50; i++) {
       const star = document.createElement('div');
       star.classList.add('home-star');
       star.style.left = `${Math.random() * 100}%`;
       star.style.top = `${Math.random() * 100}%`;
-      const size = Math.random() * 2 + 0.5; // 0.5px 到 2.5px
+      const size = Math.random() * 2 + 0.5;
       star.style.width = `${size}px`;
       star.style.height = `${size}px`;
       star.style.animationDelay = `${Math.random() * 5}s`;
@@ -238,16 +360,48 @@ onMounted(() => {
   };
   createHomeStars();
 
-  // 每隔一段時間生成新的漂浮小吃
   snackSpawnInterval = setInterval(() => {
-    if (floatingSnacks.value.length < 5) { // 最多同時顯示5個
+    if (floatingSnacks.value.length < 5) {
       floatingSnacks.value.push(createSnack());
     }
-    // 移除舊的小吃，避免無限增加
     if (floatingSnacks.value.length > 10) {
       floatingSnacks.value.shift();
     }
-  }, 3000); // 每3秒生成一個
+  }, 3000);
+
+  triggerUFO(); // 初始觸發一次飛碟
+
+  window.addEventListener('keydown', handleKeyDown);
+
+  // 開發者控制台提示
+  console.log(
+    `%c
+      ██████╗░██████╗░██╗░░░██╗
+      ██╔══██╗██╔══██╗██║░░░██║
+      ██████╔╝██████╔╝██║░░░██║
+      ██╔══██╗██╔══██╗██║░░░██║
+      ██║░░██║██║░░██║╚██████╔╝
+      ╚═╝░░╚═╝╚═╝░░╚═╝░╚═════╝░
+    `,
+    "font-family:monospace; color: #598392;"
+  );
+  console.log(
+    `%c你發現了首頁的秘密入口！這裡隱藏著更多驚喜：
+    ✨ 點擊標題，會有小驚喜。
+    ✨ 點擊漂浮的小吃，看看會發生什麼！
+    ✨ 隨機出現的飛碟，注意看哦！
+    ✨ 點擊背景空白處，感受空間的變化。
+    ✨ 在頁面任意處敲擊鍵盤，試試輸入「egg」！
+    ✨ 懸停在功能卡片上，會發現微弱的宇宙塵埃！
+    ✨ 底部有隱藏訊息，試試選取它。`,
+    "font-family: 'Noto Sans TC', sans-serif; color: #aec3b0; font-size: 14px;"
+  );
+});
+
+onUnmounted(() => {
+  clearInterval(snackSpawnInterval);
+  clearTimeout(ufoTimeout);
+  window.removeEventListener('keydown', handleKeyDown);
 });
 
 </script>
@@ -257,9 +411,7 @@ onMounted(() => {
 .bg-custom-rich-black { background-color: #01161e; }
 .bg-custom-midnight-green { background-color: #124559; }
 .bg-custom-air-force-blue { background-color: #598392; }
-.bg-custom-ash-gray { background-color: #aec3b0; }
 .text-custom-beige { color: #eff6e0; }
-.text-custom-midnight-green { color: #124559; }
 
 /* 功能卡片通用樣式 */
 .feature-card {
@@ -314,6 +466,9 @@ onMounted(() => {
   overflow: hidden;
   z-index: 0; /* 確保在內容之下 */
   pointer-events: none; /* 不會阻擋滑鼠事件 */
+  /* 將色相旋轉應用到星星背景 */
+  filter: hue-rotate(var(--star-hue-rotate, 0deg));
+  transition: filter 1s ease-in-out; /* 平滑過渡 */
 }
 
 .home-star {
@@ -407,12 +562,22 @@ onMounted(() => {
   transform: scale(1.3);
 }
 
+.floating-snack.snack-sparkle {
+  animation: snack-sparkle 0.5s ease-out forwards;
+}
+
 @keyframes float-snack {
   0% { transform: translateY(0) rotate(0deg); }
   25% { transform: translateY(-10px) rotate(5deg); }
   50% { transform: translateY(0) rotate(0deg); }
   75% { transform: translateY(10px) rotate(-5deg); }
   100% { transform: translateY(0) rotate(0deg); }
+}
+
+@keyframes snack-sparkle {
+  0% { transform: scale(1) rotate(0deg); filter: brightness(100%); }
+  50% { transform: scale(1.2) rotate(10deg); filter: brightness(200%); }
+  100% { transform: scale(1) rotate(0deg); filter: brightness(100%); }
 }
 
 /* --- 流星雨樣式 --- */
@@ -482,4 +647,63 @@ onMounted(() => {
   color: #eff6e0; /* 顯示文字顏色 */
   text-shadow: none; /* 移除陰影 */
 }
+
+/* --- 飛碟穿越彩蛋樣式 --- */
+.ufo-flyby {
+  position: absolute;
+  top: 10%; /* 隨機起始高度 */
+  left: -100px; /* 從螢幕左側外開始 */
+  z-index: 15; /* 在浮動小吃之上，在內容之下 */
+  opacity: 0;
+  transition: opacity 0.5s ease-in-out;
+  pointer-events: none; /* 不可點擊 */
+}
+
+.ufo-flyby.ufo-active {
+  animation: ufo-across-screen 15s linear forwards; /* 飛越螢幕動畫 */
+  opacity: 1;
+}
+
+@keyframes ufo-across-screen {
+  0% { transform: translateX(0) translateY(0); }
+  25% { transform: translateX(50vw) translateY(20px); }
+  50% { transform: translateX(100vw) translateY(-10px); }
+  75% { transform: translateX(150vw) translateY(30px); }
+  100% { transform: translateX(200vw) translateY(0); opacity: 0; }
+}
+
+/* --- 卡片標題微晃彩蛋樣式 --- */
+@keyframes wiggle-title {
+  0%, 100% { transform: translateX(0); }
+  20% { transform: translateX(-2px); }
+  40% { transform: translateX(2px); }
+  60% { transform: translateX(-2px); }
+  80% { transform: translateX(2px); }
+}
+
+.group-hover\:animate-wiggle-title {
+    animation: wiggle-title 0.3s ease-in-out infinite; /* 輕微搖晃 */
+}
+
+/* --- 宇宙塵埃粒子樣式 --- */
+.cosmic-dust-particle {
+  position: fixed; /* 保持與視口相對位置 */
+  background-color: #fff; /* 預設白色，可在 JS 中覆蓋 */
+  border-radius: 50%;
+  pointer-events: none; /* 確保不阻擋下方元素的點擊 */
+  animation: dust-fade-out-and-move 0.8s ease-out forwards;
+  z-index: 998; /* 在滑鼠流光之下，在卡片之上 */
+}
+
+@keyframes dust-fade-out-and-move {
+  0% {
+    opacity: 1;
+    transform: translate(0, 0) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(var(--end-x), var(--end-y)) scale(0);
+  }
+}
+
 </style>
