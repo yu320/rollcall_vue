@@ -85,9 +85,10 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue';
+import { ref } from 'vue';
+import { useRouter } from 'vue-router'; // 引入 useRouter 以便導入後跳轉
 import { useUiStore } from '@/store/ui';
-import { useDataStore } from '@/store/data';
+import { useDataStore } from '@/store/data'; // 引入 dataStore 以便更新人員資料
 import * as api from '@/services/api'; // 引入 api
 import { formatDateTime, parseFlexibleDateTime, isValidCardNumber, getDeviceId } from '@/utils'; // 引入所需的 utils 函數 
 import { CHECKIN_IMPORT_HEADERS } from '@/utils/constants'; // 引入新常數
@@ -145,7 +146,7 @@ const processImport = async () => {
     }
 
     // 解析 CSV 標頭，移除可能的 BOM 字符 
-    const headerLine = lines[0]..replace(/^\uFEFF/, '').trim();
+    const headerLine = lines[0].replace(/^\uFEFF/, '').trim(); // 修正：移除多餘的點
     const headers = headerLine.split(',').map(h => h.trim().replace(/^"|"$/g, ''));
     
     let nameIndex, idIndex, timeIndex;
