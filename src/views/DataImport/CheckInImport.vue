@@ -4,7 +4,6 @@
     <p class="text-gray-600 mb-6">從外部系統匯入名單，系統將自動比對人員並建立對應的簽到或簽退記錄。</p>
     
     <div class="space-y-6">
-      <!-- Step 1: Select Event -->
       <div class="p-4 border border-gray-200 rounded-lg">
         <label for="eventSelector" class="block text-lg font-semibold text-gray-800 mb-2 flex items-center">
           <span class="bg-indigo-600 text-white rounded-full h-6 w-6 inline-flex items-center justify-center mr-2 text-sm">1</span>
@@ -13,11 +12,10 @@
         <p class="text-sm text-gray-500 mb-3">將匯入的記錄歸類到特定活動中。</p>
         <select id="eventSelector" v-model="selectedEventId" class="w-full pl-4 pr-10 py-3 border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-indigo-400">
           <option :value="null">-- 不關聯任何活動 (通用記錄) --</option>
-          <option v-for="event in dataStore.events" :key="event.id" :value="event.id">{{ formatDateTime(event.start_time, 'yyyy-MM-dd') }})</option>
+          <option v-for="event in dataStore.events" :key="event.id" :value="event.id">{{ event.name }} ({{ formatDateTime(event.start_time, 'yyyy-MM-dd') }})</option>
         </select>
       </div>
       
-      <!-- Step 2: Select Type -->
       <div class="p-4 border border-gray-200 rounded-lg">
         <label class="block text-lg font-semibold text-gray-800 mb-2 flex items-center">
           <span class="bg-indigo-600 text-white rounded-full h-6 w-6 inline-flex items-center justify-center mr-2 text-sm">2</span>
@@ -35,7 +33,6 @@
         </div>
       </div>
       
-      <!-- Step 3: Upload File -->
       <div class="p-4 border border-gray-200 rounded-lg">
         <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-3">
           <label for="importCheckinFile" class="block text-lg font-semibold text-gray-800 flex items-center">
@@ -49,7 +46,6 @@
         <p v-if="selectedFile" class="text-gray-500 text-sm mt-2">已選擇檔案: {{ selectedFile.name }}</p>
       </div>
 
-      <!-- Submit Button -->
       <div class="text-center pt-2">
         <button @click="processImport" :disabled="!selectedFile" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3 px-8 rounded-lg text-lg transition shadow-lg hover:shadow-xl disabled:bg-gray-400 disabled:cursor-not-allowed">
           開始匯入
@@ -57,7 +53,6 @@
       </div>
     </div>
 
-    <!-- Import Result Section -->
     <div v-if="importResult" class="mt-8 border-t border-gray-200 pt-6">
       <h3 class="text-2xl font-bold text-gray-800 mb-4">匯入結果</h3>
       <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -85,115 +80,121 @@
 </template>
 
 <script setup>
-import { ref } from 'vue';
-import { useRouter } from 'vue-router'; // 引入 useRouter 以便導入後跳轉
+import { ref, onMounted } from 'vue';
 import { useUiStore } from '@/store/ui';
-import { useDataStore } from '@/store/data'; // 引入 dataStore 以便更新人員資料
-import * as api from '@/services/api'; // 引入 api
-import { formatDateTime, parseFlexibleDateTime, isValidCardNumber, getDeviceId } from '@/utils'; // 引入所需的 utils 函數 
-import { CHECKIN_IMPORT_HEADERS } from '@/utils/constants'; // 引入新常數
+import { useDataStore } from '@/store/data';
+import * as api from '@/services/api'; 
+import { formatDateTime, parseFlexibleDateTime, isValidCardNumber, getDeviceId } from '@/utils';
+import { CHECKIN_IMPORT_HEADERS } from '@/utils/constants'; // 引入匯入簽到表頭的常數定義
 
+// 獲取 Pinia store 實例
 const uiStore = useUiStore();
 const dataStore = useDataStore();
 
-const selectedEventId = ref(null);
+// 響應式變數定義
+const selectedEventId = ref(null); // 選定的活動 ID，預設為 null (不關聯任何活動)
 const actionType = ref('簽到'); // 預設匯入類型為 '簽到'
-const selectedFile = ref(null);
-const importResult = ref(null);
+const selectedFile = ref(null); // 已選擇的檔案
+const importResult = ref(null); // 匯入結果，用於顯示成功、自動建立、失敗筆數等
 
+// 組件掛載後執行
 onMounted(async () => {
   // 確保活動列表已載入，供選擇活動使用
   if (dataStore.events.length === 0) {
-    await dataStore.fetchEvents();
+    await dataStore.fetchEvents(); // 如果活動列表為空，則從後端獲取
   }
 });
 
-// 處理檔案選擇
+// 處理檔案選擇事件
 const handleFileSelect = (event) => {
-  selectedFile.value = event.target.files[0];
-  importResult.value = null; // 選擇新檔案時重置匯入結果
+  selectedFile.value = event.target.files[0]; // 獲取使用者選擇的第一個檔案
+  importResult.value = null; // 選擇新檔案時重置匯入結果，清除舊的顯示
 };
 
-// 處理匯入流程
+// 處理匯入流程的主函數
 const processImport = async () => {
   if (!selectedFile.value) {
-    uiStore.showMessage('請選擇一個 CSV 檔案。', 'info');
+    uiStore.showMessage('請選擇一個 CSV 檔案。', 'info'); // 如果沒有選擇檔案，顯示提示訊息
     return;
   }
 
-  uiStore.setLoading(true);
+  uiStore.setLoading(true); // 設置 UI 為載入狀態
   importResult.value = null; // 清空舊的結果
 
   let csvText;
   try {
     const reader = new FileReader();
-    // 【修改點】明確指定使用 'Big5' 編碼來讀取檔案，解決中文亂碼問題
+    // 使用 'Big5' 編碼讀取檔案，解決中文亂碼問題
     reader.readAsText(selectedFile.value, 'Big5');
     csvText = await new Promise((resolve, reject) => {
-      reader.onload = (e) => resolve(e.target.result);
-      reader.onerror = (e) => reject(new Error(`讀取檔案失敗: ${e.target.error}`));
+      reader.onload = (e) => resolve(e.target.result); // 檔案讀取成功
+      reader.onerror = (e) => reject(new Error(`讀取檔案失敗: ${e.target.error}`)); // 檔案讀取失敗
     });
   } catch (error) {
-    uiStore.showMessage(`檔案讀取失敗: ${error.message}`, 'error');
-    uiStore.setLoading(false);
+    uiStore.showMessage(`檔案讀取失敗: ${error.message}`, 'error'); // 顯示讀取錯誤訊息
+    uiStore.setLoading(false); // 關閉載入狀態
     return;
   }
 
   try {
+    // 將 CSV 文本按行分割，並過濾掉空行
     const lines = csvText.split(/\r?\n/).filter(line => line.trim() !== '');
     if (lines.length < 2) { // 至少需要標頭和一條數據
       throw new Error("CSV 檔案為空或只有標頭。");
     }
 
-    // 解析 CSV 標頭，移除可能的 BOM 字符 
-    const headerLine = lines[0].replace(/^\uFEFF/, '').trim(); // 修正：移除多餘的點
+    // 解析 CSV 標頭，移除可能的 BOM 字符 (U+FEFF) 並清理空格和引號
+    const headerLine = lines[0].replace(/^\uFEFF/, '').trim();
     const headers = headerLine.split(',').map(h => h.trim().replace(/^"|"$/g, ''));
     
-    let nameIndex, idIndex, timeIndex;
+    let nameIndex = -1, idIndex = -1, timeIndex = -1;
 
-    // 查找實際的標頭索引
-    const findHeaderIndex = (possibleNames) => {
-      for (const name of possibleNames) {
-        const index = headers.indexOf(name);
-        if (index !== -1) return index;
-      }
-      return -1; // 如果都沒找到
-    };
-
-    nameIndex = findHeaderIndex(CHECKIN_IMPORT_HEADERS.NAME);
-    idIndex = findHeaderIndex(CHECKIN_IMPORT_HEADERS.IDENTIFIER);
-    timeIndex = findHeaderIndex(CHECKIN_IMPORT_HEADERS.TIMESTAMP);
-
-    // 檢查所有必要欄位是否都找到
-    if (nameIndex === -1 || idIndex === -1 || timeIndex === -1) {
-      throw new Error(`CSV 標頭格式不符。請確認檔案包含以下必要欄位之一: 姓名 (${CHECKIN_IMPORT_HEADERS.NAME.join('/')}), 識別碼 (${CHECKIN_IMPORT_HEADERS.IDENTIFIER.join('/')}), 時間 (${CHECKIN_IMPORT_HEADERS.TIMESTAMP.join('/')})。`);
+    // 使用 CHECKIN_IMPORT_HEADERS 常數來動態尋找欄位索引
+    // 遍歷常數中定義的每種欄位類型 (NAME, IDENTIFIER, TIMESTAMP)
+    for (const [key, possibleNames] of Object.entries(CHECKIN_IMPORT_HEADERS)) {
+        // 遍歷該欄位類型可能的所有名稱
+        for (const name of possibleNames) {
+            const index = headers.indexOf(name); // 查找當前名稱在實際標頭中的索引
+            if (index !== -1) { // 如果找到
+                if (key === 'NAME') nameIndex = index; // 設置姓名欄位索引
+                else if (key === 'IDENTIFIER') idIndex = index; // 設置識別碼欄位索引
+                else if (key === 'TIMESTAMP') timeIndex = index; // 設置時間欄位索引
+                break; // 找到後跳出內層循環，避免重複設置
+            }
+        }
     }
 
-    const dataLines = lines.slice(1);
-    const recordsToProcess = [];
-    const validationErrors = [];
+    // 檢查是否所有必要的欄位都已找到
+    if (nameIndex === -1 || idIndex === -1 || timeIndex === -1) {
+        throw new Error("CSV 標頭格式不符。請確認檔案包含 '姓名'、'學號/卡號' (或 '學號', '卡號', '教職員生編號') 以及 '刷卡時間' (或 'IC靠卡時間') 等必要欄位。");
+    }
+
+    const dataLines = lines.slice(1); // 獲取數據行 (跳過標頭行)
+    const recordsToProcess = []; // 儲存待處理的記錄
+    const validationErrors = []; // 儲存驗證錯誤訊息
 
     // 確保已載入所有人員資料，用於後續比對
     if (dataStore.personnel.length === 0) {
         await dataStore.fetchAllPersonnel();
     }
     
-    // 【*** 核心修正：修正打字錯誤 ***】
+    // 【核心修正】: 直接使用 dataStore.personnel，不加 .value，Pinia state 已經是響應式的
     const allPersonnel = dataStore.personnel; 
-    const personnelMapByIdentifier = new Map(); // 正確的變數名稱
+    const personnelMapByIdentifier = new Map(); // 建立一個 Map，用於快速查找人員
     allPersonnel.forEach(p => {
-        personnelMapByIdentifier.set(p.code.toLowerCase(), p);
-        personnelMapByIdentifier.set(String(p.card_number), p);
+        personnelMapByIdentifier.set(p.code.toLowerCase(), p); // 以學號(小寫)為鍵
+        personnelMapByIdentifier.set(String(p.card_number), p); // 以卡號為鍵
     });
 
     dataLines.forEach((line, index) => {
       line = line.trim();
-      if (!line) return;
+      if (!line) return; // 跳過空行
 
-      // 使用正則表達式來處理包含逗號的引號包圍的字段
+      // 使用正則表達式來處理包含逗號的引號包圍的字段，確保正確分割
       const parts = line.match(/(".*?"|[^",]+)(?=\s*,|\s*$)/g) || [];
-      const cleanedParts = parts.map(p => (p || '').trim().replace(/^"|"$/g, ''));
-      
+      const cleanedParts = parts.map(p => (p || '').trim().replace(/^"|"$/g, '')); // 清理每個部分
+
+      // 根據識別到的索引獲取數據
       const name = cleanedParts[nameIndex];
       const identifier = cleanedParts[idIndex];
       const timestampStr = cleanedParts[timeIndex];
@@ -204,24 +205,27 @@ const processImport = async () => {
         return;
       }
 
-      const checkinTime = parseFlexibleDateTime(timestampStr); // 使用彈性日期解析函數
-      if (isNaN(checkinTime.getTime())) {
+      const checkinTime = parseFlexibleDateTime(timestampStr); // 使用彈性日期解析函數解析時間
+      if (isNaN(checkinTime.getTime())) { // 檢查解析後的時間是否有效
         validationErrors.push(`第 ${index + 2} 行刷卡時間格式無效：'${timestampStr}'。`);
         return;
       }
 
+      // 判斷識別碼類型是卡號還是學號
       const inputType = isValidCardNumber(identifier) ? '卡號' : '學號';
+      // 根據識別碼查找對應人員
       let person = personnelMapByIdentifier.get(identifier.toLowerCase()) || personnelMapByIdentifier.get(identifier);
       if (!person && inputType === '卡號') { // 嘗試用原始大小寫的學號再次尋找，以防 CSV 中大小寫不一致
           person = personnelMapByIdentifier.get(identifier);
       }
       
-      let status; // 根據類型和活動動態計算狀態
+      let status; // 根據類型和活動動態計算簽到狀態
 
       if (actionType.value === '簽到') {
           status = '成功';
           const eventInfo = selectedEventId.value ? dataStore.events.find(e => e.id === selectedEventId.value) : null;
           if (eventInfo) {
+              // 如果有活動且有結束時間，則以結束時間判斷遲到
               const eventTime = eventInfo.end_time ? new Date(eventInfo.end_time) : new Date(eventInfo.start_time);
               status = checkinTime > eventTime ? '遲到' : '準時';
           }
@@ -230,7 +234,7 @@ const processImport = async () => {
       }
 
       recordsToProcess.push({
-        created_at: checkinTime.toISOString(),
+        created_at: checkinTime.toISOString(), // 將時間轉換為 ISO 格式
         input: identifier,
         input_type: inputType,
         success: !!person, // 標記是否找到對應人員
@@ -246,7 +250,7 @@ const processImport = async () => {
     });
 
     if (validationErrors.length > 0) {
-        throw new Error(validationErrors.join('<br>'));
+        throw new Error(validationErrors.join('<br>')); // 如果有驗證錯誤，拋出錯誤
     }
 
     if (recordsToProcess.length === 0) {
@@ -254,14 +258,15 @@ const processImport = async () => {
         return;
     }
     
-    // 調用 API 的 RPC 函數來處理匯入，包括自動建立人員
+    // 格式化記錄以符合 API 要求，傳遞原始時間字串給 Supabase 函數處理
     const formattedRecordsForApi = recordsToProcess.map(r => ({
         name: r.name_at_checkin,
         identifier: r.input,
-        timestamp: r.original_line_data.timestampStr, // 傳遞原始時間字串給 Supabase 函數 
-        input_type: r.input_type // 確保傳遞 input_type
+        timestamp: r.original_line_data.timestampStr, 
+        input_type: r.input_type 
     }));
 
+    // 調用 API 的 RPC 函數來處理匯入，包括自動建立人員
     const result = await api.importCheckinRecords({
       records: formattedRecordsForApi,
       eventId: selectedEventId.value,
@@ -290,13 +295,13 @@ const processImport = async () => {
     await api.fetchAllSavedDatesWithStats(); // 更新每日記錄頁面的日期列表
 
   } catch (error) {
-    uiStore.showMessage(`匯入失敗: ${error.message}`, 'error');
+    uiStore.showMessage(`匯入失敗: ${error.message}`, 'error'); // 顯示匯入過程中的錯誤
     importResult.value = { // 顯示解析或 API 錯誤
         successCount: 0, autoCreatedCount: 0,
         errors: [error.message.replace(/<br>/g, ' ')] 
     };
   } finally {
-    uiStore.setLoading(false);
+    uiStore.setLoading(false); // 關閉載入狀態
     selectedFile.value = null; // 清空檔案選擇
     const fileInput = document.getElementById('importCheckinFile');
     if(fileInput) fileInput.value = ''; // 清空檔案輸入框的顯示
@@ -305,15 +310,16 @@ const processImport = async () => {
 
 // 下載範例檔案
 const downloadSample = () => {
+  // CSV 內容，包含 BOM (\uFEFF) 以確保 Excel 正確顯示中文
   const csvContent = '姓名,學號/卡號,刷卡時間\n"張小明","A11312011","2025-07-26 09:00:00"\n"李華","1234567899","2025-07-26 09:05:30"';
   const blob = new Blob([`\uFEFF${csvContent}`], { type: 'text/csv;charset=utf-8;' });
   const link = document.createElement('a');
   link.href = URL.createObjectURL(blob);
-  link.download = '簽到匯入範例.csv';
+  link.download = '簽到匯入範例.csv'; // 下載檔案名稱
   document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
-  URL.revokeObjectURL(link.href);
+  link.click(); // 觸發下載
+  document.body.removeChild(link); // 移除元素
+  URL.revokeObjectURL(link.href); // 釋放 URL 物件
 };
 </script>
 
