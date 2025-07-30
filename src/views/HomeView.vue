@@ -49,6 +49,37 @@
         <h2 class="card-title">活動報表分析</h2>
         <p class="card-description">提供基於日期範圍的活動參與、棟別、人員分析。</p>
       </router-link>
+
+      <!-- 資料管理卡片 -->
+      <router-link
+        to="/personnel"
+        class="feature-card group"
+        v-if="canViewAny(['personnel:read', 'events:create', 'personnel:create', 'records:create'])"
+      >
+        <div class="icon-wrapper bg-purple-100 text-purple-600 group-hover:bg-purple-200">
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-8 h-8">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 5.25H12m-8.25 0H3m8.25 0h8.25m-8.25 0H12M9 3v4.5m0 0V21m-3.75-9H12m-8.25 0H3m8.25 0h8.25m-8.25 0H12M9 15v4.5m0 0V21m3-15h.75m-1.5 0H21M12 6v1.5m0 0V21m3-15h.75m-1.5 0H21M15 12v4.5m0 0V21" />
+          </svg>
+        </div>
+        <h2 class="card-title">資料管理</h2>
+        <p class="card-description">管理人員、活動資料，並支援檔案匯入與記錄匯入。</p>
+      </router-link>
+
+      <!-- 系統管理卡片 -->
+      <router-link
+        to="/system/accounts"
+        class="feature-card group"
+        v-if="canViewAny(['accounts:manage_users', 'accounts:manage'])"
+      >
+        <div class="icon-wrapper bg-red-100 text-red-600 group-hover:bg-red-200">
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-8 h-8">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8H7.5m-1.5 0H3m8.25 0H12M9 6v1.5m0 0V21m3-15h.75m-1.5 0H21M12 6v1.5m0 0V21m3-15h.75m-1.5 0H21M15 12v4.5m0 0V21" />
+          </svg>
+        </div>
+        <h2 class="card-title">系統管理</h2>
+        <p class="card-description">管理使用者帳號及角色權限分配。</p>
+      </router-link>
+
     </div>
   </div>
 </template>
@@ -60,6 +91,9 @@ const authStore = useAuthStore();
 
 // 檢查使用者是否擁有特定權限
 const canView = (permission) => authStore.hasPermission(permission);
+
+// 檢查使用者是否擁有任一權限（用於顯示父類別卡片）
+const canViewAny = (permissions) => permissions.some(permission => authStore.hasPermission(permission));
 </script>
 
 <style scoped>
@@ -73,5 +107,9 @@ const canView = (permission) => authStore.hasPermission(permission);
 
 .card-title {
   @apply text-xl font-bold text-gray-800 mb-2;
+}
+
+.card-description {
+  @apply text-sm text-gray-600 mb-4;
 }
 </style>
