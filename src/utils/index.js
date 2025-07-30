@@ -111,7 +111,8 @@ export function createSummaryCard(title, value, iconName, changeData = null) {
 
     switch (iconName) {
         case 'users':
-            iconSvgPath = '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 016-6h6a6 6 0 016 6v1h-3" />';
+            // 【*** 核心修正 ***】更換為一個清晰且完整的 user icon SVG 路徑
+            iconSvgPath = '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />';
             bgColorClass = 'bg-blue-100'; textColorClass = 'text-blue-500'; break;
         case 'user-check':
             iconSvgPath = '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2" /><circle cx="8.5" cy="7" r="4" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 11l2 2 4-4" />';
@@ -186,14 +187,16 @@ export function createSummaryCard(title, value, iconName, changeData = null) {
     // 將標題中的括號內容換行並縮小字體
     const formattedTitle = title.replace(/(\s*\([^)]+\))/g, '<br><span class="text-xs font-normal">$1</span>');
 
+    // 【*** 核心修正 ***】確保置中對齊
     return `
-        <div class="flex items-start w-full">
+        <div class="flex items-center w-full">
             <div class="${bgColorClass} p-3 rounded-lg mr-4 flex-shrink-0">
                 <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 ${textColorClass}" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                     ${iconSvgPath}
                 </svg>
             </div>
-            <div class="flex-grow min-w-0 flex flex-col items-center"> <p class="text-sm text-gray-500 font-medium">${formattedTitle}</p>
+            <div class="flex-grow min-w-0 flex flex-col items-center">
+                <p class="text-sm text-gray-500 font-medium text-center">${formattedTitle}</p>
                 <div class="flex items-baseline mt-1">
                     <p class="text-2xl font-bold text-gray-800">${value}</p>
                     ${trendIconAndText}
@@ -202,4 +205,3 @@ export function createSummaryCard(title, value, iconName, changeData = null) {
         </div>
     `;
 }
-

@@ -1,16 +1,13 @@
 <template>
   <div class="space-y-8">
-    <!-- Summary Cards -->
     <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
       <div v-for="(card, index) in summaryCards" :key="index" class="bg-white rounded-xl shadow p-5 border border-gray-200 hover:shadow-lg transition-shadow" v-html="card"></div>
     </div>
 
     <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
-      <!-- Recent Activity -->
       <div class="lg:col-span-2 bg-white rounded-xl shadow-lg border border-gray-200 flex flex-col">
         <div class="p-4 border-b flex flex-wrap justify-between items-center gap-3">
             <h3 class="text-xl font-bold text-gray-800">近期活動記錄</h3>
-            <!-- 【新增】近期活動記錄的分頁大小選擇器 -->
             <div v-if="recentRecords.length > 0" class="flex items-center gap-2">
                 <label for="records-page-size" class="text-sm font-medium text-gray-600">每頁顯示:</label>
                 <select id="records-page-size" v-model.number="recentRecordsPagination.pageSize" class="border border-gray-300 rounded-md text-sm py-1 px-2 focus:outline-none focus:ring-1 focus:ring-indigo-500">
@@ -24,7 +21,6 @@
             <p class="text-gray-500">正在載入近期記錄...</p>
         </div>
         <div v-else-if="recentRecords.length > 0" class="divide-y divide-gray-100 flex-grow">
-          <!-- 【修改】v-for 改為遍歷 paginatedRecentRecords -->
           <div v-for="record in paginatedRecentRecords" :key="record.id" class="p-4 flex items-center justify-between hover:bg-gray-50">
             <div class="flex items-center">
               <div :class="['w-10 h-10 rounded-full flex items-center justify-center mr-4', getActionTypeClass(record.action_type).bg]">
@@ -49,7 +45,6 @@
         <div v-else class="text-center py-10 flex-grow flex items-center justify-center">
             <p class="text-gray-500">最近 24 小時內沒有任何活動記錄。</p>
         </div>
-        <!-- 【新增】近期活動記錄的分頁控制項 -->
         <div v-if="!isLoading && recentRecords.length > 0 && recentRecordsPagination.totalPages > 1" class="p-4 border-t flex justify-center items-center space-x-4 text-sm">
             <button @click="recentRecordsPagination.currentPage--" :disabled="recentRecordsPagination.currentPage === 1" class="px-3 py-1 border rounded-md disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-100 transition">
                 上一頁
@@ -63,11 +58,9 @@
         </div>
       </div>
 
-      <!-- Upcoming Events -->
       <div class="bg-white rounded-xl shadow-lg border border-gray-200 flex flex-col">
         <div class="p-4 border-b flex flex-wrap justify-between items-center gap-3">
             <h3 class="text-xl font-bold text-gray-800">即將開始的活動</h3>
-            <!-- 【新增】即將開始的活動的分頁大小選擇器 -->
             <div v-if="upcomingEvents.length > 0" class="flex items-center gap-2">
                 <label for="events-page-size" class="text-sm font-medium text-gray-600">每頁顯示:</label>
                 <select id="events-page-size" v-model.number="upcomingEventsPagination.pageSize" class="border border-gray-300 rounded-md text-sm py-1 px-2 focus:outline-none focus:ring-1 focus:ring-indigo-500">
@@ -80,7 +73,6 @@
             <p class="text-gray-500">正在載入活動...</p>
         </div>
         <div v-else-if="upcomingEvents.length > 0" class="divide-y divide-gray-100 flex-grow">
-            <!-- 【修改】v-for 改為遍歷 paginatedUpcomingEvents -->
             <div v-for="event in paginatedUpcomingEvents" :key="event.id" class="p-4 hover:bg-gray-50">
                 <p class="font-semibold text-indigo-700">{{ event.name }}</p>
                 <p class="text-sm text-gray-600">{{ formatDateTime(event.start_time, 'MM/dd HH:mm') }} 開始</p>
@@ -89,7 +81,6 @@
         <div v-else class="text-center py-10 flex-grow flex items-center justify-center">
             <p class="text-gray-500">目前沒有即將開始的活動。</p>
         </div>
-        <!-- 【新增】即將開始的活動的分頁控制項 -->
         <div v-if="!isLoading && upcomingEvents.length > 0 && upcomingEventsPagination.totalPages > 1" class="p-4 border-t flex justify-center items-center space-x-4 text-sm">
             <button @click="upcomingEventsPagination.currentPage--" :disabled="upcomingEventsPagination.currentPage === 1" class="px-3 py-1 border rounded-md disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-100 transition">
                 上一頁
@@ -104,14 +95,23 @@
       </div>
     </div>
 
-    <!-- Charts Section -->
     <div v-if="!isLoading" class="grid grid-cols-1 lg:grid-cols-2 gap-8">
         <div class="bg-white rounded-xl shadow-lg p-6 border border-gray-200">
-            <h3 class="text-xl font-bold text-gray-800 mb-4">總操作狀態分佈</h3>
+            <div class="flex justify-between items-center mb-4">
+              <h3 class="text-xl font-bold text-gray-800">總操作狀態分佈</h3>
+              <button @click="downloadChart(overviewStatusChartInstance, '總操作狀態分佈')" class="p-2 text-gray-500 hover:text-gray-800 rounded-full hover:bg-gray-100 transition" aria-label="下載圖表">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+              </button>
+            </div>
             <div class="h-72"><canvas ref="overviewStatusChartCanvas"></canvas></div>
         </div>
         <div class="bg-white rounded-xl shadow-lg p-6 border border-gray-200">
-            <h3 class="text-xl font-bold text-gray-800 mb-4">近期活動趨勢</h3>
+            <div class="flex justify-between items-center mb-4">
+              <h3 class="text-xl font-bold text-gray-800">近期活動趨勢</h3>
+              <button @click="downloadChart(overviewActivityTrendChartInstance, '近期活動趨勢')" class="p-2 text-gray-500 hover:text-gray-800 rounded-full hover:bg-gray-100 transition" aria-label="下載圖表">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+              </button>
+            </div>
             <div class="h-72"><canvas ref="overviewActivityTrendChartCanvas"></canvas></div>
         </div>
     </div>
@@ -135,7 +135,6 @@ const isLoading = ref(true);
 const summaryCards = ref([]);
 const recentRecords = ref([]);
 
-// 【新增】為兩個列表分別建立分頁狀態
 const recentRecordsPagination = ref({
     currentPage: 1,
     pageSize: 5,
@@ -161,7 +160,6 @@ watch(isLoading, (newIsLoading) => {
   }
 });
 
-// 【新增】監聽資料和每頁筆數的變化，以更新分頁
 watch(recentRecords, (newRecords) => {
     recentRecordsPagination.value.currentPage = 1;
     recentRecordsPagination.value.totalPages = Math.ceil(newRecords.length / recentRecordsPagination.value.pageSize);
@@ -187,7 +185,6 @@ watch(() => upcomingEventsPagination.value.pageSize, () => {
 });
 
 
-// 【新增】計算屬性，用於獲取當前頁的列表項
 const paginatedRecentRecords = computed(() => {
     const start = (recentRecordsPagination.value.currentPage - 1) * recentRecordsPagination.value.pageSize;
     const end = start + recentRecordsPagination.value.pageSize;
@@ -216,7 +213,7 @@ onMounted(async () => {
     const [_, __, records] = await Promise.all([
       dataStore.fetchAllPersonnel(),
       dataStore.fetchEvents(),
-      api.fetchRecentRecords(24 * 7) // 增加獲取記錄的時間範圍，以提供更多分頁內容
+      api.fetchRecentRecords(24 * 7)
     ]);
     
     recentRecords.value = records || [];
@@ -336,5 +333,20 @@ const renderOverviewActivityTrendChart = () => {
             }
         }
     });
+};
+
+const downloadChart = (chartInstance, baseFilename) => {
+  if (!chartInstance) {
+    uiStore.showMessage('圖表尚未準備好，無法下載。', 'warning');
+    return;
+  }
+  
+  const timestamp = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
+  const filename = `總覽_${baseFilename}_${timestamp}.png`;
+
+  const link = document.createElement('a');
+  link.href = chartInstance.toBase64Image();
+  link.download = filename;
+  link.click();
 };
 </script>
