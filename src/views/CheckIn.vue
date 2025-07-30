@@ -134,6 +134,7 @@ import { useUiStore } from '@/store/ui';
 import * as api from '@/services/api';
 import { formatDateTime, isValidCardNumber, getDeviceId } from '@/utils';
 import { isPast, parseISO } from 'date-fns';
+import { ref, onMounted, computed, nextTick } from 'vue'; // <--- 在這裡加上 nextTick
 
 // --- Pinia Stores ---
 const dataStore = useDataStore();
@@ -197,10 +198,12 @@ const isEventEnded = (endTimeIso) => {
   return isPast(parseISO(endTimeIso));
 };
 
+// ... 其他 <script setup> 內的程式碼 ...
+
 /**
  * 處理報到/簽退操作
  */
-const handleCheckIn = () => {
+const handleCheckIn = async () => { // <--- 將函式宣告為 async
   const input = checkinInput.value.trim();
   if (!input) return;
 
@@ -209,13 +212,13 @@ const handleCheckIn = () => {
 
   let person;
   let inputType = isValidCardNumber(input) ? '卡號' : '學號';
-  
+
   if (inputType === '卡號') {
     person = allPersonnel.find(p => String(p.card_number) === input);
   } else {
     person = allPersonnel.find(p => String(p.code).toLowerCase() === input.toLowerCase());
   }
-  
+
   const now = new Date();
   let status = '';
   let success = false;
@@ -274,8 +277,15 @@ const handleCheckIn = () => {
   // 新增到暫存列表頂部並更新 sessionStorage
   tempRecords.value.unshift(recordData);
   sessionStorage.setItem(SS_TEMP_RECORDS_KEY, JSON.stringify(tempRecords.value));
-  
+
+  // 【*** 核心修正 ***】
+  // 1. 先將舊結果清空，讓結果卡片從畫面上消失
+  checkInResult.value = null;
+  // 2. 等待畫面實際更新完成
+  await nextTick();
+  // 3. 再顯示新的報到結果，觸發新的進場動畫
   displayCheckInResult(person, recordData);
+
   checkinInput.value = '';
 };
 
@@ -290,10 +300,11 @@ function displayCheckInResult(person, recordData) {
 
   // 根據狀態設定顯示樣式
   switch (recordData.status) {
+    case '成功': // 【新增】明確指定「成功」狀態的樣式
     case '準時':
       statusColorClass = 'bg-green-100'; statusBgColorClass = 'bg-green-500'; statusTextColorClass = 'text-green-800';
       statusIcon = `<svg xmlns="http://www.w3.org/2000/svg" class="h-10 w-10" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" /></svg>`;
-      statusText = '準時報到';
+      statusText = (recordData.status === '準時') ? '準時報到' : '報到成功';
       break;
     case '遲到':
       statusColorClass = 'bg-yellow-100'; statusBgColorClass = 'bg-yellow-500'; statusTextColorClass = 'text-yellow-800';
@@ -322,10 +333,10 @@ function displayCheckInResult(person, recordData) {
       statusIcon = `<svg xmlns="http://www.w3.org/2000/svg" class="h-10 w-10" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.228 9.247a4.998 4.998 0 00-.776 2.343M11.603 16.03a6.002 6.002 0 00.99 1.139M15 14l-3-3m0 0l-3-3m3 3l3 3m0 0l3-3m0 0a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>`;
       statusText = recordData.status;
       break;
-    default: // 一般成功
-      statusColorClass = 'bg-blue-100'; statusBgColorClass = 'bg-blue-500'; statusTextColorClass = 'text-blue-800';
+    default: // 【修改】將預設情況也改為綠色，以處理其他未明確定義的成功狀態
+      statusColorClass = 'bg-green-100'; statusBgColorClass = 'bg-green-500'; statusTextColorClass = 'text-green-800';
       statusIcon = `<svg xmlns="http://www.w3.org/2000/svg" class="h-10 w-10" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" /></svg>`;
-      statusText = '報到成功';
+      statusText = '操作成功'; // 使用更通用的文字
       break;
   }
 
