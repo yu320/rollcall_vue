@@ -83,13 +83,13 @@
     <div class="bg-white rounded-xl shadow-lg p-6 border border-indigo-200">
       <h3 class="text-2xl font-bold text-gray-800 mb-4">快速選擇日期</h3>
       <div v-if="isDatesLoading" class="text-center py-8 text-gray-500">正在載入日期列表...</div>
-      <div v-else-if="savedDates.length > 0" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+      <div v-else-if="savedDates.length > 0" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
         <button v-for="date in savedDates" :key="date.date" @click="selectSavedDate(date.date)" 
-                :class="['text-left p-3 rounded-lg transition', selectedDate === date.date ? 'bg-indigo-600 text-white shadow-md' : 'bg-gray-100 hover:bg-gray-200']">
-          <span class="font-semibold">{{ date.date }}</span>
-          <span class="text-xs block">{{ date.total }} 筆記錄</span>
-          <span class="text-xs block text-yellow-700" v-if="date.late > 0">{{ date.late }} 遲到</span>
-          <span class="text-xs block text-red-700" v-if="date.fail > 0">{{ date.fail }} 失敗</span>
+                :class="['date-card', selectedDate === date.date ? 'date-card-active' : 'date-card-inactive']">
+          <span class="font-semibold text-lg">{{ date.date }}</span>
+          <span class="text-sm block mt-1">{{ date.total }} 筆記錄</span>
+          <span v-if="date.late > 0" class="text-xs block text-yellow-700">({{ date.late }} 遲到)</span>
+          <span v-if="date.fail > 0" class="text-xs block text-red-700">({{ date.fail }} 失敗)</span>
         </button>
       </div>
       <div v-else class="py-8 text-center text-gray-500">
@@ -117,7 +117,7 @@ const today = new Date().toISOString().split('T')[0]; // 獲取今日日期，�
 const selectedDate = ref(today);
 const records = ref([]); // 當前選定日期的所有記錄
 const savedDates = ref([]); // 儲存有記錄的日期及其統計
-const selectedRecords = ref([]); // 被選取的記錄 ID 列表
+const selectedRecords = ref([]); // 被選取的記錄 ID 列表 
 const pagination = ref({
   currentPage: 1,
   pageSize: 25,
@@ -161,19 +161,13 @@ const fetchSavedDates = async () => {
     try {
         // api.fetchAllSavedDatesWithStats() 應該返回包含 created_at, success, status 的記錄
         const dateStats = await api.fetchAllSavedDatesWithStats();
-        const statsMap = {}; // 使用物件作為 Map 實現，以便計算統計
-        
-        dateStats.forEach(record => {
-            const dateStr = formatDateOnly(record.created_at);
-            if (!statsMap[dateStr]) {
-                statsMap[dateStr] = { date: dateStr, total: 0, late: 0, fail: 0 };
-            }
-            statsMap[dateStr].total++;
-            if (record.status === '遲到') statsMap[dateStr].late++;
-            if (!record.success) statsMap[dateStr].fail++; // 只要 success 為 false 都算失敗
-        });
-        // 將物件轉換為陣列並按日期降序排序
-        savedDates.value = Object.values(statsMap).sort((a, b) => b.date.localeCompare(a.date));
+        // 直接使用後端提供的統計數據，而不是重新計算
+        savedDates.value = dateStats.map(stat => ({
+            date: formatDateOnly(stat.created_at),
+            total: stat.total,
+            late: stat.late,
+            fail: stat.fail
+        })).sort((a, b) => b.date.localeCompare(a.date)); // 按日期降序排序
     } catch (error) {
         uiStore.showMessage(`讀取已儲存日期失敗: ${error.message}`, 'error');
     } finally {
@@ -318,3 +312,106 @@ const exportToCSV = () => {
   URL.revokeObjectURL(link.href);
 };
 </script>
+
+<style scoped>
+/* 快速選擇日期卡片樣式 */
+.date-card {
+  @apply p-4 rounded-lg cursor-pointer transition-all duration-200 border-2 text-center flex flex-col justify-between items-center;
+  min-height: 120px; /* 確保卡片有足夠高度 */
+}
+
+.date-card-active {
+  @apply bg-indigo-600 border-indigo-600 text-white shadow-md;
+}
+
+.date-card-inactive {
+  @apply bg-gray-50 hover:bg-gray-100 border-transparent text-gray-800;
+}
+
+/* 確保統計數字和文字在卡片中垂直居中 */
+.date-card span {
+  line-height: 1.4; /* 調整行高讓文字更緊湊 */
+}
+
+.date-card .text-lg {
+  font-weight: 700; /* 日期文字加粗 */
+}
+
+.date-card .text-sm {
+  /* 活躍狀態下的淺色文字，這將由 date-card-active 覆蓋 */
+  color: rgba(255, 255, 255, 0.8); 
+}
+
+.date-card-inactive .text-sm {
+  color: #6b7280; /* 非活躍狀態下的灰色文字 */
+}
+
+/* 針對遲到和失敗的顏色，確保在兩種卡片背景下都清晰 */
+.date-card-active .text-yellow-700 {
+  color: #fcd34d; /* 活躍狀態下遲到用淺黃色 */
+}
+
+.date-card-active .text-red-700 {
+  color: #f87171; /* 活躍狀態下失敗用淺紅色 */
+}
+
+/* 表格響應式樣式 */
+.table-responsive {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+@media (max-width: 640px) {
+  .table-responsive table, .table-responsive thead, .table-responsive tbody, .table-responsive th, .table-responsive td, .table-responsive tr {
+    display: block;
+  }
+
+  .table-responsive thead tr {
+    position: absolute;
+    top: -9999px;
+    left: -9999px;
+  }
+
+  .table-responsive tr {
+    border: 1px solid #e5e7eb;
+    margin-bottom: 1rem;
+    border-radius: 0.75rem;
+    overflow: hidden;
+    box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+    background-color: white;
+  }
+  
+  .table-responsive tr:last-child {
+    margin-bottom: 0;
+  }
+
+  .table-responsive td {
+    border: none;
+    border-bottom: 1px solid #f3f4f6;
+    padding: 0.875rem 1rem;
+    display: grid;
+    grid-template-columns: 35% 1fr;
+    grid-gap: 1rem;
+    align-items: center;
+  }
+
+  .table-responsive tr td:last-child {
+    border-bottom: none;
+  }
+
+  .table-responsive td:before {
+    content: attr(data-label);
+    text-align: left;
+    font-weight: 600;
+    color: #4b5563;
+  }
+
+  .table-responsive td > * {
+    text-align: right;
+  }
+  
+  .table-responsive td > .flex {
+    justify-content: flex-end;
+  }
+}
+</style>
