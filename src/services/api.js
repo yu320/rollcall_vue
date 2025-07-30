@@ -374,16 +374,20 @@ export async function batchDeleteRecords(ids) {
     }
 }
 
-export async function fetchRecentRecords(hours = 24) {
-    const since = new Date(Date.now() - hours * 60 * 60 * 1000).toISOString();
+// 【*** 核心修正 ***】修改函式，讓它可以接收 limit 和 offset
+export async function fetchRecentRecords(limit = 50, offset = 0) {
     const { data, error } = await supabase
         .from('check_in_records')
         .select('*, events(name)')
-        .gte('created_at', since)
-        .order('created_at', { ascending: false });
+        .order('created_at', { ascending: false })
+        .range(offset, offset + limit - 1);
     if (error) throw error;
     return data;
 }
+
+// 【*** 核心修正 ***】移除舊的、基於時間的 fetchPreviousPeriodRecords 函式
+// export async function fetchPreviousPeriodRecords(hours = 24) { ... }
+
 
 export async function fetchAllSavedDatesWithStats() {
     const { data, error } = await supabase.rpc('get_daily_record_stats');
@@ -391,10 +395,7 @@ export async function fetchAllSavedDatesWithStats() {
     return data;
 }
 
-// [FIX] 修正 importCheckinRecords 函數的參數傳遞方式
 export async function importCheckinRecords(importData) {
-    // importData 是一個物件，包含 records, eventId, actionType
-    // RPC 函數 import_checkin_records_with_personnel_creation 預期這些是獨立的參數
     const { records, eventId, actionType } = importData;
     const { data, error } = await supabase.rpc('import_checkin_records_with_personnel_creation', { 
         records_to_import: records, 
@@ -487,11 +488,7 @@ export async function batchUpdateAccounts(accountsToUpdate) {
     const results = [];
     for (const account of accountsToUpdate) {
         try {
-            // Re-use existing updateAccount if it handles all needed fields, otherwise create new logic
-            // For now, let's assume updateAccount in api.js can handle nickname, password, role_id update.
-            // If updateAccount uses a serverless function, it's already calling the backend,
-            // so we just pass the payload directly.
-            const result = await updateAccount(account); // This calls the /api/update-account endpoint
+            const result = await updateAccount(account);
             results.push({ ...result, success: true, email: account.email });
         } catch (error) {
             results.push({ id: account.id, success: false, error: error.message, email: account.email });
