@@ -1,10 +1,12 @@
 // src/store/data.js
+
 import { defineStore } from 'pinia';
 import { ref, computed } from 'vue';
 import * as api from '@/services/api';
 import { useUiStore } from './ui';
 
 export const useDataStore = defineStore('data', () => {
+  // --- Stores ---
   const uiStore = useUiStore();
 
   // --- State ---
@@ -15,164 +17,187 @@ export const useDataStore = defineStore('data', () => {
 
   // --- Getters (as computed properties) ---
   const getPersonnelById = computed(() => {
-    return (id) => personnel.value.find(p => p.id === id);
+    const personnelMap = new Map(personnel.value.map(p => [p.id, p]));
+    return (id) => personnelMap.get(id);
   });
-
+  
   const getEventById = computed(() => {
-    return (id) => events.value.find(e => e.id === id);
+    const eventMap = new Map(events.value.map(e => [e.id, e]));
+    return (id) => eventMap.get(id);
   });
 
-  const getInputColorClass = (input) => {
-    if (!input) return '';
-    const lastChar = input.slice(-1).toLowerCase();
-    if (/\d/.test(lastChar)) {
-        return `code-digit-${lastChar}`;
-    } else if (/[a-z]/.test(lastChar)) {
-        return `code-${lastChar}`;
+  // --- [NEW] Helper function for UI ---
+  /**
+   * 根據輸入字串的第一個字元返回 Tailwind CSS 顏色類別。
+   * @param {string} input - 輸入字串 (學號或卡號)。
+   * @returns {string} - 顏色類別字串。
+   */
+  function getInputColorClass(input) {
+    if (!input || typeof input !== 'string' || input.length === 0) return '';
+    const firstChar = input.charAt(0).toLowerCase();
+    if (/[a-z]/.test(firstChar)) {
+        return `code-${firstChar}`;
+    }
+    if (/[0-9]/.test(firstChar)) {
+        return `code-digit-${firstChar}`;
     }
     return '';
-  };
+  }
 
-  // --- Actions ---
+  // --- Actions for Personnel ---
+
   async function fetchAllPersonnel() {
     try {
-      const data = await api.fetchAllPersonnel();
-      personnel.value = data || [];
+      personnel.value = await api.fetchAllPersonnel();
+      return personnel.value;
     } catch (error) {
       uiStore.showMessage(`讀取人員資料失敗: ${error.message}`, 'error');
-      personnel.value = [];
-    }
-  }
-
-  async function fetchEvents() {
-    try {
-        const data = await api.fetchEvents();
-        events.value = data || [];
-    } catch (error) {
-        uiStore.showMessage(`讀取活動資料失敗: ${error.message}`, 'error');
-        events.value = [];
-    }
-  }
-
-  async function createEvent(eventData) {
-    try {
-      const newEvent = await api.createEvent(eventData);
-      if (newEvent && newEvent.length > 0) {
-        // 將新活動加到列表頂部
-        events.value.unshift(newEvent[0]);
-        await fetchEvents(); // 重新獲取以確保 created_by 等關聯資料正確
-        return newEvent[0];
-      }
-    } catch (error) {
-      uiStore.showMessage(`建立活動失敗: ${error.message}`, 'error');
-      throw error;
-    }
-  }
-
-  async function updateEvent(eventData) {
-    try {
-      const updatedEvent = await api.updateEvent(eventData.id, eventData);
-       if (updatedEvent && updatedEvent.length > 0) {
-        const index = events.value.findIndex(e => e.id === eventData.id);
-        if (index !== -1) {
-          events.value[index] = updatedEvent[0];
-        }
-        await fetchEvents(); // 重新獲取以確保 created_by 等關聯資料正確
-        return updatedEvent[0];
-      }
-    } catch (error) {
-      uiStore.showMessage(`更新活動失敗: ${error.message}`, 'error');
-      throw error;
-    }
-  }
-
-  async function deleteEvent(eventId) {
-    try {
-      await api.deleteEvent(eventId);
-      events.value = events.value.filter(e => e.id !== eventId);
-      uiStore.showMessage('活動已成功刪除', 'success');
-      return true;
-    } catch (error) {
-      uiStore.showMessage(`刪除活動失敗: ${error.message}`, 'error');
-      throw error;
+      return [];
     }
   }
 
   async function savePerson(personData) {
+    const isEditing = !!personData.id;
+    uiStore.setLoading(true);
     try {
-      let savedPerson;
-      if (personData.id) { // Update existing person
-        savedPerson = await api.updatePersonnel(personData.id, personData);
-        const index = personnel.value.findIndex(p => p.id === personData.id);
-        if (index !== -1) {
-          personnel.value[index] = savedPerson;
-        }
-        uiStore.showMessage('人員資料更新成功', 'success');
-      } else { // Create new person
-        savedPerson = await api.createPersonnel(personData);
+      const savedPerson = isEditing
+        ? await api.updatePersonnel(personData.id, personData)
+        : await api.createPersonnel(personData);
+      
+      if (isEditing) {
+        const index = personnel.value.findIndex(p => p.id === savedPerson.id);
+        if (index !== -1) personnel.value[index] = savedPerson;
+      } else {
         personnel.value.push(savedPerson);
-        uiStore.showMessage('人員新增成功', 'success');
       }
+      uiStore.showMessage('人員資料已儲存', 'success');
       return true;
     } catch (error) {
-      uiStore.showMessage(`儲存人員資料失敗: ${error.message}`, 'error');
+      uiStore.showMessage(`儲存人員失敗: ${error.message}`, 'error');
       return false;
+    } finally {
+      uiStore.setLoading(false);
     }
   }
 
   async function batchDeletePersonnel(ids) {
     uiStore.setLoading(true);
     try {
-        await api.batchDeletePersonnel(ids);
-        personnel.value = personnel.value.filter(p => !ids.includes(p.id));
-        uiStore.showMessage(`成功刪除 ${ids.length} 位人員`, 'success');
+      await api.batchDeletePersonnel(ids);
+      personnel.value = personnel.value.filter(p => !ids.includes(p.id));
+      uiStore.showMessage(`已成功刪除 ${ids.length} 位人員`, 'success');
     } catch (error) {
-        uiStore.showMessage(`刪除人員失敗: ${error.message}`, 'error');
+      uiStore.showMessage(`批量刪除人員失敗: ${error.message}`, 'error');
+    } finally {
+      uiStore.setLoading(false);
+    }
+  }
+
+  // --- Actions for Events ---
+
+  async function fetchEvents() {
+    try {
+      events.value = await api.fetchEvents();
+      return events.value;
+    } catch (error) {
+      uiStore.showMessage(`讀取活動資料失敗: ${error.message}`, 'error');
+      return [];
+    }
+  }
+  
+  async function createEvent(eventData) {
+    uiStore.setLoading(true);
+    try {
+        const result = await api.createEvent(eventData);
+        await fetchEvents(); // Re-fetch to get the latest list
+        return result[0]; // Return the created event object
+    } catch (error) {
+        uiStore.showMessage(`建立活動失敗: ${error.message}`, 'error');
+        return null;
+    } finally {
+        uiStore.setLoading(false);
+    }
+  }
+
+  async function updateEvent(eventData) {
+    uiStore.setLoading(true);
+    try {
+        const result = await api.updateEvent(eventData.id, eventData);
+        await fetchEvents(); // Re-fetch to update the list
+        return result[0]; // Return the updated event object
+    } catch (error) {
+        uiStore.showMessage(`更新活動失敗: ${error.message}`, 'error');
+        return null;
     } finally {
         uiStore.setLoading(false);
     }
   }
 
 
-  async function fetchRolesAndPermissions() {
+  async function deleteEvent(id) {
+    uiStore.setLoading(true);
     try {
-        const data = await api.fetchAllRolesAndPermissions();
-        roles.value = data || [];
+      await api.deleteEvent(id);
+      events.value = events.value.filter(e => e.id !== id);
+      uiStore.showMessage('活動已刪除', 'success');
+      return true;
     } catch (error) {
-        uiStore.showMessage(`讀取角色列表失敗: ${error.message}`, 'error');
-        roles.value = [];
+      uiStore.showMessage(`刪除活動失敗: ${error.message}`, 'error');
+      return false;
+    } finally {
+      uiStore.setLoading(false);
     }
   }
+
+  // --- Actions for Roles & Permissions ---
   
-  async function fetchAllPermissions() {
-      try {
-          const data = await api.fetchAllPermissions();
-          permissions.value = data || [];
-      } catch (error) {
-          uiStore.showMessage(`讀取權限列表失敗: ${error.message}`, 'error');
-          permissions.value = [];
-      }
+  async function fetchRolesAndPermissions() {
+    try {
+      roles.value = await api.fetchAllRolesAndPermissions();
+    } catch(error) {
+      uiStore.showMessage(`讀取角色與權限失敗: ${error.message}`, 'error');
+    }
   }
 
+  async function fetchAllPermissions() {
+    try {
+      permissions.value = await api.fetchAllPermissions();
+    } catch(error) {
+      uiStore.showMessage(`讀取所有權限失敗: ${error.message}`, 'error');
+    }
+  }
+
+  async function updateRolePermissions(roleId, permissionIds) {
+    uiStore.setLoading(true);
+    try {
+      await api.updatePermissionsForRole(roleId, permissionIds);
+      await fetchRolesAndPermissions(); // Refresh data after update
+      uiStore.showMessage('權限已更新', 'success');
+    } catch (error) {
+      uiStore.showMessage(`更新權限失敗: ${error.message}`, 'error');
+    } finally {
+      uiStore.setLoading(false);
+    }
+  }
+
+
   return {
-    // State
     personnel,
     events,
     roles,
     permissions,
-    // Getters
     getPersonnelById,
     getEventById,
-    getInputColorClass,
-    // Actions
+    getInputColorClass, // [NEW] Expose the function
     fetchAllPersonnel,
+    savePerson,
+    batchDeletePersonnel,
     fetchEvents,
     createEvent,
     updateEvent,
     deleteEvent,
-    savePerson,
-    batchDeletePersonnel,
     fetchRolesAndPermissions,
     fetchAllPermissions,
+    updateRolePermissions,
   };
 });
