@@ -30,7 +30,7 @@
         </div>
         <div class="flex-shrink-0 flex gap-2">
           <button @click="openModal(event)" class="p-2 text-blue-600 hover:text-blue-800 rounded-full bg-blue-100 hover:bg-blue-200 transition" aria-label="編輯活動">
-            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path></svg>
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002 2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path></svg>
           </button>
           <button @click="confirmDelete(event)" class="p-2 text-red-600 hover:text-red-800 rounded-full bg-red-100 hover:bg-red-200 transition" aria-label="刪除活動">
             <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
@@ -45,53 +45,63 @@
 
     <Modal :show="isModalOpen" @close="closeModal">
       <template #header>{{ isEditing ? '編輯活動' : '新增活動' }}</template>
-      <form @submit.prevent="saveEvent">
-        <div class="mb-4">
-          <label for="eventName" class="block text-sm font-medium text-gray-700">活動名稱</label>
-          <input type="text" id="eventName" v-model="editableEvent.name" required class="w-full mt-1 border rounded-md p-2">
-        </div>
-        <div class="mb-4">
-          <label for="eventStartTime">開始時間</label>
-          <input type="datetime-local" v-model="editableEvent.start_time" required class="w-full mt-1 border rounded-md p-2">
-        </div>
-        <div class="mb-4">
-          <label for="eventEndTime">結束時間 (選填)</label>
-          <input type="datetime-local" v-model="editableEvent.end_time" class="w-full mt-1 border rounded-md p-2">
-        </div>
-        
-        <div class="mb-4">
-          <label class="block text-sm font-medium text-gray-700 mb-2">適用對象</label>
-          <div class="flex gap-4">
-            <label class="flex items-center">
-              <input type="radio" v-model="editableEvent.participant_scope" value="ALL" class="form-radio h-4 w-4 text-indigo-600">
-              <span class="ml-2 text-gray-700">全體人員</span>
-            </label>
-            <label class="flex items-center">
-              <input type="radio" v-model="editableEvent.participant_scope" value="SPECIFIC" class="form-radio h-4 w-4 text-indigo-600">
-              <span class="ml-2 text-gray-700">指定人員</span>
-            </label>
+      <form @submit.prevent="saveEvent" class="flex flex-col h-full">
+        <div class="space-y-4 overflow-y-auto pr-2" style="max-height: 65vh;">
+          <div class="mb-4">
+            <label for="eventName" class="block text-sm font-medium text-gray-700">活動名稱</label>
+            <input type="text" id="eventName" v-model="editableEvent.name" required class="w-full mt-1 border rounded-md p-2">
           </div>
-        </div>
-
-        <div v-if="editableEvent.participant_scope === 'SPECIFIC'" class="border-t pt-4 mt-4">
-          <h4 class="text-lg font-semibold text-gray-800 mb-2">選擇指定人員</h4>
-          <input type="text" v-model="personnelSearchTerm" placeholder="搜尋姓名、學號、卡號、棟別、標籤..." class="w-full border rounded-md p-2 mb-3">
-          <div class="max-h-60 overflow-y-auto border rounded-md p-2 bg-gray-50 space-y-2">
-            <div v-for="person in filteredPersonnel" :key="person.id">
-              <label class="flex items-center p-2 rounded-md hover:bg-gray-100 cursor-pointer">
-                <input type="checkbox" :value="person.id" v-model="selectedParticipantIds" class="h-4 w-4 rounded text-indigo-600">
-                <div class="ml-3">
-                  <p class="font-medium text-gray-800">{{ person.name }} ({{ person.code }})</p>
-                  <p class="text-xs text-gray-500">{{ person.building || '無棟別' }} - {{ (person.tags || []).join(', ') || '無標籤' }}</p>
-                </div>
+          <div class="mb-4">
+            <label for="eventStartTime">開始時間</label>
+            <input type="datetime-local" v-model="editableEvent.start_time" required class="w-full mt-1 border rounded-md p-2">
+          </div>
+          <div class="mb-4">
+            <label for="eventEndTime">結束時間 (選填)</label>
+            <input type="datetime-local" v-model="editableEvent.end_time" class="w-full mt-1 border rounded-md p-2">
+          </div>
+          
+          <div class="mb-4">
+            <label class="block text-sm font-medium text-gray-700 mb-2">適用對象</label>
+            <div class="flex gap-4">
+              <label class="flex items-center">
+                <input type="radio" v-model="editableEvent.participant_scope" value="ALL" class="form-radio h-4 w-4 text-indigo-600">
+                <span class="ml-2 text-gray-700">全體人員</span>
+              </label>
+              <label class="flex items-center">
+                <input type="radio" v-model="editableEvent.participant_scope" value="SPECIFIC" class="form-radio h-4 w-4 text-indigo-600">
+                <span class="ml-2 text-gray-700">指定人員</span>
               </label>
             </div>
-             <p v-if="filteredPersonnel.length === 0" class="text-center text-gray-500 py-4">找不到符合的人員。</p>
           </div>
-          <p class="text-sm text-gray-600 mt-2">已選取 {{ selectedParticipantIds.length }} 位</p>
-        </div>
 
-        <div class="flex justify-end gap-3 mt-6">
+          <div v-if="editableEvent.participant_scope === 'SPECIFIC'" class="border-t pt-4 mt-4">
+            <h4 class="text-lg font-semibold text-gray-800 mb-2">選擇指定人員</h4>
+            <input type="text" v-model="personnelSearchTerm" placeholder="搜尋姓名、學號、卡號、棟別、標籤..." class="w-full border rounded-md p-2 mb-3">
+            
+            <div class="flex justify-between items-center mb-2 px-2">
+              <label class="flex items-center">
+                <input type="checkbox" v-model="selectAllFiltered" class="h-4 w-4 rounded text-indigo-600">
+                <span class="ml-2 text-sm text-gray-600">全選/取消全選 (僅限目前搜尋結果)</span>
+              </label>
+              <span class="text-sm text-gray-600">已選取 {{ selectedParticipantIds.length }} 位</span>
+            </div>
+
+            <div class="max-h-60 overflow-y-auto border rounded-md p-2 bg-gray-50 space-y-2">
+              <div v-for="person in filteredPersonnel" :key="person.id">
+                <label class="flex items-center p-2 rounded-md hover:bg-gray-100 cursor-pointer">
+                  <input type="checkbox" :value="person.id" v-model="selectedParticipantIds" class="h-4 w-4 rounded text-indigo-600">
+                  <div class="ml-3">
+                    <p class="font-medium text-gray-800">{{ person.name }} ({{ person.code }})</p>
+                    <p class="text-xs text-gray-500">{{ person.building || '無棟別' }} - {{ (person.tags || []).join(', ') || '無標籤' }}</p>
+                  </div>
+                </label>
+              </div>
+              <p v-if="filteredPersonnel.length === 0" class="text-center text-gray-500 py-4">找不到符合的人員。</p>
+            </div>
+          </div>
+        </div>
+        
+        <div class="flex justify-end gap-3 mt-auto pt-4 border-t">
           <button type="button" @click="closeModal" class="bg-gray-200 text-gray-800 px-4 py-2 rounded-lg hover:bg-gray-300">取消</button>
           <button type="submit" class="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700">儲存</button>
         </div>
@@ -142,6 +152,28 @@ const filteredPersonnel = computed(() => {
   );
 });
 
+// 【*** 核心修正 2 ***】全選功能的 computed property
+const selectAllFiltered = computed({
+  get() {
+    const filteredIds = new Set(filteredPersonnel.value.map(p => p.id));
+    if (filteredIds.size === 0) return false;
+    // 檢查 filteredIds 中的每個 id 是否都在 selectedParticipantIds 中
+    return [...filteredIds].every(id => selectedParticipantIds.value.includes(id));
+  },
+  set(value) {
+    const filteredIds = filteredPersonnel.value.map(p => p.id);
+    if (value) {
+      // Add all filtered IDs to the selection, avoiding duplicates
+      const newSelection = new Set([...selectedParticipantIds.value, ...filteredIds]);
+      selectedParticipantIds.value = [...newSelection];
+    } else {
+      // Remove all filtered IDs from the selection
+      const filteredIdsSet = new Set(filteredIds);
+      selectedParticipantIds.value = selectedParticipantIds.value.filter(id => !filteredIdsSet.has(id));
+    }
+  }
+});
+
 onMounted(async () => {
   isLoading.value = true;
   uiStore.setLoading(true);
@@ -178,7 +210,7 @@ const openModal = async (event = null) => {
       name: '', 
       start_time: '', 
       end_time: '',
-      participant_scope: 'ALL' // Default to all participants
+      participant_scope: 'ALL'
     };
   }
   isModalOpen.value = true;
@@ -203,13 +235,13 @@ const saveEvent = async () => {
         payload.created_by = currentUser.id;
     }
     
-    // Clean up unnecessary properties before sending to API
     delete payload.profiles;
     delete payload.event_participants;
 
     uiStore.setLoading(true);
     try {
-        const result = await dataStore.saveEvent(payload, selectedParticipantIds.value);
+        const participantIds = payload.participant_scope === 'SPECIFIC' ? selectedParticipantIds.value : [];
+        const result = await dataStore.saveEvent(payload, participantIds);
         if (result) {
             uiStore.showMessage(`活動 "${result.name}" 已成功儲存！`, 'success');
             closeModal();
