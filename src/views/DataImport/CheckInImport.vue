@@ -92,11 +92,11 @@
 
 <script setup>
 import { ref, onMounted } from 'vue';
-import Papa from 'papaparse'; // 【核心修正】引入 PapaParse
+import Papa from 'papaparse'; // 引入 PapaParse
 import { useUiStore } from '@/store/ui';
 import { useDataStore } from '@/store/data';
 import * as api from '@/services/api'; 
-import { formatDateTime, parseFlexibleDateTime, isValidCardNumber, getDeviceId } from '@/utils';
+import { formatDateTime, parseFlexibleDateTime, isValidCardNumber, getDeviceId } from '@/utils'; // 引入 parseFlexibleDateTime
 import { CHECKIN_IMPORT_HEADERS } from '@/utils/constants';
 
 // 獲取 Pinia store 實例
@@ -124,7 +124,7 @@ const handleFileSelect = (event) => {
   selectedEncoding.value = null;
 };
 
-// 【核心修正】處理匯入流程的主函數，改用 PapaParse
+// 處理匯入流程的主函數，改用 PapaParse
 const processImport = async () => {
   if (!selectedFile.value) {
     uiStore.showMessage('請選擇一個 CSV 檔案。', 'info');
@@ -205,22 +205,25 @@ const processImport = async () => {
         return;
       }
 
-      const checkinTime = parseFlexibleDateTime(timestampStr);
-      if (isNaN(checkinTime.getTime())) {
+      // 【核心修改】在傳送給後端前，先在前端解析時間字串為標準 ISO 格式
+      const parsedTime = parseFlexibleDateTime(timestampStr);
+      if (isNaN(parsedTime.getTime())) {
         validationErrors.push(`第 ${index + 2} 行刷卡時間格式無效：'${timestampStr}'。`);
         return;
       }
+      const isoTimestamp = parsedTime.toISOString(); // 轉換為 ISO 8601 格式
 
       const inputType = isValidCardNumber(identifier) ? '卡號' : '學號';
       let person = personnelMapByIdentifier.get(identifier.toLowerCase()) || personnelMapByIdentifier.get(identifier);
 
       let status;
+      // 這裡的 status 判斷邏輯在前端僅用於預覽或部分驗證，最終狀態可能由後端決定
       if (actionType.value === '簽到') {
           status = '成功';
           const eventInfo = selectedEventId.value ? dataStore.events.find(e => e.id === selectedEventId.value) : null;
           if (eventInfo) {
               const eventTime = eventInfo.end_time ? new Date(eventInfo.end_time) : new Date(eventInfo.start_time);
-              status = checkinTime > eventTime ? '遲到' : '準時';
+              status = parsedTime > eventTime ? '遲到' : '準時'; // 使用解析過的時間比較
           }
       } else {
           status = '簽退成功';
@@ -229,7 +232,7 @@ const processImport = async () => {
       recordsToProcess.push({
         name_at_checkin: person ? person.name : name,
         input: identifier,
-        timestamp: timestampStr, // 傳遞原始字串給後端
+        timestamp: isoTimestamp, // 【核心修改】傳遞 ISO 格式的時間字串
         input_type: inputType,
       });
     });
@@ -264,8 +267,9 @@ const processImport = async () => {
     }
 
     uiStore.showMessage('匯入處理完成，請查看下方結果。', 'success');
+    // 重新載入人員資料和日期統計，以反映匯入的變化
     await dataStore.fetchAllPersonnel();
-    await api.fetchAllSavedatesWithStats();
+    await api.fetchAllSavedDatesWithStats();
 
   } catch (error) {
     uiStore.showMessage(`匯入失敗: ${error.message}`, 'error');
