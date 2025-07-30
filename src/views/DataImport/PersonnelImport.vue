@@ -1,73 +1,47 @@
 <template>
-  <div class="max-w-2xl mx-auto bg-white rounded-xl shadow-lg p-6 border border-indigo-200">
-    <h2 class="text-3xl font-bold text-indigo-800 mb-2">匯入簽到記錄</h2>
-    <p class="text-gray-600 mb-6">從外部系統匯入名單，系統將自動比對人員並建立對應的簽到或簽退記錄。</p>
+  <div class="max-w-3xl mx-auto bg-white rounded-xl shadow-lg p-6 border border-indigo-200">
+    <h2 class="text-3xl font-bold text-indigo-800 mb-2">匯入人員資料</h2>
+    <p class="text-gray-600 mb-8">支援從 CSV 檔案批次匯入，或手動貼上資料。系統會根據學號或卡號自動新增或更新人員資料。</p>
     
-    <div class="space-y-6">
-      <!-- Step 1: Select Event -->
-      <div class="p-4 border border-gray-200 rounded-lg">
-        <label for="eventSelector" class="block text-lg font-semibold text-gray-800 mb-2 flex items-center">
-          <span class="bg-indigo-600 text-white rounded-full h-6 w-6 inline-flex items-center justify-center mr-2 text-sm">1</span>
-          選擇關聯活動 (選填)
-        </label>
-        <p class="text-sm text-gray-500 mb-3">將匯入的記錄歸類到特定活動中。</p>
-        <select id="eventSelector" v-model="selectedEventId" class="w-full pl-4 pr-10 py-3 border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-indigo-400">
-          <option :value="null">-- 不關聯任何活動 (通用記錄) --</option>
-          <option v-for="event in dataStore.events" :key="event.id" :value="event.id">{{ event.name }} ({{ formatDateTime(event.start_time, 'yyyy-MM-dd') }})</option>
-        </select>
+    <div class="mb-8 pb-8 border-b border-gray-200">
+      <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4">
+        <h3 class="text-xl font-semibold text-gray-800">1. 從檔案匯入</h3>
+        <a href="#" @click.prevent="downloadSample" class="text-indigo-600 hover:text-indigo-800 font-medium text-sm mt-2 sm:mt-0">下載範例檔</a>
       </div>
-      
-      <!-- Step 2: Select Type -->
-      <div class="p-4 border border-gray-200 rounded-lg">
-        <label class="block text-lg font-semibold text-gray-800 mb-2 flex items-center">
-          <span class="bg-indigo-600 text-white rounded-full h-6 w-6 inline-flex items-center justify-center mr-2 text-sm">2</span>
-          選擇匯入類型
-        </label>
-        <div class="flex justify-center gap-4 mt-2">
-          <label class="inline-flex items-center cursor-pointer p-3 border-2 rounded-lg" :class="actionType === '簽到' ? 'border-indigo-500 bg-indigo-50' : 'border-transparent'">
-            <input type="radio" v-model="actionType" value="簽到" class="form-radio h-5 w-5 text-indigo-600">
-            <span class="ml-2 text-lg font-medium text-gray-800">簽到</span>
-          </label>
-          <label class="inline-flex items-center cursor-pointer p-3 border-2 rounded-lg" :class="actionType === '簽退' ? 'border-indigo-500 bg-indigo-50' : 'border-transparent'">
-            <input type="radio" v-model="actionType" value="簽退" class="form-radio h-5 w-5 text-indigo-600">
-            <span class="ml-2 text-lg font-medium text-gray-800">簽退</span>
-          </label>
-        </div>
-      </div>
-      
-      <!-- Step 3: Upload File -->
-      <div class="p-4 border border-gray-200 rounded-lg">
-        <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-3">
-          <label for="importCheckinFile" class="block text-lg font-semibold text-gray-800 flex items-center">
-            <span class="bg-indigo-600 text-white rounded-full h-6 w-6 inline-flex items-center justify-center mr-2 text-sm">3</span>
-            上傳 CSV 檔案 
-          </label>
-          <a href="#" @click.prevent="downloadSample" class="text-indigo-600 hover:text-indigo-800 font-medium text-sm mt-2 sm:mt-0">下載範例檔</a>
-        </div>
-        <p class="text-gray-500 text-sm mb-3">系統會自動偵測欄位。支援格式：<br>1. <code class="text-xs bg-gray-100 p-1 rounded">姓名,學號/卡號,刷卡時間</code><br>2. <code class="text-xs bg-gray-100 p-1 rounded">姓名,教職員生編號,IC靠卡時間</code></p>
-        <input type="file" id="importCheckinFile" @change="handleFileSelect" accept=".csv" class="w-full text-gray-700 border border-gray-300 rounded-lg p-2 focus:ring-2 focus:ring-indigo-400">
-        <p v-if="selectedFile" class="text-gray-500 text-sm mt-2">已選擇檔案: {{ selectedFile.name }}</p>
-      </div>
+      <input type="file" id="importFile" @change="handleFileSelect" accept=".csv" class="w-full text-gray-700 border border-gray-300 rounded-lg p-2 focus:outline-none focus:ring-2 focus:ring-indigo-400">
+      <p v-if="selectedFile" class="text-gray-500 text-sm mt-2">已選擇檔案: {{ selectedFile.name }}</p>
+      <button @click="importFromFile" :disabled="!selectedFile" class="mt-5 w-full sm:w-auto bg-emerald-600 hover:bg-emerald-700 text-white font-medium py-2 px-6 rounded-lg transition duration-300 flex items-center justify-center shadow-md hover:shadow-lg disabled:bg-gray-400 disabled:cursor-not-allowed">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+        匯入檔案
+      </button>
+    </div>
 
-      <!-- Submit Button -->
-      <div class="text-center pt-2">
-        <button @click="processImport" :disabled="!selectedFile" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3 px-8 rounded-lg text-lg transition shadow-lg hover:shadow-xl disabled:bg-gray-400 disabled:cursor-not-allowed">
-          開始匯入
+    <div class="mb-4">
+      <h3 class="text-xl font-semibold text-gray-800 mb-2">2. 手動輸入</h3>
+      <p class="text-gray-500 text-sm mb-4">每行一筆，格式為：<br><code class="text-xs bg-gray-100 p-1 rounded">姓名,學號,卡號,棟別,"標籤1;標籤2"</code><br>(棟別與標籤為選填，多個標籤請用分號分隔)</p>
+      <textarea v-model="manualInput" rows="10" class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-400 mb-4" placeholder="王大明,A001,11111111,A1,幹部;全職&#10;陳小美,B002,22222222,B2,職員"></textarea>
+      <div class="flex justify-end">
+        <button @click="importFromText" :disabled="!manualInput.trim()" class="w-full sm:w-auto bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-2 px-6 rounded-lg transition duration-300 shadow-md hover:shadow-lg disabled:bg-gray-400 disabled:cursor-not-allowed flex items-center justify-center">
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" /></svg>
+          手動匯入
         </button>
       </div>
     </div>
 
-    <!-- Import Result Section -->
-    <div v-if="importResult" class="mt-8 border-t border-gray-200 pt-6">
+     <div v-if="importResult" class="mt-8 border-t border-gray-200 pt-6">
       <h3 class="text-2xl font-bold text-gray-800 mb-4">匯入結果</h3>
-      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div class="bg-blue-50 p-4 rounded-lg text-center">
+          <p class="text-sm text-blue-700 font-medium">處理總數</p>
+          <p class="text-3xl font-bold text-blue-800">{{ importResult.totalProcessed }}</p>
+        </div>
         <div class="bg-green-50 p-4 rounded-lg text-center">
-          <p class="text-sm text-green-700 font-medium">成功筆數</p>
+          <p class="text-sm text-green-700 font-medium">成功新增</p>
           <p class="text-3xl font-bold text-green-800">{{ importResult.successCount }}</p>
         </div>
-        <div class="bg-blue-50 p-4 rounded-lg text-center">
-          <p class="text-sm text-blue-700 font-medium">自動建立人員</p>
-          <p class="text-3xl font-bold text-blue-800">{{ importResult.autoCreatedCount }}</p>
+         <div class="bg-yellow-50 p-4 rounded-lg text-center">
+          <p class="text-sm text-yellow-700 font-medium">成功更新</p>
+          <p class="text-3xl font-bold text-yellow-800">{{ importResult.updateCount }}</p>
         </div>
         <div class="bg-red-50 p-4 rounded-lg text-center">
           <p class="text-sm text-red-700 font-medium">失敗筆數</p>
@@ -81,74 +55,66 @@
         </ul>
       </div>
     </div>
+
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue';
+import { ref } from 'vue';
+import { useRouter } from 'vue-router'; // 引入 useRouter 以便導入後跳轉
 import { useUiStore } from '@/store/ui';
-import { useDataStore } from '@/store/data';
+import { useDataStore } from '@/store/data'; // 引入 dataStore 以便更新人員資料
 import * as api from '@/services/api'; // 引入 api
-import { formatDateTime, parseFlexibleDateTime, isValidCardNumber, getDeviceId } from '@/utils'; // 引入所需的 utils 函數 
-import { CHECKIN_IMPORT_HEADERS } from '@/utils/constants'; // 引入新常數
+import { PERSONNEL_IMPORT_HEADERS } from '@/utils/constants'; // 引入新常數
 
 const uiStore = useUiStore();
-const dataStore = useDataStore();
+const dataStore = useDataStore(); // 獲取 dataStore 實例
+const router = useRouter(); // 獲取 router 實例
 
-const selectedEventId = ref(null);
-const actionType = ref('簽到'); // 預設匯入類型為 '簽到'
+const manualInput = ref('');
 const selectedFile = ref(null);
 const importResult = ref(null);
 
-onMounted(async () => {
-  // 確保活動列表已載入，供選擇活動使用
-  if (dataStore.events.length === 0) {
-    await dataStore.fetchEvents();
-  }
-});
-
-// 處理檔案選擇
 const handleFileSelect = (event) => {
   selectedFile.value = event.target.files[0];
-  importResult.value = null; // 選擇新檔案時重置匯入結果
+  importResult.value = null; // 重置結果顯示
 };
 
-// 處理匯入流程
-const processImport = async () => {
+const importFromFile = () => {
   if (!selectedFile.value) {
     uiStore.showMessage('請選擇一個 CSV 檔案。', 'info');
     return;
   }
+  const reader = new FileReader();
+  reader.onload = (e) => processImport(e.target.result, 'file'); // 傳遞來源類型
+  reader.onerror = () => uiStore.showMessage('讀取檔案失敗。', 'error');
+  reader.readAsText(selectedFile.value, 'UTF-8'); // 確保使用 UTF-8 讀取
+};
 
-  uiStore.setLoading(true);
-  importResult.value = null; // 清空舊的結果
-
-  let csvText;
-  try {
-    const reader = new FileReader();
-    // 【修改點】明確指定使用 'Big5' 編碼來讀取檔案，解決中文亂碼問題
-    reader.readAsText(selectedFile.value, 'Big5');
-    csvText = await new Promise((resolve, reject) => {
-      reader.onload = (e) => resolve(e.target.result);
-      reader.onerror = (e) => reject(new Error(`讀取檔案失敗: ${e.target.error}`));
-    });
-  } catch (error) {
-    uiStore.showMessage(`檔案讀取失敗: ${error.message}`, 'error');
-    uiStore.setLoading(false);
+const importFromText = () => {
+  const text = manualInput.value.trim();
+  if (!text) {
+    uiStore.showMessage('請輸入要匯入的資料。', 'info');
     return;
   }
+  // 手動輸入也需要模擬 CSV 標頭以便解析器正確工作
+  const dataWithHeader = `姓名,學號,卡號,棟別,標籤\n${text}`; // 這裡的標頭需要與 PERSONNEL_IMPORT_HEADERS 兼容
+  processImport(dataWithHeader, 'manual'); // 傳遞來源類型
+};
+
+const processImport = async (csvText, source) => {
+  uiStore.setLoading(true);
+  importResult.value = null; // 清空舊的結果
 
   try {
     const lines = csvText.split(/\r?\n/).filter(line => line.trim() !== '');
     if (lines.length < 2) { // 至少需要標頭和一條數據
-      throw new Error("CSV 檔案為空或只有標頭。");
+      throw new Error("沒有有效的資料可供匯入，請檢查檔案內容或輸入格式。");
     }
 
-    // 解析 CSV 標頭，移除可能的 BOM 字符 
-    const headerLine = lines[0]..replace(/^\uFEFF/, '').trim();
+    // 解析 CSV 標頭，移除可能的 BOM 
+    const headerLine = lines[0].replace(/^\uFEFF/, '').trim(); 
     const headers = headerLine.split(',').map(h => h.trim().replace(/^"|"$/g, ''));
-    
-    let nameIndex, idIndex, timeIndex;
 
     // 查找實際的標頭索引
     const findHeaderIndex = (possibleNames) => {
@@ -159,156 +125,112 @@ const processImport = async () => {
       return -1; // 如果都沒找到
     };
 
-    nameIndex = findHeaderIndex(CHECKIN_IMPORT_HEADERS.NAME);
-    idIndex = findHeaderIndex(CHECKIN_IMPORT_HEADERS.IDENTIFIER);
-    timeIndex = findHeaderIndex(CHECKIN_IMPORT_HEADERS.TIMESTAMP);
+    const nameIndex = findHeaderIndex(PERSONNEL_IMPORT_HEADERS.NAME);
+    const codeIndex = findHeaderIndex(PERSONNEL_IMPORT_HEADERS.CODE);
+    const cardNumberIndex = findHeaderIndex(PERSONNEL_IMPORT_HEADERS.CARD_NUMBER);
+    const buildingIndex = findHeaderIndex(PERSONNEL_IMPORT_HEADERS.BUILDING);
+    const tagsIndex = findHeaderIndex(PERSONNEL_IMPORT_HEADERS.TAGS);
 
     // 檢查所有必要欄位是否都找到
-    if (nameIndex === -1 || idIndex === -1 || timeIndex === -1) {
-      throw new Error(`CSV 標頭格式不符。請確認檔案包含以下必要欄位之一: 姓名 (${CHECKIN_IMPORT_HEADERS.NAME.join('/')}), 識別碼 (${CHECKIN_IMPORT_HEADERS.IDENTIFIER.join('/')}), 時間 (${CHECKIN_IMPORT_HEADERS.TIMESTAMP.join('/')})。`);
+    if (nameIndex === -1 || codeIndex === -1 || cardNumberIndex === -1) {
+        throw new Error(`CSV 標頭格式不符。請確認檔案包含以下必要欄位之一: 姓名 (${PERSONNEL_IMPORT_HEADERS.NAME.join('/')}), 學號 (${PERSONNEL_IMPORT_HEADERS.CODE.join('/')}), 卡號 (${PERSONNEL_IMPORT_HEADERS.CARD_NUMBER.join('/')})。`);
     }
 
-    const dataLines = lines.slice(1);
-    const recordsToProcess = [];
+    const personnelToProcess = [];
     const validationErrors = [];
 
-    // 確保已載入所有人員資料，用於後續比對
-    if (dataStore.personnel.length === 0) {
-        await dataStore.fetchAllPersonnel();
-    }
-    
-    // 【*** 核心修正：修正打字錯誤 ***】
-    const allPersonnel = dataStore.personnel; 
-    const personnelMapByIdentifier = new Map(); // 正確的變數名稱
-    allPersonnel.forEach(p => {
-        personnelMapByIdentifier.set(p.code.toLowerCase(), p);
-        personnelMapByIdentifier.set(String(p.card_number), p);
-    });
-
-    dataLines.forEach((line, index) => {
-      line = line.trim();
-      if (!line) return;
+    // 從第二行開始解析數據
+    for (let i = 1; i < lines.length; i++) {
+      const line = lines[i].trim();
+      if (!line) continue;
 
       // 使用正則表達式來處理包含逗號的引號包圍的字段
       const parts = line.match(/(".*?"|[^",]+)(?=\s*,|\s*$)/g) || [];
       const cleanedParts = parts.map(p => (p || '').trim().replace(/^"|"$/g, ''));
       
       const name = cleanedParts[nameIndex];
-      const identifier = cleanedParts[idIndex];
-      const timestampStr = cleanedParts[timeIndex];
-
-      // 基礎數據檢查
-      if (!name || !identifier || !timestampStr) {
-        validationErrors.push(`第 ${index + 2} 行資料不完整 (姓名、學號/卡號、刷卡時間為必填)。`);
-        return;
-      }
-
-      const checkinTime = parseFlexibleDateTime(timestampStr); // 使用彈性日期解析函數
-      if (isNaN(checkinTime.getTime())) {
-        validationErrors.push(`第 ${index + 2} 行刷卡時間格式無效：'${timestampStr}'。`);
-        return;
-      }
-
-      const inputType = isValidCardNumber(identifier) ? '卡號' : '學號';
-      let person = personnelMapByIdentifier.get(identifier.toLowerCase()) || personnelMapByIdentifier.get(identifier);
-      if (!person && inputType === '卡號') { // 嘗試用原始大小寫的學號再次尋找，以防 CSV 中大小寫不一致
-          person = personnelMapByIdentifier.get(identifier);
-      }
+      const code = cleanedParts[codeIndex];
+      const cardNumber = cleanedParts[cardNumberIndex];
+      // 棟別和標籤是選填，如果索引為 -1 則為 undefined
+      const building = buildingIndex !== -1 ? cleanedParts[buildingIndex] : null;
+      const tagsStr = tagsIndex !== -1 ? cleanedParts[tagsIndex] : '';
       
-      let status; // 根據類型和活動動態計算狀態
-
-      if (actionType.value === '簽到') {
-          status = '成功';
-          const eventInfo = selectedEventId.value ? dataStore.events.find(e => e.id === selectedEventId.value) : null;
-          if (eventInfo) {
-              const eventTime = eventInfo.end_time ? new Date(eventInfo.end_time) : new Date(eventInfo.start_time);
-              status = checkinTime > eventTime ? '遲到' : '準時';
-          }
-      } else { // 簽退
-          status = '簽退成功';
+      // 簡單驗證必填欄位
+      if (!name || !code || !cardNumber) {
+        validationErrors.push(`第 ${i + 1} 行資料不完整 (姓名、學號、卡號為必填)。`);
+        continue;
+      }
+      // 基礎格式驗證
+      if (!/^[A-Za-z0-9]+$/.test(code)) { // 學號通常是字母數字組合
+          validationErrors.push(`第 ${i + 1} 行學號格式無效 (只允許字母數字)。`);
+          continue;
+      }
+      if (!/^\d+$/.test(cardNumber)) { // 卡號必須是純數字
+          validationErrors.push(`第 ${i + 1} 行卡號格式無效 (只允許數字)。`);
+          continue;
       }
 
-      recordsToProcess.push({
-        created_at: checkinTime.toISOString(),
-        input: identifier,
-        input_type: inputType,
-        success: !!person, // 標記是否找到對應人員
-        name_at_checkin: person ? person.name : name, // 如果找到人員則用人員資料的姓名，否則用 CSV 裡的姓名
-        personnel_id: person ? person.id : null,
-        device_id: getDeviceId(), // 從 utils 獲取設備 ID
-        event_id: selectedEventId.value,
-        status: status,
-        action_type: actionType.value,
-        // 添加原始行數據以幫助錯誤追蹤，但不在最終插入數據中
-        original_line_data: { name, identifier, timestampStr, line_number: index + 2 } 
-      });
-    });
+      const tags = tagsStr ? tagsStr.split(';').map(t => t.trim()).filter(Boolean) : [];
+      personnelToProcess.push({ name, code, card_number: cardNumber, building: building || null, tags });
+    }
 
     if (validationErrors.length > 0) {
-        throw new Error(validationErrors.join('<br>'));
+      throw new Error(validationErrors.join('<br>'));
     }
 
-    if (recordsToProcess.length === 0) {
-        uiStore.showMessage('在檔案中找不到任何有效的資料列。', 'info');
-        return;
+    if (personnelToProcess.length === 0) {
+      uiStore.showMessage('分析後沒有可匯入的新資料。', 'info');
+      return;
     }
-    
-    // 調用 API 的 RPC 函數來處理匯入，包括自動建立人員
-    const formattedRecordsForApi = recordsToProcess.map(r => ({
-        name: r.name_at_checkin,
-        identifier: r.input,
-        timestamp: r.original_line_data.timestampStr, // 傳遞原始時間字串給 Supabase 函數 
-        input_type: r.input_type // 確保傳遞 input_type
-    }));
 
-    const result = await api.importCheckinRecords({
-      records: formattedRecordsForApi,
-      eventId: selectedEventId.value,
-      actionType: actionType.value
-    });
+    // 調用 API 進行批量新增或更新
+    const result = await api.upsertPersonnel(personnelToProcess);
     
-    // 匯入成功後，設置結果並顯示訊息
-    if (result && result.length > 0) {
-        importResult.value = {
-            successCount: result[0].success_count || 0,
-            autoCreatedCount: result[0].auto_created_count || 0,
-            errors: result[0].errors || [],
-        };
+    // 設置結果
+    importResult.value = {
+        totalProcessed: personnelToProcess.length,
+        successCount: result.successCount, // 假設 API 返回成功新增的數量
+        updateCount: result.updateCount,   // 假設 API 返回成功更新的數量
+        errors: result.errors || [],       // 假設 API 返回錯誤列表
+    };
+
+    if (importResult.value.errors.length > 0) {
+        uiStore.showMessage(`匯入完成，但有 ${importResult.value.errors.length} 筆失敗。`, 'warning');
     } else {
-        importResult.value = {
-            successCount: 0,
-            autoCreatedCount: 0,
-            errors: ["RPC 函數返回結果為空或格式不符。"],
-        };
+        uiStore.showMessage(`匯入處理完成！成功新增 ${importResult.value.successCount}, 更新 ${importResult.value.updateCount} 筆。`, 'success');
     }
-
-    uiStore.showMessage('匯入處理完成，請查看下方結果。', 'success');
-
-    // 重新載入人員資料和活動日期統計，以更新相關頁面
+    
+    // 匯入成功後，清空輸入框或檔案選擇
+    if (source === 'manual') manualInput.value = '';
+    if (source === 'file') {
+        selectedFile.value = null;
+        const fileInput = document.getElementById('importFile');
+        if(fileInput) fileInput.value = ''; // 清空檔案輸入框的顯示
+    }
+    
+    // 重新載入人員資料，以便人員管理頁面更新
     await dataStore.fetchAllPersonnel();
-    await api.fetchAllSavedDatesWithStats(); // 更新每日記錄頁面的日期列表
+    // 考慮跳轉到人員管理頁面，但這裡不強制跳轉，讓用戶自行決定
+    // router.push('/personnel'); 
 
   } catch (error) {
     uiStore.showMessage(`匯入失敗: ${error.message}`, 'error');
-    importResult.value = { // 顯示解析或 API 錯誤
-        successCount: 0, autoCreatedCount: 0,
-        errors: [error.message.replace(/<br>/g, ' ')] 
+    importResult.value = { // 顯示解析或 API 錯誤 
+        totalProcessed: 0, successCount: 0, updateCount: 0,
+        errors: [error.message.replace(/<br>/g, ' ')] // 將 <br> 轉換為空格
     };
   } finally {
     uiStore.setLoading(false);
-    selectedFile.value = null; // 清空檔案選擇
-    const fileInput = document.getElementById('importCheckinFile');
-    if(fileInput) fileInput.value = ''; // 清空檔案輸入框的顯示
   }
 };
 
-// 下載範例檔案
 const downloadSample = () => {
-  const csvContent = '姓名,學號/卡號,刷卡時間\n"張小明","A11312011","2025-07-26 09:00:00"\n"李華","1234567899","2025-07-26 09:05:30"';
+  const csvContent = '姓名,學號,卡號,棟別,標籤\n"王大明","A001","11111111","A1","幹部;全職"\n"陳小美","B002","22222222","B2","職員"\n"林志強","C003","33333333","C2",\n"黃雅婷","D004","44444444","D1","實習生;設計部"';
+  // 添加 BOM (Byte Order Mark) 確保 Excel 等軟體打開時中文不亂碼
   const blob = new Blob([`\uFEFF${csvContent}`], { type: 'text/csv;charset=utf-8;' });
   const link = document.createElement('a');
   link.href = URL.createObjectURL(blob);
-  link.download = '簽到匯入範例.csv';
+  link.download = '人員匯入範例.csv';
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);
@@ -316,9 +238,3 @@ const downloadSample = () => {
 };
 </script>
 
-<style scoped>
-/*
-  這個組件的特定樣式。
-  主要的 Tailwind CSS 樣式定義在 `src/assets/styles/tailwind.css` 和 `src/assets/styles/main.css` 中。
-*/
-</style>
