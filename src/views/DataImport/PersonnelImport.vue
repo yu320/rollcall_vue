@@ -145,7 +145,7 @@ const processImport = async () => {
     }
 
     // 解析 CSV 標頭，移除可能的 BOM 字符 
-    const headerLine = lines[0].replace(/^\uFEFF/, '').trim();
+    const headerLine = lines[0]..replace(/^\uFEFF/, '').trim();
     const headers = headerLine.split(',').map(h => h.trim().replace(/^"|"$/g, ''));
     
     let nameIndex, idIndex, timeIndex;
