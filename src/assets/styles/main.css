@@ -277,7 +277,9 @@ input:focus, textarea:focus, select:focus {
 }
 
 .status-badge[data-status*="失敗"],
-.status-badge[data-status*="異常"] {
+.status-badge[data-status*="異常"],
+.status-badge[data-status="查無此人"], /* Added styling for "查無此人" */
+.status-badge[data-status="活動查無此人"] /* Added styling for "活動查無此人" */ {
     background-color: var(--error-light);
     color: var(--error-color);
 }
@@ -630,4 +632,3 @@ input:focus, textarea:focus, select:focus {
     from { transform: rotate(0deg); }
     to { transform: rotate(360deg); }
 }
-
