@@ -6,7 +6,21 @@ export default {
     "./src/**/*.{vue,js,ts,jsx,tsx}",
   ],
   theme: {
-    extend: {},
+    extend: {
+      colors: {
+        'custom-air-force-blue': '#598392',
+        'custom-ash-gray': '#aec3b0',
+        'custom-midnight-green': '#124559',
+        'custom-rich-black': '#01161e',
+        'custom-beige': '#eff6e0',
+      },
+    },
+  },
+  variants: {
+    extend: {
+      backgroundColor: ['group-hover'],
+      textColor: ['group-hover'],
+    },
   },
   plugins: [],
 }
