@@ -1,8 +1,28 @@
 <template>
-  <div v-if="authStore.isLoggedIn" class="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
+  <!-- 
+    最外層的容器，只有在使用者登入後才顯示。
+    min-h-screen: 確保容器至少佔據整個視窗高度。
+    bg-gradient-to-br from-blue-50 to-indigo-100: 設定頁面背景的漸變色。
+    overflow-x-hidden: 【重要】隱藏任何超出容器水平範圍的內容，防止頁面出現水平滾動條或被拉伸。
+  -->
+  <div v-if="authStore.isLoggedIn" class="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 overflow-x-hidden">
+    <!-- 應用程式的頂部導覽列 -->
     <AppHeader />
+    <!-- 應用程式的主要導覽列 (頁籤) -->
     <AppNav />
+    
+    <!-- 
+      主要內容區域。
+      id="mainContent": 用於識別主內容區塊。
+      container mx-auto px-4 py-8: 設定容器寬度、水平置中、左右內邊距和上下內邊距。
+    -->
     <main id="mainContent" class="container mx-auto px-4 py-8">
+      <!-- 
+        Vue Router 的路由視圖，用於顯示當前匹配的組件。
+        v-slot="{ Component }": 獲取當前路由匹配的組件實例。
+        <transition name="fade" mode="out-in">: 為路由切換添加淡入淡出動畫。
+        <keep-alive>: 緩存組件實例，避免重複渲染，提升效能。
+      -->
       <router-view v-slot="{ Component }">
         <transition name="fade" mode="out-in">
           <keep-alive>
@@ -11,6 +31,8 @@
         </transition>
       </router-view>
     </main>
+    
+    <!-- 頁腳版權資訊 -->
     <footer class="bg-gray-800 py-5 mt-10 shadow-inner">
         <div class="container mx-auto px-4 text-center text-gray-400 text-sm">
             &copy; Copyright &copy; 2025 Hong. All rights Reserved
@@ -18,12 +40,22 @@
     </footer>
   </div>
 
+  <!-- 
+    如果使用者未登入 (authStore.isLoggedIn 為 false)，則只顯示路由視圖。
+    這通常用於顯示登入頁面。
+  -->
   <router-view v-else></router-view>
 
+  <!-- 全局載入遮罩，根據 uiStore.isLoading 狀態顯示 -->
   <LoadingOverlay />
+  <!-- 全局訊息提示框，根據 uiStore.messages 顯示 -->
   <MessageBox />
 
-  <!-- Personal Profile / Change Password Modal -->
+  <!-- 
+    個人資料修改/密碼變更彈窗。
+    :show="isProfileModalOpen": 控制彈窗的顯示與隱藏。
+    @close="closeProfileModal": 監聽彈窗的關閉事件。
+  -->
   <Modal :show="isProfileModalOpen" @close="closeProfileModal">
     <template #header>修改個人資料</template>
     <form @submit.prevent="handleUpdateProfile" class="p-6">
@@ -48,7 +80,11 @@
     </form>
   </Modal>
 
-  <!-- Global Confirmation Modal -->
+  <!-- 
+    全局確認彈窗，用於需要使用者確認的操作。
+    :show="uiStore.confirmation.visible": 控制彈窗的顯示與隱藏。
+    @close="uiStore.handleCancel": 監聽彈窗的關閉事件，觸發取消操作。
+  -->
   <Modal :show="uiStore.confirmation.visible" @close="uiStore.handleCancel">
     <template #header>{{ uiStore.confirmation.title }}</template>
     <p class="text-gray-700 mb-6 text-lg">{{ uiStore.confirmation.body }}</p>
@@ -66,7 +102,10 @@
     </div>
   </Modal>
 
-  <!-- Inactivity Warning Modal (Vue version of the HTML one) -->
+  <!-- 
+    閒置警告彈窗。
+    當使用者長時間未操作時，會彈出此視窗提醒即將登出。
+  -->
   <Transition name="modal-fade">
     <div v-if="isWarningModalOpen" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[1001]">
       <div class="bg-white rounded-xl shadow-2xl w-full max-w-md mx-4 overflow-hidden transform transition-all duration-300" 
@@ -90,100 +129,104 @@
 
 <script setup>
 import { ref, reactive, onMounted, onUnmounted, watch } from 'vue';
-import { useAuthStore } from '@/store/auth';
-import { useUiStore } from '@/store/ui';
-import AppHeader from '@/components/AppHeader.vue';
-import AppNav from '@/components/AppNav.vue';
-import LoadingOverlay from '@/components/LoadingOverlay.vue';
-import MessageBox from '@/components/MessageBox.vue';
-import Modal from '@/components/Modal.vue';
-import { INACTIVITY_LOGOUT_TIME, INACTIVITY_WARNING_TIME } from '@/utils/constants'; // Import constants
+import { useAuthStore } from '@/store/auth'; // 引入認證狀態管理 Pinia Store
+import { useUiStore } from '@/store/ui';     // 引入 UI 狀態管理 Pinia Store
+import AppHeader from '@/components/AppHeader.vue';         // 引入應用程式頁首組件
+import AppNav from '@/components/AppNav.vue';               // 引入應用程式導覽列組件
+import LoadingOverlay from '@/components/LoadingOverlay.vue'; // 引入載入遮罩組件
+import MessageBox from '@/components/MessageBox.vue';         // 引入訊息提示框組件
+import Modal from '@/components/Modal.vue';                 // 引入通用彈窗組件
+import { INACTIVITY_LOGOUT_TIME, INACTIVITY_WARNING_TIME } from '@/utils/constants'; // 引入常數
 
+// 獲取 Pinia Store 實例
 const authStore = useAuthStore();
 const uiStore = useUiStore();
 
-// State for the personal profile modal
-const isProfileModalOpen = ref(false); // Renamed from isChangePasswordModalOpen
-const profileData = reactive({ // Renamed from passwords
+// --- 個人資料修改彈窗的狀態變數 ---
+const isProfileModalOpen = ref(false); // 控制個人資料修改彈窗的顯示與隱藏
+const profileData = reactive({         // 用於表單綁定的個人資料（暱稱、新密碼、確認密碼）
   nickname: '',
   newPassword: '',
   confirmPassword: ''
 });
-const errors = reactive({
+const errors = reactive({              // 用於密碼驗證的錯誤訊息
   weak: '',
   mismatch: ''
 });
 
-// Inactivity timers and warning modal
-let logoutTimer = null;
-let warningTimer = null;
-let countdownInterval = null; // For the countdown display
-const isWarningModalOpen = ref(false); // Controls visibility of the warning modal
-const inactivityCountdown = ref(INACTIVITY_WARNING_TIME / 1000); // Initial countdown value
-const isInteractionLocked = ref(false); // NEW: Controls if background activity can reset timers
+// --- 閒置計時器和警告彈窗的狀態變數 ---
+let logoutTimer = null;         // 自動登出計時器
+let warningTimer = null;        // 閒置警告計時器
+let countdownInterval = null;   // 警告彈窗中的倒數計時器
+const isWarningModalOpen = ref(false); // 控制閒置警告彈窗的顯示與隱藏
+const inactivityCountdown = ref(INACTIVITY_WARNING_TIME / 1000); // 警告倒數的初始值
+const isInteractionLocked = ref(false); // 控制當警告彈窗顯示時，是否鎖定背景活動來重置計時器
 
-
+/**
+ * 重置所有閒置計時器。
+ * 只有在互動未被鎖定（即警告彈窗未開啟）時才執行重置。
+ */
 const resetTimers = () => {
-    // Only reset if interaction is not locked (i.e., warning modal is NOT open)
+    // 如果互動被鎖定 (警告彈窗已開啟)，則忽略任何活動，不重置計時器
     if (isInteractionLocked.value) {
-        // console.log('[App.vue] Interaction locked, ignoring activity.'); // Debugging: Confirming it ignores
         return; 
     }
 
-    // console.log('[App.vue] Resetting timers...'); // Keep for debugging
+    // 清除所有現有的計時器和倒數
     clearTimeout(logoutTimer);
     clearTimeout(warningTimer);
-    clearInterval(countdownInterval); // Clear countdown
-    isWarningModalOpen.value = false; // Ensure warning modal is closed
-    inactivityCountdown.value = INACTIVITY_WARNING_TIME / 1000; // Reset countdown
+    clearInterval(countdownInterval); 
+    isWarningModalOpen.value = false; // 確保警告彈窗關閉
+    inactivityCountdown.value = INACTIVITY_WARNING_TIME / 1000; // 重置倒數計時
 
-    // Set the logout timer
+    // 設定自動登出計時器
     logoutTimer = setTimeout(() => {
-        if (authStore.isLoggedIn) {
-            console.log('[App.vue] Logout timer triggered. Attempting logout...'); // Keep for debugging
-            authStore.logout();
+        if (authStore.isLoggedIn) { // 確保使用者仍然登入中
+            authStore.logout(); // 執行登出操作
         }
     }, INACTIVITY_LOGOUT_TIME);
 
-    // Set the warning timer (triggers before logout)
+    // 設定閒置警告計時器 (在自動登出前觸發)
     const timeUntilWarning = INACTIVITY_LOGOUT_TIME - INACTIVITY_WARNING_TIME;
-    // console.log(`[App.vue] Warning set to trigger in ${timeUntilWarning / 1000} seconds.`); // Keep for debugging
-
-    // Ensure timeUntilWarning is non-negative
+    
+    // 確保警告時間間隔為非負數
     if (timeUntilWarning >= 0) {
         warningTimer = setTimeout(() => {
-            if (authStore.isLoggedIn && !isWarningModalOpen.value) { // Ensure warning is not already open
-                console.log('[App.vue] Warning timer triggered. Showing warning modal...'); // Keep for debugging
-                isWarningModalOpen.value = true; // Open the warning modal
-                isInteractionLocked.value = true; // NEW: Lock interaction when warning is shown
-
-                // Start countdown inside modal
+            // 只有在使用者登入且警告彈窗未開啟時才顯示警告
+            if (authStore.isLoggedIn && !isWarningModalOpen.value) {
+                isWarningModalOpen.value = true; // 開啟警告彈窗
+                isInteractionLocked.value = true; // 【重要】鎖定互動，防止背景活動重置計時器
+                
+                // 開始警告彈窗內的倒數計時
                 countdownInterval = setInterval(() => {
                     if (inactivityCountdown.value > 0) {
                         inactivityCountdown.value--;
                     } else {
-                        clearInterval(countdownInterval);
+                        clearInterval(countdownInterval); // 倒數結束時清除計時器
                     }
                 }, 1000);
             }
         }, timeUntilWarning); 
     } else {
-        console.warn('[App.vue] INACTIVITY_WARNING_TIME is greater than INACTIVITY_LOGOUT_TIME. Warning will not be shown.');
+        console.warn('[App.vue] INACTIVITY_WARNING_TIME 大於 INACTIVITY_LOGOUT_TIME。警告將不會顯示。');
     }
 };
 
-// Activity event listeners
+/**
+ * 設定活動事件監聽器，用於監測使用者活動並重置計時器。
+ */
 const setupActivityListeners = () => {
-    //console.log('[App.vue] Setting up activity listeners.'); // Keep for debugging
-    window.addEventListener('mousemove', resetTimers);
-    window.addEventListener('mousedown', resetTimers);
-    window.addEventListener('keypress', resetTimers);
-    window.addEventListener('scroll', resetTimers);
-    window.addEventListener('touchstart', resetTimers); // For touch devices
+    window.addEventListener('mousemove', resetTimers);   // 滑鼠移動
+    window.addEventListener('mousedown', resetTimers);   // 滑鼠點擊
+    window.addEventListener('keypress', resetTimers);    // 鍵盤輸入
+    window.addEventListener('scroll', resetTimers);      // 滾動頁面
+    window.addEventListener('touchstart', resetTimers);  // 觸控螢幕觸摸
 };
 
+/**
+ * 移除所有活動事件監聽器。
+ */
 const removeActivityListeners = () => {
-    //console.log('[App.vue] Removing activity listeners.'); // Keep for debugging
     window.removeEventListener('mousemove', resetTimers);
     window.removeEventListener('mousedown', resetTimers);
     window.removeEventListener('keypress', resetTimers);
@@ -191,70 +234,77 @@ const removeActivityListeners = () => {
     window.removeEventListener('touchstart', resetTimers);
 };
 
-// Handle "Stay Logged In" button click inside the warning modal
+/**
+ * 處理警告彈窗中「繼續留在此頁」按鈕點擊事件。
+ * 重置計時器並關閉警告彈窗。
+ */
 const handleStayLoggedIn = () => {
-    //console.log('[App.vue] User chose to stay logged in. Resetting timers...'); // Keep for debugging
-    isInteractionLocked.value = false; // NEW: Unlock interaction
-    resetTimers(); // User clicks "保持登入", reset timers and close modal
+    isInteractionLocked.value = false; // 解鎖互動，允許背景活動重置計時器
+    resetTimers(); // 重置計時器並關閉彈窗
 };
 
-// Handle "Logout Now" button click inside the warning modal
+/**
+ * 處理警告彈窗中「立即登出」按鈕點擊事件。
+ * 強制登出使用者。
+ */
 const handleLogoutNow = () => {
-    //console.log('[App.vue] User chose to logout now. Initiating logout process...'); // Keep for debugging
-    clearTimeout(logoutTimer); // Clear pending automatic logout
-    clearInterval(countdownInterval); // Clear countdown
-    isWarningModalOpen.value = false; // Close the warning modal immediately
-    isInteractionLocked.value = false; // NEW: Unlock interaction
+    clearTimeout(logoutTimer);      // 清除自動登出計時器
+    clearInterval(countdownInterval); // 清除倒數計時
+    isWarningModalOpen.value = false; // 立即關閉警告彈窗
+    isInteractionLocked.value = false; // 解鎖互動
 
-    // Call authStore.logout to perform actual logout and redirection
-    // authStore.logout handles its own loading state, messages, and redirection.
+    // 呼叫認證 Store 的登出方法，執行實際的登出和頁面跳轉
     authStore.logout()
-        .then(() => {
-            //console.log('[App.vue] authStore.logout() resolved successfully. User should be redirected.');
-        })
         .catch(error => {
-            console.error('[App.vue] authStore.logout() rejected with error:', error);
+            console.error('[App.vue] authStore.logout() 發生錯誤:', error);
             uiStore.showMessage(`登出失敗: ${error.message}`, 'error');
         });
 };
 
-// Listen for auth state changes to start/stop timers
+// 監聽認證狀態 (isLoggedIn) 的變化，以啟動或停止閒置計時器
 watch(() => authStore.isLoggedIn, (newVal) => {
-    if (newVal) {
-        //console.log('[App.vue] User logged in. Starting timers.'); // Keep for debugging
-        setupActivityListeners();
-        resetTimers(); // Start timers on login
-    } else {
-        //console.log('[App.vue] User logged out. Stopping timers.'); // Keep for debugging
-        removeActivityListeners();
-        clearTimeout(logoutTimer);
+    if (newVal) { // 如果使用者登入
+        setupActivityListeners(); // 設定活動監聽器
+        resetTimers();            // 啟動計時器
+    } else {      // 如果使用者登出
+        removeActivityListeners(); // 移除活動監聽器
+        clearTimeout(logoutTimer);   // 清除所有計時器
         clearTimeout(warningTimer);
-        clearInterval(countdownInterval); // Clear countdown
-        isWarningModalOpen.value = false; // Ensure warning modal is closed
-        isInteractionLocked.value = false; // NEW: Ensure interaction is unlocked on logout
+        clearInterval(countdownInterval);
+        isWarningModalOpen.value = false; // 確保警告彈窗關閉
+        isInteractionLocked.value = false; // 確保互動解鎖
     }
-}, { immediate: true }); // Run immediately on mount to set initial state
+}, { immediate: true }); // 在組件掛載時立即執行一次，以設定初始狀態
 
-
-// Personal Profile Modal Logic
-const openProfileModal = () => { // Renamed from openChangePasswordModal
-    // Populate profile data with current user's nickname
+// --- 個人資料修改彈窗的邏輯 ---
+/**
+ * 開啟個人資料修改彈窗。
+ */
+const openProfileModal = () => {
+    // 用當前使用者暱稱填充表單，並清空密碼欄位
     profileData.nickname = authStore.user?.nickname || '';
     profileData.newPassword = '';
     profileData.confirmPassword = '';
-    Object.assign(errors, { weak: '', mismatch: '' });
-    isProfileModalOpen.value = true;
+    Object.assign(errors, { weak: '', mismatch: '' }); // 清空所有錯誤訊息
+    isProfileModalOpen.value = true; // 顯示彈窗
 };
 
-const closeProfileModal = () => { // Renamed from closeChangePasswordModal
-    isProfileModalOpen.value = false;
+/**
+ * 關閉個人資料修改彈窗。
+ */
+const closeProfileModal = () => {
+    isProfileModalOpen.value = false; // 隱藏彈窗
 };
 
-const handleUpdateProfile = async () => { // Renamed from handleChangePassword
-    Object.assign(errors, { weak: '', mismatch: '' });
+/**
+ * 處理個人資料更新的表單提交。
+ */
+const handleUpdateProfile = async () => {
+    Object.assign(errors, { weak: '', mismatch: '' }); // 清空錯誤訊息
     let isValid = true;
 
-    if (profileData.newPassword) { // Only validate password if a new one is provided
+    // 僅在新密碼有輸入時才進行密碼驗證
+    if (profileData.newPassword) {
         if (profileData.newPassword.length < 6) {
             errors.weak = '新密碼長度至少需要6位';
             isValid = false;
@@ -265,27 +315,28 @@ const handleUpdateProfile = async () => { // Renamed from handleChangePassword
         }
     }
 
-    if (!isValid) return;
+    if (!isValid) return; // 如果驗證失敗，則停止執行
 
-    // Call authStore to update profile
+    // 呼叫認證 Store 的方法來更新個人資料
     const success = await authStore.updateUserProfile(profileData.nickname, profileData.newPassword);
     if (success) {
-        closeProfileModal();
+        closeProfileModal(); // 更新成功後關閉彈窗
     }
 };
 
-// Listen for the custom event dispatched from AppHeader (for opening profile modal)
+// 在組件掛載時，監聽來自 AppHeader 的自定義事件，以開啟個人資料修改彈窗
 onMounted(() => {
-    window.addEventListener('open-profile-modal', openProfileModal); // Renamed event
+    window.addEventListener('open-profile-modal', openProfileModal);
 });
 
+// 在組件卸載時，移除事件監聽器，防止記憶體洩漏
 onUnmounted(() => {
-    window.removeEventListener('open-profile-modal', openProfileModal); // Renamed event
+    window.removeEventListener('open-profile-modal', openProfileModal);
 });
 </script>
 
 <style>
-/* CSS transition for Vue's <transition name="modal-fade"> */
+/* Vue Transition 的 CSS 過渡效果 (用於彈窗的淡入淡出) */
 .modal-fade-enter-active,
 .modal-fade-leave-active {
   transition: opacity 0.3s ease;
@@ -296,8 +347,7 @@ onUnmounted(() => {
   opacity: 0;
 }
 
-/* CSS for the modal card's transform transition (when used with <Transition name="modal-fade"> directly on the outer div) */
-/* This ensures the scale/opacity transition works for the modal content as well */
+/* 彈窗卡片本身的變形過渡效果 */
 .modal-fade-enter-active > div,
 .modal-fade-leave-active > div {
   transition: transform 0.3s ease-out, opacity 0.3s ease-out;
