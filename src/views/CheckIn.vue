@@ -1,6 +1,5 @@
 <template>
   <div class="max-w-2xl mx-auto">
-    <!-- 主要簽到卡片 -->
     <div class="bg-white rounded-xl shadow-lg p-8 border-2 border-dashed border-gray-300">
       <div class="text-center mb-8">
         <svg xmlns="http://www.w3.org/2000/svg" class="h-16 w-16 mx-auto text-indigo-500 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -10,7 +9,6 @@
         <p class="text-gray-500 mt-2">請將學生證放置於刷卡機或是手動輸入學號進行報到</p>
       </div>
 
-      <!-- 簽到/簽退模式選擇 -->
       <div class="mb-6 flex justify-center gap-4">
         <label class="inline-flex items-center cursor-pointer p-3 border-2 rounded-lg" :class="checkinMode === '簽到' ? 'border-indigo-500 bg-indigo-50' : 'border-transparent'">
           <input type="radio" v-model="checkinMode" value="簽到" class="form-radio h-5 w-5 text-indigo-600">
@@ -22,7 +20,6 @@
         </label>
       </div>
 
-      <!-- 活動選擇 -->
       <div class="mb-6">
         <label for="eventSelector" class="block text-sm font-medium text-gray-700 mb-2">選擇活動</label>
         <select id="eventSelector" v-model="selectedEventId" class="w-full pl-4 pr-10 py-3 border border-gray-300 rounded-lg text-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white">
@@ -34,7 +31,6 @@
         </select>
       </div>
 
-      <!-- 輸入框與按鈕 -->
       <form @submit.prevent="handleCheckIn">
         <div class="relative">
           <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-gray-400 absolute left-4 top-1/2 -translate-y-1/2" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
@@ -42,13 +38,14 @@
           </svg>
           <input v-model="checkinInput" type="text" id="checkInInput" class="w-full pl-14 pr-4 py-4 border border-gray-300 rounded-lg text-lg focus:outline-none focus:ring-2 focus:ring-indigo-500" placeholder="輸入學號/卡號">
         </div>
-        <button type="submit" class="mt-6 w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-4 px-4 rounded-lg text-lg transition duration-300 ease-in-out transform hover:scale-105">
+        <button type="submit" class="mt-6 w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-4 px-4 rounded-lg text-lg transition duration-300 ease-in-out transform hover:scale-105 flex items-center justify-center">
+          <svg v-if="checkinMode === '簽到'" xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" /></svg>
+          <svg v-else xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
           {{ checkinButtonText }}
         </button>
       </form>
     </div>
 
-    <!-- 報到結果顯示 -->
     <div v-if="checkInResult" class="bg-white rounded-xl shadow-lg overflow-hidden border border-gray-200 mt-8">
       <div :class="checkInResult.statusColorClass" class="px-6 py-4 text-center">
         <div class="check-in-animation inline-flex items-center justify-center w-16 h-16 rounded-full text-white mb-4" :class="checkInResult.statusBgColorClass">
@@ -66,7 +63,6 @@
       </div>
     </div>
 
-    <!-- 今日暫存記錄 -->
     <div class="mt-10">
       <div class="flex flex-col sm:flex-row justify-between items-center mb-6 gap-4">
         <h3 class="text-2xl font-bold text-gray-800">今日暫存記錄 ({{ tempRecords.length }} 筆)</h3>
@@ -111,7 +107,7 @@
                 <td data-label="活動" class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{{ getEventName(record.event_id) }}</td>
                 <td data-label="裝置ID" class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 truncate" style="max-width: 150px;">{{ record.device_id || '—' }}</td>
                 <td data-label="操作" class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                  <button @click="handleDeleteTempRecord(record.id)" class="text-gray-400 hover:text-red-600" aria-label="刪除此筆暫存記錄">
+                  <button @click="handleDeleteTempRecord(record.id)" class="text-gray-400 hover:text-red-600 p-1 rounded-full hover:bg-red-100" aria-label="刪除此筆暫存記錄">
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm4 0a1 1 0 012 0v6a1 1 0 11-2 0V8z" clip-rule="evenodd" /></svg>
                   </button>
                 </td>
