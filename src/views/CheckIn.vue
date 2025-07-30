@@ -128,13 +128,12 @@
 </template>
 
 <script setup>
-import { ref, onMounted, computed } from 'vue';
+import { ref, onMounted, computed, nextTick } from 'vue';// <--- 在這裡加上 nextTick
 import { useDataStore } from '@/store/data';
 import { useUiStore } from '@/store/ui';
 import * as api from '@/services/api';
 import { formatDateTime, isValidCardNumber, getDeviceId } from '@/utils';
 import { isPast, parseISO } from 'date-fns';
-import { ref, onMounted, computed, nextTick } from 'vue'; // <--- 在這裡加上 nextTick
 
 // --- Pinia Stores ---
 const dataStore = useDataStore();
