@@ -31,18 +31,43 @@
         </select>
       </div>
 
-      <form @submit.prevent="handleCheckIn">
-        <div class="relative">
-          <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-gray-400 absolute left-4 top-1/2 -translate-y-1/2" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M10 6H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
-          </svg>
-          <input v-model="checkinInput" type="text" id="checkInInput" class="w-full pl-14 pr-4 py-4 border border-gray-300 rounded-lg text-lg focus:outline-none focus:ring-2 focus:ring-indigo-500" placeholder="輸入學號/卡號">
-        </div>
-        <button type="submit" class="mt-6 w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-4 px-4 rounded-lg text-lg transition duration-300 ease-in-out transform hover:scale-105">
-          {{ checkinButtonText }}
-        </button>
-      </form>
-    </div>
+<form @submit.prevent="handleCheckIn">
+  <div class="relative">
+    <!-- 學生證 SVG Icon -->
+    <svg xmlns="http://www.w3.org/2000/svg"
+         class="h-6 w-6 absolute left-4 top-1/2 -translate-y-1/2 transition-colors"
+         :class="hasError ? 'text-red-500' : 'text-gray-400'"
+         fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+      <path stroke-linecap="round" stroke-linejoin="round"
+            d="M10 6H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
+    </svg>
+
+    <!-- 輸入欄 -->
+    <input
+      v-model="checkinInput"
+      ref="checkinField"
+      type="text"
+      id="checkInInput"
+      class="w-full pl-14 pr-4 py-4 rounded-lg text-lg border transition-all focus:outline-none focus:ring-2"
+      :class="hasError
+        ? 'border-red-500 ring-red-300 animate-shake'
+        : 'border-gray-300 focus:ring-indigo-500'"
+      placeholder="輸入學號/卡號"
+      :disabled="isLoading"
+    />
+  </div>
+
+  <!-- 送出按鈕 -->
+  <button
+    type="submit"
+    class="mt-6 w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-4 px-4 rounded-lg text-lg transition duration-300 ease-in-out transform hover:scale-105 disabled:opacity-50"
+    :disabled="isLoading"
+  >
+    <span v-if="isLoading">處理中...</span>
+    <span v-else>{{ checkinButtonText }}</span>
+  </button>
+</form>
+
 
     <div v-if="checkInResult" class="bg-white rounded-xl shadow-lg overflow-hidden border border-gray-200 mt-8">
       <div :class="checkInResult.statusColorClass" class="px-6 py-4 text-center">
