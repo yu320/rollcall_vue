@@ -1,6 +1,8 @@
 // src/utils/index.js
 
 import { format, parse } from 'date-fns';
+import { zhTW } from 'date-fns/locale'; // 【新增】引入繁體中文語系
+import { DATETIME_PARSE_FORMATS } from '@/utils/constants'; // 【新增】引入日期時間解析格式常數
 
 /**
  * 通用輔助函數模組
@@ -15,7 +17,8 @@ import { format, parse } from 'date-fns';
 export function formatDateTime(dateInput, formatString = 'yyyy-MM-dd HH:mm:ss') {
     if (!dateInput) return '';
     try {
-        return format(new Date(dateInput), formatString);
+        // 【修改點】在格式化時也傳入語系，確保本地化表現正確
+        return format(new Date(dateInput), formatString, { locale: zhTW });
     } catch (e) {
         console.error("Invalid date for formatting:", dateInput);
         return '無效日期';
@@ -44,26 +47,25 @@ export function formatDate(date) {
 export function parseFlexibleDateTime(dateTimeStr) {
     if (!dateTimeStr) return new Date(NaN);
 
-    const formats = [
-        'yyyy-MM-dd HH:mm:ss',
-        'yyyy/MM/dd HH:mm:ss',
-        'yyyy-MM-dd HH:mm',
-        'yyyy/MM/dd HH:mm',
-        'yyyy-MM-dd',
-        'yyyy/MM/dd',
-        'MM-dd-yyyy HH:mm:ss',
-        'MM/dd/yyyy HH:mm:ss',
-        'MM-dd-yyyy HH:mm',
-        'MM/dd/yyyy HH:mm',
-        'MM-dd-yyyy',
-        'MM/dd/yyyy',
-        // 可以根據實際需要添加更多格式
-    ];
+    // 【新增邏輯】處理中文「上午」和「下午」
+    // 將中文的「下午」轉換為標準的 PM，將「上午」轉換為 AM
+    let processedDateTimeString = String(dateTimeStr) // 確保是字串，以防傳入數字等非字串類型
+        .replace(/下午\s*/g, 'PM ')
+        .replace(/上午\s*/g, 'AM ');
+    
+    // 【修改點】使用從 constants.js 引入的格式陣列
+    const formats = DATETIME_PARSE_FORMATS; 
 
     for (const fmt of formats) {
-        const parsedDate = parse(dateTimeStr, fmt, new Date());
-        if (!isNaN(parsedDate.getTime())) {
-            return parsedDate;
+        try {
+            // 【修改點】在解析時傳入語系，以支援本地化字串（如 AM/PM）的解析
+            const parsedDate = parse(processedDateTimeString, fmt, new Date(), { locale: zhTW });
+            if (!isNaN(parsedDate.getTime())) {
+                return parsedDate;
+            }
+        } catch (e) {
+            // 如果解析失敗，繼續嘗試下一個格式
+            // console.warn(`解析失敗: "${processedDateTimeString}" 使用格式 "${fmt}"`); // 可選：用於除錯
         }
     }
     return new Date(NaN); // 如果所有格式都無法解析，返回無效日期
