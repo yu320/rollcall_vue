@@ -44,6 +44,16 @@
         <p class="text-gray-500 text-sm mb-3">系統會自動偵測欄位。支援格式：<br>1. <code class="text-xs bg-gray-100 p-1 rounded">姓名,學號/卡號,刷卡時間</code><br>2. <code class="text-xs bg-gray-100 p-1 rounded">姓名,教職員生編號,IC靠卡時間</code></p>
         <input type="file" id="importCheckinFile" @change="handleFileSelect" accept=".csv" class="w-full text-gray-700 border border-gray-300 rounded-lg p-2 focus:ring-2 focus:ring-indigo-400">
         <p v-if="selectedFile" class="text-gray-500 text-sm mt-2">已選擇檔案: {{ selectedFile.name }}</p>
+        
+        <div class="mt-4">
+          <label for="encodingSelector" class="block text-sm font-medium text-gray-700 mb-1">選擇檔案編碼(請看說明)</label>
+          <select id="encodingSelector" v-model="selectedEncoding" class="w-full pl-4 pr-10 py-2 border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-indigo-400">
+            <option value="UTF-8">UTF-8 (推薦/範例檔)</option>
+            <option value="Big5">Big5 (繁體中文/雲科單一匯出的)</option>
+            <option value="GBK">GBK (簡體中文)</option>
+            <option value="ISO-8859-1">ISO-8859-1 (西方語言)</option>
+          </select>
+        </div>
       </div>
 
       <div class="text-center pt-2">
@@ -96,6 +106,7 @@ const selectedEventId = ref(null); // 選定的活動 ID，預設為 null (不�
 const actionType = ref('簽到'); // 預設匯入類型為 '簽到'
 const selectedFile = ref(null); // 已選擇的檔案
 const importResult = ref(null); // 匯入結果，用於顯示成功、自動建立、失敗筆數等
+const selectedEncoding = ref('UTF-8'); // 新增檔案編碼選擇，預設為 UTF-8
 
 // 組件掛載後執行
 onMounted(async () => {
@@ -124,8 +135,8 @@ const processImport = async () => {
   let csvText;
   try {
     const reader = new FileReader();
-    // 使用 'Big5' 編碼讀取檔案，解決中文亂碼問題
-    reader.readAsText(selectedFile.value, 'Big5');
+    // 【修改點】使用使用者選擇的編碼來讀取檔案，解決中文亂碼問題
+    reader.readAsText(selectedFile.value, selectedEncoding.value);
     csvText = await new Promise((resolve, reject) => {
       reader.onload = (e) => resolve(e.target.result); // 檔案讀取成功
       reader.onerror = (e) => reject(new Error(`讀取檔案失敗: ${e.target.error}`)); // 檔案讀取失敗
@@ -178,7 +189,6 @@ const processImport = async () => {
         await dataStore.fetchAllPersonnel();
     }
     
-    // 【核心修正】: 直接使用 dataStore.personnel，不加 .value，Pinia state 已經是響應式的
     const allPersonnel = dataStore.personnel; 
     const personnelMapByIdentifier = new Map(); // 建立一個 Map，用於快速查找人員
     allPersonnel.forEach(p => {
@@ -310,7 +320,7 @@ const processImport = async () => {
 
 // 下載範例檔案
 const downloadSample = () => {
-  // CSV 內容，包含 BOM (\uFEFF) 以確保 Excel 正確顯示中文
+  // 始終在範例檔案中提供 UTF-8 BOM，因為這對 Excel 和其他帶有中文字元的工具最兼容
   const csvContent = '姓名,學號/卡號,刷卡時間\n"張小明","A11312011","2025-07-26 09:00:00"\n"李華","1234567899","2025-07-26 09:05:30"';
   const blob = new Blob([`\uFEFF${csvContent}`], { type: 'text/csv;charset=utf-8;' });
   const link = document.createElement('a');
