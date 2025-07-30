@@ -3,7 +3,6 @@
     <h2 class="text-3xl font-bold text-indigo-800 mb-2">匯入人員資料</h2>
     <p class="text-gray-600 mb-8">支援從 CSV 檔案批次匯入，或手動貼上資料。系統會根據學號或卡號自動新增或更新人員資料。</p>
     
-    <!-- CSV File Import Section -->
     <div class="mb-8 pb-8 border-b border-gray-200">
       <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4">
         <h3 class="text-xl font-semibold text-gray-800">1. 從檔案匯入</h3>
@@ -12,24 +11,24 @@
       <input type="file" id="importFile" @change="handleFileSelect" accept=".csv" class="w-full text-gray-700 border border-gray-300 rounded-lg p-2 focus:outline-none focus:ring-2 focus:ring-indigo-400">
       <p v-if="selectedFile" class="text-gray-500 text-sm mt-2">已選擇檔案: {{ selectedFile.name }}</p>
       <button @click="importFromFile" :disabled="!selectedFile" class="mt-5 w-full sm:w-auto bg-emerald-600 hover:bg-emerald-700 text-white font-medium py-2 px-6 rounded-lg transition duration-300 flex items-center justify-center shadow-md hover:shadow-lg disabled:bg-gray-400 disabled:cursor-not-allowed">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
         匯入檔案
       </button>
     </div>
 
-    <!-- Manual Input Section -->
     <div class="mb-4">
       <h3 class="text-xl font-semibold text-gray-800 mb-2">2. 手動輸入</h3>
       <p class="text-gray-500 text-sm mb-4">每行一筆，格式為：<br><code class="text-xs bg-gray-100 p-1 rounded">姓名,學號,卡號,棟別,"標籤1;標籤2"</code><br>(棟別與標籤為選填，多個標籤請用分號分隔)</p>
       <textarea v-model="manualInput" rows="10" class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-400 mb-4" placeholder="王大明,A001,11111111,A1,幹部;全職&#10;陳小美,B002,22222222,B2,職員"></textarea>
       <div class="flex justify-end">
-        <button @click="importFromText" :disabled="!manualInput.trim()" class="w-full sm:w-auto bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-2 px-6 rounded-lg transition duration-300 shadow-md hover:shadow-lg disabled:bg-gray-400 disabled:cursor-not-allowed">
+        <button @click="importFromText" :disabled="!manualInput.trim()" class="w-full sm:w-auto bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-2 px-6 rounded-lg transition duration-300 shadow-md hover:shadow-lg disabled:bg-gray-400 disabled:cursor-not-allowed flex items-center justify-center">
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" /></svg>
           手動匯入
         </button>
       </div>
     </div>
 
-     <!-- Import Result Section -->
-    <div v-if="importResult" class="mt-8 border-t border-gray-200 pt-6">
+     <div v-if="importResult" class="mt-8 border-t border-gray-200 pt-6">
       <h3 class="text-2xl font-bold text-gray-800 mb-4">匯入結果</h3>
       <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <div class="bg-blue-50 p-4 rounded-lg text-center">
@@ -204,7 +203,7 @@ const processImport = async (csvText, source) => {
 
   } catch (error) {
     uiStore.showMessage(`匯入失敗: ${error.message}`, 'error');
-    importResult.value = { // 顯示解析或 API 錯誤
+    importResult.value = { // 顯示解析或 API 錯誤 
         totalProcessed: 0, successCount: 0, updateCount: 0,
         errors: [error.message.replace(/<br>/g, ' ')] // 將 <br> 轉換為空格
     };
