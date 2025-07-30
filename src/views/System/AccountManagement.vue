@@ -140,7 +140,7 @@ import { ref, onMounted, computed, reactive } from 'vue'; // 引入 reactive
 import { useUiStore } from '@/store/ui';
 import { useAuthStore } from '@/store/auth';
 import { useDataStore } from '@/store/data';
-import * => from '@/services/api';
+import * as api from '@/services/api';
 import Modal from '@/components/Modal.vue';
 import { DEFAULT_EMAIL_DOMAIN, USER_ROLE_NAMES } from '@/utils/constants';
 
