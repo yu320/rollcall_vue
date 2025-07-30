@@ -205,3 +205,4 @@ export function createSummaryCard(title, value, iconName, changeData = null) {
         </div>
     `;
 }
+
