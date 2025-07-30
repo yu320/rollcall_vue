@@ -43,7 +43,7 @@
           </div>
         </div>
         <div v-else class="text-center py-10 flex-grow flex items-center justify-center">
-            <p class="text-gray-500">最近 24 小時內沒有任何活動記錄。</p>
+            <p class="text-gray-500">最近沒有任何活動記錄。</p>
         </div>
         <div v-if="!isLoading && recentRecords.length > 0 && recentRecordsPagination.totalPages > 1" class="p-4 border-t flex justify-center items-center space-x-4 text-sm">
             <button @click="recentRecordsPagination.currentPage--" :disabled="recentRecordsPagination.currentPage === 1" class="px-3 py-1 border rounded-md disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-100 transition">
@@ -134,6 +134,7 @@ const isLoading = ref(true);
 
 const summaryCards = ref([]);
 const recentRecords = ref([]);
+const COMPARISON_EVENTS_COUNT = 3; // 【*** 核心修正 ***】定義比較的活動數量
 
 const recentRecordsPagination = ref({
     currentPage: 1,
@@ -210,14 +211,17 @@ onMounted(async () => {
   uiStore.setLoading(true);
 
   try {
-    const [_, __, records] = await Promise.all([
+    // 【*** 核心修正 ***】抓取足夠多的紀錄來分析
+    const [_, __, allRecentRecords] = await Promise.all([
       dataStore.fetchAllPersonnel(),
       dataStore.fetchEvents(),
-      api.fetchRecentRecords(24 * 7)
+      api.fetchRecentRecords(500, 0), // 抓取最新的 500 筆記錄以確保包含足夠的活動
     ]);
-    
-    recentRecords.value = records || [];
-    generateSummary();
+
+    // 將記錄分組並傳遞給 summary 產生器
+    const { currentPeriodRecords, previousPeriodRecords } = groupRecordsByEvent(allRecentRecords, COMPARISON_EVENTS_COUNT);
+    recentRecords.value = currentPeriodRecords;
+    generateSummary(currentPeriodRecords, previousPeriodRecords);
 
   } catch (error) {
     uiStore.showMessage(`無法載入總覽資訊: ${error.message}`, 'error');
@@ -227,19 +231,69 @@ onMounted(async () => {
   }
 });
 
-const generateSummary = () => {
+// 【*** 核心修正 ***】新增一個函式來根據活動分組記錄
+const groupRecordsByEvent = (allRecords, eventCount) => {
+    if (!allRecords || allRecords.length === 0) {
+        return { currentPeriodRecords: [], previousPeriodRecords: [] };
+    }
+    
+    // 找出所有不重複的活動 ID，並記錄每個活動的最新時間
+    const eventLastActivity = {};
+    allRecords.forEach(record => {
+        if (record.event_id) {
+            const recordTime = new Date(record.created_at).getTime();
+            if (!eventLastActivity[record.event_id] || recordTime > eventLastActivity[record.event_id]) {
+                eventLastActivity[record.event_id] = recordTime;
+            }
+        }
+    });
+
+    // 根據最新活動時間排序活動 ID
+    const sortedEventIds = Object.keys(eventLastActivity).sort((a, b) => eventLastActivity[b] - eventLastActivity[a]);
+
+    // 選取本期和前期的活動 ID
+    const currentEventIds = new Set(sortedEventIds.slice(0, eventCount));
+    const previousEventIds = new Set(sortedEventIds.slice(eventCount, eventCount * 2));
+
+    // 根據活動 ID 過濾記錄
+    const currentPeriodRecords = allRecords.filter(r => currentEventIds.has(r.event_id));
+    const previousPeriodRecords = allRecords.filter(r => previousEventIds.has(r.event_id));
+
+    return { currentPeriodRecords, previousPeriodRecords };
+};
+
+
+// 【*** 核心修正 ***】更新 generateSummary 來接收分好組的記錄
+const generateSummary = (currentPeriodRecords, previousPeriodRecords) => {
     const personnelCount = dataStore.personnel.length;
     const eventCount = dataStore.events.length;
-    const checkInToday = recentRecords.value.filter(r => r.action_type === '簽到').length;
-    const checkOutToday = recentRecords.value.filter(r => r.action_type === '簽退').length;
+    
+    const checkInCurrent = currentPeriodRecords.filter(r => r.action_type === '簽到').length;
+    const checkOutCurrent = currentPeriodRecords.filter(r => r.action_type === '簽退').length;
+
+    const checkInPrevious = previousPeriodRecords.filter(r => r.action_type === '簽到').length;
+    const checkOutPrevious = previousPeriodRecords.filter(r => r.action_type === '簽退').length;
+
+    const calculateChange = (current, previous) => {
+        if (previous === 0) {
+            return { absolute: current, percentage: current > 0 ? 100 : 0 };
+        }
+        const absolute = current - previous;
+        const percentage = (absolute / previous) * 100;
+        return { absolute, percentage };
+    };
+
+    const checkInChange = calculateChange(checkInCurrent, checkInPrevious);
+    const checkOutChange = calculateChange(checkOutCurrent, checkOutPrevious);
 
     summaryCards.value = [
         createSummaryCard('總人員數', personnelCount, 'users'),
         createSummaryCard('總活動數', eventCount, 'calendar'),
-        createSummaryCard('近期簽到人次', checkInToday, 'user-check'),
-        createSummaryCard('近期簽退人次', checkOutToday, 'user-minus'),
+        createSummaryCard(`簽到人次 (最近${COMPARISON_EVENTS_COUNT}場活動)`, checkInCurrent, 'user-check', checkInChange),
+        createSummaryCard(`簽退人次 (最近${COMPARISON_EVENTS_COUNT}場活動)`, checkOutCurrent, 'user-minus', checkOutChange),
     ];
 };
+
 
 const getActionTypeClass = (actionType) => {
     if(actionType === '簽到') {
@@ -341,7 +395,7 @@ const downloadChart = (chartInstance, baseFilename) => {
     return;
   }
   
-  const timestamp = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
+  const timestamp = new Date().toISOString().slice(0, 10);
   const filename = `總覽_${baseFilename}_${timestamp}.png`;
 
   const link = document.createElement('a');
