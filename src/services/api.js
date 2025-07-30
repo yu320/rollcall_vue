@@ -1,4 +1,4 @@
-import supabase from './supabase';
+import { supabase } from './supabase';
 import { getStartOfToday, getEndOfToday } from '@/utils';
 
 // --- Personnel ---
@@ -61,7 +61,6 @@ export const bulkInsertPersonnel = async (personnel) => {
 
 // --- Events ---
 export const getEvents = async () => {
-  // [FIX] Removed problematic join with 'profiles' table
   const { data, error } = await supabase
     .from('events')
     .select('*')
@@ -71,7 +70,6 @@ export const getEvents = async () => {
 };
 
 export const getEventById = async (id) => {
-  // [FIX] Removed problematic join with 'profiles' table
   const { data, error } = await supabase
     .from('events')
     .select('*')
@@ -82,7 +80,6 @@ export const getEventById = async (id) => {
 };
 
 export const addEvent = async (event) => {
-  // [FIX] Removed problematic join with 'profiles' table
   const { data, error } = await supabase
     .from('events')
     .insert(event)
@@ -93,7 +90,6 @@ export const addEvent = async (event) => {
 };
 
 export const updateEvent = async (id, updates) => {
-  // [FIX] Removed problematic join with 'profiles' table
   const { data, error } = await supabase
     .from('events')
     .update(updates)
