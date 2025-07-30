@@ -16,67 +16,87 @@
           <option value="code_desc">依學號排序 (Z-A)</option>
         </select>
          <select v-model.number="pagination.pageSize" class="w-full sm:w-auto border rounded-lg px-4 py-2 bg-white focus:ring-2 focus:ring-indigo-400">
-          <option value="10">每頁 10 筆</option>
-          <option value="25">每頁 25 筆</option>
-          <option value="50">每頁 50 筆</option>
+          <option value="12">每頁 12 筆</option>
+          <option value="24">每頁 24 筆</option>
+          <option value="48">每頁 48 筆</option>
         </select>
         <button @click="openModal()" class="w-full sm:w-auto bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-2 px-6 rounded-lg shadow-sm transition">新增人員</button>
       </div>
     </div>
     
     <!-- Batch Actions Bar -->
-    <div v-if="selectedPersonnel.length > 0" class="mb-4 p-3 bg-indigo-50 border border-indigo-200 rounded-lg flex items-center gap-4">
+    <div v-if="selectedPersonnel.length > 0" class="mb-4 p-3 bg-indigo-50 border border-indigo-200 rounded-lg flex flex-wrap items-center gap-4">
         <span class="text-sm font-medium text-indigo-800">{{ selectedPersonnel.length }} 位已選取</span>
-        <button @click="confirmBatchDelete" class="bg-red-600 hover:bg-red-700 text-white font-medium py-1 px-3 rounded-lg text-sm shadow-sm transition">
-          刪除選取
-        </button>
-        <button @click="openBatchAddTagsModal" class="bg-blue-600 hover:bg-blue-700 text-white font-medium py-1 px-3 rounded-lg text-sm transition shadow-sm">
-          批量增加標籤
-        </button>
-        <button @click="exportSelectedPersonnelData" class="bg-emerald-600 hover:bg-emerald-700 text-white font-medium py-1 px-3 rounded-lg text-sm transition shadow-sm">
-            匯出選取
-        </button>
+        <div class="flex items-center gap-2 flex-wrap">
+            <button @click="confirmBatchDelete" class="bg-red-600 hover:bg-red-700 text-white font-medium py-1 px-3 rounded-lg text-sm shadow-sm transition">
+              刪除選取
+            </button>
+            <button @click="openBatchAddTagsModal" class="bg-blue-600 hover:bg-blue-700 text-white font-medium py-1 px-3 rounded-lg text-sm transition shadow-sm">
+              批量增加標籤
+            </button>
+            <button @click="exportSelectedPersonnelData" class="bg-emerald-600 hover:bg-emerald-700 text-white font-medium py-1 px-3 rounded-lg text-sm transition shadow-sm">
+                匯出選取
+            </button>
+        </div>
     </div>
 
-
-    <!-- Personnel Table -->
+    <!-- Personnel Cards -->
     <div v-if="isLoading" class="text-center py-12">
       <div class="animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-indigo-500 mx-auto"></div>
       <p class="mt-4 text-gray-600">正在載入人員資料...</p>
     </div>
-    <div v-else-if="sortedPersonnel.length > 0" class="overflow-x-auto table-responsive border border-gray-200 rounded-lg">
-      <table class="min-w-full divide-y divide-gray-200">
-        <thead class="bg-gray-50">
-          <tr>
-            <th class="px-4 py-3 w-12"><input type="checkbox" v-model="selectAll" class="h-4 w-4 text-indigo-600 rounded"></th>
-            <th class="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">姓名</th>
-            <th class="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">學號</th>
-            <th class="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">卡號</th>
-            <th class="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">棟別</th>
-            <th class="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">標籤</th>
-            <th class="px-6 py-3 text-right text-xs font-semibold text-gray-600 uppercase tracking-wider">操作</th>
-          </tr>
-        </thead>
-        <tbody class="bg-white divide-y divide-gray-100">
-          <tr v-for="person in paginatedPersonnel" :key="person.id" class="hover:bg-gray-50">
-            <td data-label="選取" class="px-4 py-4"><input type="checkbox" :value="person.id" v-model="selectedPersonnel" class="h-4 w-4 text-indigo-600 rounded"></td>
-            <td data-label="姓名" class="px-6 py-4 font-medium text-gray-900">{{ person.name }}</td>
-            <td data-label="學號" class="px-6 py-4 text-gray-800">{{ person.code }}</td>
-            <td data-label="卡號" class="px-6 py-4 text-gray-800">{{ person.card_number }}</td>
-            <td data-label="棟別" class="px-6 py-4 text-gray-600">{{ person.building || '-' }}</td>
-            <td data-label="標籤" class="px-6 py-4">
-              <div v-if="person.tags && person.tags.length" class="flex flex-wrap gap-1">
-                <span v-for="tag in person.tags" :key="tag" class="bg-yellow-100 text-yellow-800 text-xs font-semibold px-2 py-0.5 rounded-full">{{ tag }}</span>
+    <div v-else-if="sortedPersonnel.length > 0">
+        <div class="flex items-center mb-4">
+            <input type="checkbox" v-model="selectAll" id="selectAllCheckbox" class="h-4 w-4 text-indigo-600 rounded mr-2">
+            <label for="selectAllCheckbox" class="text-sm text-gray-600">全選本頁</label>
+        </div>
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+            <div v-for="person in paginatedPersonnel" :key="person.id" 
+                 class="person-card bg-white rounded-lg shadow-md overflow-hidden transition-all duration-300 hover:shadow-xl flex flex-col justify-between"
+                 :class="{ 'ring-2 ring-indigo-500': isSelected(person.id) }">
+              
+              <div>
+                <div class="bg-purple-100 px-5 py-3 border-b border-purple-200">
+                    <h3 class="text-lg font-bold text-purple-800 truncate">{{ person.name }}</h3>
+                </div>
+                <div class="p-4 space-y-3">
+                    <div class="bg-green-50 p-3 rounded-lg">
+                        <div class="flex items-center text-sm text-green-800 font-semibold">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" /></svg>
+                            <span class="ml-2">學號</span>
+                        </div>
+                        <p class="font-mono text-xl mt-1 ml-1 tracking-wider" :class="dataStore.getInputColorClass(person.code)">{{ person.code }}</p>
+                    </div>
+                    <div class="bg-blue-50 p-3 rounded-lg">
+                        <div class="flex items-center text-sm text-blue-800 font-semibold">
+                             <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M3 4a1 1 0 011-1h12a1 1 0 011 1v12a1 1 0 01-1-1H4a1 1 0 01-1-1V4zm3 2a1 1 0 011-1h6a1 1 0 110 2H7a1 1 0 01-1-1zm1 4a1 1 0 100 2h4a1 1 0 100-2H7z" clip-rule="evenodd" /></svg>
+                            <span class="ml-2">卡號</span>
+                        </div>
+                        <p class="text-gray-900 font-mono text-xl mt-1 ml-1 tracking-wider">{{ person.card_number }}</p>
+                    </div>
+                    <div class="bg-teal-50 p-3 rounded-lg">
+                        <div class="flex items-center text-sm text-teal-800 font-semibold">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 2a1 1 0 011 1v1h-2V3a1 1 0 011-1zM5 5a1 1 0 011-1h8a1 1 0 011 1v1H5V5zm0 2h10v9a1 1 0 01-1 1H6a1 1 0 01-1-1V7zm2 2a1 1 0 100 2h6a1 1 0 100-2H7z" clip-rule="evenodd" /></svg>
+                            <span class="ml-2">棟別</span>
+                        </div>
+                        <p class="text-gray-900 font-mono text-xl mt-1 ml-1 tracking-wider">{{ person.building || '-' }}</p>
+                    </div>
+                    <div class="pt-2">
+                        <p class="text-sm font-medium text-gray-500 mb-2">標籤:</p>
+                        <div v-if="person.tags && person.tags.length" class="flex flex-wrap gap-2">
+                            <span v-for="tag in person.tags" :key="tag" class="bg-yellow-200 text-yellow-800 text-xs font-medium px-2.5 py-1 rounded-full">{{ tag }}</span>
+                        </div>
+                        <span v-else class="text-gray-400">-</span>
+                    </div>
+                </div>
               </div>
-              <span v-else class="text-gray-400">-</span>
-            </td>
-            <td data-label="操作" class="px-6 py-4 text-right flex justify-end items-center gap-2">
-              <button @click="openModal(person)" class="text-indigo-600 hover:text-indigo-800 p-1 rounded-full transition-colors" :aria-label="'編輯 ' + person.name"><svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg></button>
-              <button @click="confirmDelete(person)" class="text-red-600 hover:text-red-800 p-1 rounded-full transition-colors" :aria-label="'刪除 ' + person.name"><svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg></button>
-            </td>
-          </tr>
-        </tbody>
-      </table>
+              <div class="px-4 pb-4 pt-2 flex justify-end items-center gap-4">
+                <input type="checkbox" :value="person.id" v-model="selectedPersonnel" class="personnel-checkbox h-5 w-5 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500" @click.stop>
+                <button @click.stop="openModal(person)" class="edit-btn text-indigo-600 hover:text-indigo-800 p-1 rounded-full transition-colors" :aria-label="'編輯人員 ' + person.name"><svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg></button>
+                <button @click.stop="confirmDelete(person)" class="delete-btn text-red-600 hover:text-red-800 p-1 rounded-full transition-colors" :aria-label="'刪除人員 ' + person.name"><svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg></button>
+              </div>
+            </div>
+        </div>
     </div>
     <div v-else class="text-center py-12 text-gray-500">
       <p>找不到符合條件的人員，或尚未新增任何人員。</p>
@@ -165,7 +185,7 @@ const filters = ref({
 
 const pagination = ref({
     currentPage: 1,
-    pageSize: 10,
+    pageSize: 12, // 預設每頁顯示 12 筆，以符合卡片網格佈局
     totalPages: 1,
 });
 
@@ -239,6 +259,8 @@ watch(() => pagination.value.pageSize, () => {
     pagination.value.currentPage = 1;
     pagination.value.totalPages = Math.ceil(sortedPersonnel.value.length / pagination.value.pageSize);
 });
+
+const isSelected = (id) => selectedPersonnel.value.includes(id);
 
 const selectAll = computed({
     get: () => {
@@ -377,9 +399,7 @@ const exportSelectedPersonnelData = () => {
 };
 </script>
 
-
 <style scoped>
-/* Style to match the old project's card shadow and hover effect */
 .person-card {
   box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
 }
