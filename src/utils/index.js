@@ -1,8 +1,8 @@
 // src/utils/index.js
 
 import { format, parse } from 'date-fns';
-import { zhTW } from 'date-fns/locale'; // 【新增】引入繁體中文語系
-import { DATETIME_PARSE_FORMATS } from '@/utils/constants'; // 【新增】引入日期時間解析格式常數
+import { zhTW } from 'date-fns/locale';
+import { DATETIME_PARSE_FORMATS } from '@/utils/constants';
 
 /**
  * 通用輔助函數模組
@@ -17,7 +17,6 @@ import { DATETIME_PARSE_FORMATS } from '@/utils/constants'; // 【新增】引�
 export function formatDateTime(dateInput, formatString = 'yyyy-MM-dd HH:mm:ss') {
     if (!dateInput) return '';
     try {
-        // 【修改點】在格式化時也傳入語系，確保本地化表現正確
         return format(new Date(dateInput), formatString, { locale: zhTW });
     } catch (e) {
         console.error("Invalid date for formatting:", dateInput);
@@ -39,7 +38,7 @@ export function formatDate(date) {
 }
 
 /**
- * [NEW] 彈性解析日期時間字串。
+ * 彈性解析日期時間字串。
  * 嘗試多種常見的日期時間格式進行解析。
  * @param {string} dateTimeStr - 日期時間字串。
  * @returns {Date} - 解析後的 Date 物件。
@@ -47,18 +46,24 @@ export function formatDate(date) {
 export function parseFlexibleDateTime(dateTimeStr) {
     if (!dateTimeStr) return new Date(NaN);
 
-    // 【新增邏輯】處理中文「上午」和「下午」
-    // 將中文的「下午」轉換為標準的 PM，將「上午」轉換為 AM
-    let processedDateTimeString = String(dateTimeStr) // 確保是字串，以防傳入數字等非字串類型
-        .replace(/下午\s*/g, 'PM ')
-        .replace(/上午\s*/g, 'AM ');
+    let processedDateTimeString = String(dateTimeStr)
+        .replace(/下午\s*/g, 'PM ') // 將中文的「下午」轉換為標準的 PM
+        .replace(/上午\s*/g, 'AM '); // 將中文的「上午」轉換為標準的 AM
     
-    // 【修改點】使用從 constants.js 引入的格式陣列
-    const formats = DATETIME_PARSE_FORMATS; 
+    // NEW: 處理 AM/PM 標記出現在時間之前的格式
+    // 例如： "2025/6/5 PM 06:34:01" 轉換為 "2025/6/5 06:34:01 PM"
+    const potentialAmPmBeforeTime = processedDateTimeString.match(/(.*?)(\s+(AM|PM)\s+)(\d{1,2}(:\d{2}){1,2}(?:\.\d+)?.*)/i);
+    if (potentialAmPmBeforeTime) {
+        const [, datePart, , amPmMarker, timePartAndRest] = potentialAmPmBeforeTime;
+        processedDateTimeString = `${datePart.trim()} ${timePartAndRest.trim()} ${amPmMarker.trim()}`;
+        // 移除可能產生的多餘空格
+        processedDateTimeString = processedDateTimeString.replace(/\s+/g, ' ').trim();
+    }
+
+    const formats = DATETIME_PARSE_FORMATS;
 
     for (const fmt of formats) {
         try {
-            // 【修改點】在解析時傳入語系，以支援本地化字串（如 AM/PM）的解析
             const parsedDate = parse(processedDateTimeString, fmt, new Date(), { locale: zhTW });
             if (!isNaN(parsedDate.getTime())) {
                 return parsedDate;
@@ -73,7 +78,7 @@ export function parseFlexibleDateTime(dateTimeStr) {
 
 
 /**
- * [NEW] 檢查是否為有效的卡號 (純數字)。
+ * 檢查是否為有效的卡號 (純數字)。
  * @param {string} cardNumber - 卡號字串。
  * @returns {boolean} - 如果是純數字且非空，則為 true。
  */
@@ -83,7 +88,7 @@ export function isValidCardNumber(cardNumber) {
 
 
 /**
- * [NEW] 獲取或生成一個唯一的設備 ID。
+ * 獲取或生成一個唯一的設備 ID。
  * 它會儲存在 localStorage 中，以便在不同 session 中保持一致。
  * @returns {string} - 唯一的設備 ID。
  */
@@ -113,7 +118,6 @@ export function createSummaryCard(title, value, iconName, changeData = null) {
 
     switch (iconName) {
         case 'users':
-            // 【*** 核心修正 ***】更換為一個清晰且完整的 user icon SVG 路徑
             iconSvgPath = '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />';
             bgColorClass = 'bg-blue-100'; textColorClass = 'text-blue-500'; break;
         case 'user-check':
@@ -139,7 +143,6 @@ export function createSummaryCard(title, value, iconName, changeData = null) {
     }
     
     let trendIconAndText = '';
-    // 檢查 changeData 是否為有效的物件
     if (changeData && typeof changeData === 'object' && changeData.hasOwnProperty('absolute') && changeData.hasOwnProperty('percentage')) {
         const absoluteChange = changeData.absolute;
         const percentageChange = changeData.percentage;
@@ -147,28 +150,25 @@ export function createSummaryCard(title, value, iconName, changeData = null) {
         let trendColorClass = 'text-gray-500';
         let trendSvgPath;
         let trendText;
-        const changeThreshold = 0.1; // 一個小的閾值，用於將微小變化視為持平
+        const changeThreshold = 0.1;
 
         if (percentageChange > changeThreshold) {
             trendColorClass = 'text-green-500';
-            trendSvgPath = '<polyline points="23 6 13.5 15.5 8.5 10.5 1 18"></polyline><polyline points="17 6 23 6 23 12"></polyline>'; // trending-up
+            trendSvgPath = '<polyline points="23 6 13.5 15.5 8.5 10.5 1 18"></polyline><polyline points="17 6 23 6 23 12"></polyline>';
         } else if (percentageChange < -changeThreshold) {
             trendColorClass = 'text-red-500';
-            trendSvgPath = '<polyline points="23 18 13.5 8.5 8.5 13.5 1 6"></polyline><polyline points="17 18 23 18 23 12"></polyline>'; // trending-down
+            trendSvgPath = '<polyline points="23 18 13.5 8.5 8.5 13.5 1 6"></polyline><polyline points="17 18 23 18 23 12"></polyline>';
         } else {
-            trendSvgPath = '<line x1="5" y1="12" x2="19" y2="12"></line>'; // minus icon for neutral
+            trendSvgPath = '<line x1="5" y1="12" x2="19" y2="12"></line>';
         }
 
-        // 決定趨勢文字內容
         if (title.includes('參與率')) {
-            // 對於參與率，顯示百分點 (pp) 變化 
             if (Math.abs(absoluteChange) > changeThreshold) {
                  trendText = `${absoluteChange > 0 ? '+' : ''}${absoluteChange.toFixed(1)} %`;
             } else {
                  trendText = '持平';
             }
         } else {
-            // 對於活動數、簽到/退人次，顯示絕對數量變化
             if (Math.round(absoluteChange) !== 0) {
                 trendText = `${absoluteChange > 0 ? '+' : ''}${Math.round(absoluteChange)}`;
             } else {
@@ -186,10 +186,8 @@ export function createSummaryCard(title, value, iconName, changeData = null) {
         `;
     }
     
-    // 將標題中的括號內容換行並縮小字體
     const formattedTitle = title.replace(/(\s*\([^)]+\))/g, '<br><span class="text-xs font-normal">$1</span>');
 
-    // 【*** 核心修正 ***】確保置中對齊
     return `
         <div class="flex items-center w-full">
             <div class="${bgColorClass} p-3 rounded-lg mr-4 flex-shrink-0">
