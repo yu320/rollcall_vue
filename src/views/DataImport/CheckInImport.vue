@@ -95,7 +95,7 @@ import { ref, onMounted } from 'vue';
 import { useUiStore } from '@/store/ui';
 import { useDataStore } from '@/store/data';
 import * as api from '@/services/api'; 
-import { formatDateTime, parseFlexibleDateTime, isValidCardNumber, getDeviceId } from '@/utils/constants';
+import { formatDateTime, parseFlexibleDateTime, isValidCardNumber, getDeviceId } from '@/utils';
 import { CHECKIN_IMPORT_HEADERS } from '@/utils/constants';
 
 // 獲取 Pinia store 實例
