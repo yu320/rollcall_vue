@@ -13,7 +13,7 @@
         <p class="text-sm text-gray-500 mb-3">將匯入的記錄歸類到特定活動中。</p>
         <select id="eventSelector" v-model="selectedEventId" class="w-full pl-4 pr-10 py-3 border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-indigo-400">
           <option :value="null">-- 不關聯任何活動 (通用記錄) --</option>
-          <option v-for="event in dataStore.events" :key="event.id" :value="event.id">{{ event.name }} ({{ formatDateTime(event.start_time, 'yyyy-MM-dd') }})</option>
+          <option v-for="event in dataStore.events" :key="event.id" :value="event.id">{{ formatDateTime(event.start_time, 'yyyy-MM-dd') }})</option>
         </select>
       </div>
       
