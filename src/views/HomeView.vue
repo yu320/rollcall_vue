@@ -402,6 +402,10 @@ onUnmounted(() => {
   clearInterval(snackSpawnInterval);
   clearTimeout(ufoTimeout);
   window.removeEventListener('keydown', handleKeyDown);
+  // Remove floating snacks from the DOM if any remain
+  floatingSnacks.value = [];
+  const cosmicDustParticles = document.querySelectorAll('.cosmic-dust-particle');
+  cosmicDustParticles.forEach(p => p.remove());
 });
 
 </script>
