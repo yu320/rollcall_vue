@@ -111,7 +111,7 @@ export function createSummaryCard(title, value, iconName, changeData = null) {
 
     switch (iconName) {
         case 'users':
-            // 【融合修正 1】更換為一個清晰且完整的 user icon SVG 路徑
+            // 【*** 核心修正 ***】更換為一個清晰且完整的 user icon SVG 路徑
             iconSvgPath = '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />';
             bgColorClass = 'bg-blue-100'; textColorClass = 'text-blue-500'; break;
         case 'user-check':
@@ -187,7 +187,7 @@ export function createSummaryCard(title, value, iconName, changeData = null) {
     // 將標題中的括號內容換行並縮小字體
     const formattedTitle = title.replace(/(\s*\([^)]+\))/g, '<br><span class="text-xs font-normal">$1</span>');
 
-    // 【融合修正 2】確保置中對齊
+    // 【*** 核心修正 ***】確保置中對齊
     return `
         <div class="flex items-center w-full">
             <div class="${bgColorClass} p-3 rounded-lg mr-4 flex-shrink-0">
