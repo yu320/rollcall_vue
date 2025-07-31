@@ -137,10 +137,7 @@ const processImport = async (csvText, source) => {
     }
 
     const personnelToProcess = [];
-    const validationErrors = [];
-
-    // 從第二行開始解析數據
-    for (let i = 1; i < lines.length; i++) {
+for (let i = 1; i < lines.length; i++) {
       const line = lines[i].trim();
       if (!line) continue;
 
@@ -155,24 +152,35 @@ const processImport = async (csvText, source) => {
       const building = buildingIndex !== -1 ? cleanedParts[buildingIndex] : null;
       const tagsStr = tagsIndex !== -1 ? cleanedParts[tagsIndex] : '';
       
+      // 根據來源類型調整顯示的行號
+      let displayLineNumber;
+      if (source === 'manual') {
+        // 對於手動輸入，由於內部會添加標頭，所以這裡的 'i' 就是使用者實際輸入的行號
+        displayLineNumber = i; 
+      } else {
+        // 對於檔案匯入，'i + 1' 才是檔案中的實際行號（包含標頭）
+        displayLineNumber = i + 1;
+      }
+
       // 簡單驗證必填欄位
       if (!name || !code || !cardNumber) {
-        validationErrors.push(`第 ${i + 1} 行資料不完整 (姓名、學號、卡號為必填)。`);
+        validationErrors.push(`第 ${displayLineNumber} 行資料不完整，請確認姓名、學號、卡號皆已填寫。`);
         continue;
       }
       // 基礎格式驗證
       if (!/^[A-Za-z0-9]+$/.test(code)) { // 學號通常是字母數字組合
-          validationErrors.push(`第 ${i + 1} 行學號格式無效 (只允許字母數字)。`);
+          validationErrors.push(`第 ${displayLineNumber} 行學號格式無效 (只允許字母數字)。`);
           continue;
       }
       if (!/^\d+$/.test(cardNumber)) { // 卡號必須是純數字
-          validationErrors.push(`第 ${i + 1} 行卡號格式無效 (只允許數字)。`);
+          validationErrors.push(`第 ${displayLineNumber} 行卡號格式無效 (只允許數字)。`);
           continue;
       }
 
       const tags = tagsStr ? tagsStr.split(';').map(t => t.trim()).filter(Boolean) : [];
       personnelToProcess.push({ name, code, card_number: cardNumber, building: building || null, tags });
     }
+
 
     if (validationErrors.length > 0) {
       throw new Error(validationErrors.join('<br>'));
