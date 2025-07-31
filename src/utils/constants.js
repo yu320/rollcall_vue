@@ -29,7 +29,8 @@ export const USER_ROLE_NAMES = {
     admin: '管理員',
     operator: '操作員',
     sdc: '宿委會',
-    sdsc: '宿服'
+    sdsc: '宿服',
+    guest: '訪客(等待權限中)'
 };
 
 // --- 匯入功能相關常數 ---
