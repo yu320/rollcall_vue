@@ -88,7 +88,6 @@ export default async function handler(req, res) {
       password,
       email_confirm: true,
       app_metadata: {
-        source: 'admin_creation', // 標記此帳號由管理員建立
         role: roleName,           // 傳遞角色名稱
         nickname: nickname        // 傳遞暱稱
       }
