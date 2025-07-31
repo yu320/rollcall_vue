@@ -1,19 +1,14 @@
 <template>
-  <!-- 導覽列容器，使用 sticky 定位使其停留在頁面頂部 -->
   <div class="bg-white shadow-sm sticky top-0 z-40">
     <div class="container mx-auto px-4">
       <div class="flex flex-wrap border-b border-gray-200">
         
-        <!-- 總覽頁籤 -->
-        <!-- [FIXED] 將 to="/overview" 修正為 to="/" 以匹配路由設定 -->
-        <router-link v-if="canView('overview:view')" to="/overview" class="tab-button" active-class="tab-active">總覽</router-link>
+        <router-link v-if="canView('overview:view')" to="/" class="tab-button" active-class="tab-active">總覽</router-link>
 
-        <!-- 報到系統頁籤 -->
         <router-link v-if="canView('checkin:use')" to="/checkin" class="tab-button" active-class="tab-active">報到系統</router-link>
         
-        <!-- 資料分析下拉選單 -->
-        <div v-if="canView('reports:view')" class="relative" @mouseleave="closeDropdown('dataAnalysis')">
-          <button ref="dataAnalysisButtonRef" @mouseover="openDropdown('dataAnalysis')" class="tab-button flex items-center" :class="{ 'tab-active': isRouteActive('/dashboard') || isRouteActive('/report') }">
+        <div v-if="canView('reports:view')" class="relative" @mouseenter="openDropdown('dataAnalysis')" @mouseleave="closeDropdown('dataAnalysis')">
+          <button ref="dataAnalysisButtonRef" class="tab-button flex items-center" :class="{ 'tab-active': isRouteActive('/dashboard') || isRouteActive('/report') }">
             <span>資料分析</span>
             <svg class="w-4 h-4 ml-1 transition-transform" :class="{'rotate-180': dropdowns.dataAnalysis}" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
           </button>
@@ -23,9 +18,8 @@
           </div>
         </div>
 
-        <!-- 檢視記錄下拉選單 -->
-        <div v-if="canView('records:view')" class="relative" @mouseleave="closeDropdown('records')">
-            <button ref="recordsButtonRef" @mouseover="openDropdown('records')" class="tab-button flex items-center" :class="{ 'tab-active': isRouteActive('/records') }">
+        <div v-if="canView('records:view')" class="relative" @mouseenter="openDropdown('records')" @mouseleave="closeDropdown('records')">
+            <button ref="recordsButtonRef" class="tab-button flex items-center" :class="{ 'tab-active': isRouteActive('/records') }">
                 <span>檢視記錄</span>
                 <svg class="w-4 h-4 ml-1 transition-transform" :class="{'rotate-180': dropdowns.records}" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
             </button>
@@ -35,9 +29,8 @@
             </div>
         </div>
 
-        <!-- 資料管理下拉選單 -->
-        <div v-if="canView('personnel:read') || canView('events:create') || canView('accounts:manage_users') || canView('accounts:manage')" class="relative" @mouseleave="closeDropdown('management')">
-            <button ref="managementButtonRef" @mouseover="openDropdown('management')" class="tab-button flex items-center" :class="{ 'tab-active': isRouteActive('/events') || isRouteActive('/personnel') || isRouteActive('/import') || isRouteActive('/system') }">
+        <div v-if="canView('personnel:read') || canView('events:create') || canView('accounts:manage_users') || canView('accounts:manage')" class="relative" @mouseenter="openDropdown('management')" @mouseleave="closeDropdown('management')">
+            <button ref="managementButtonRef" class="tab-button flex items-center" :class="{ 'tab-active': isRouteActive('/events') || isRouteActive('/personnel') || isRouteActive('/import') || isRouteActive('/system') }">
                 <span>資料管理</span>
                 <svg class="w-4 h-4 ml-1 transition-transform" :class="{'rotate-180': dropdowns.management}" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
             </button>
@@ -46,9 +39,7 @@
                 <router-link v-if="canView('personnel:read')" to="/personnel" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">人員管理</router-link>
                 <router-link v-if="canView('personnel:create')" to="/import/personnel" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">人員資料匯入</router-link>
                 <router-link v-if="canView('records:create')" to="/import/checkin" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">簽到記錄匯入</router-link>
-                <router-link v-if="canView('accounts:manage_users')" to="/system/accounts" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">帳號管理</router-link> <!-- 將權限從 accounts:manage 改為 accounts:manage_users -->
-                <router-link v-if="canView('accounts:manage')" to="/system/permissions" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">權限管理</router-link> <!-- 保持為 accounts:manage -->
-            </div>
+                <router-link v-if="canView('accounts:manage_users')" to="/system/accounts" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">帳號管理</router-link> <router-link v-if="canView('accounts:manage')" to="/system/permissions" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">權限管理</router-link> </div>
         </div>
 
       </div>
@@ -57,7 +48,7 @@
 </template>
 
 <script setup>
-import { ref, reactive, nextTick } from 'vue'; // 引入 nextTick
+import { ref, reactive, nextTick } from 'vue'; 
 import { useRoute } from 'vue-router';
 import { useAuthStore } from '@/store/auth';
 
@@ -87,7 +78,7 @@ const canView = (permission) => authStore.hasPermission(permission);
 const isRouteActive = (path) => route.path.startsWith(path);
 
 // 打開指定的下拉選單
-const openDropdown = async (menu) => { // 將 openDropdown 設為 async
+const openDropdown = async (menu) => { 
   // 先關閉所有其他下拉選單
   for (const key in dropdowns) {
     if (key !== menu) {
