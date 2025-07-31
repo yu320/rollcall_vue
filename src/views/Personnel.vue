@@ -138,7 +138,7 @@
             <input type="text" id="building" v-model="editablePerson.building" class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3">
           </div>
            <div>
-            <label for="tags" class="block text-sm font-medium text-gray-700">標籤 (選填，用分號 ; 分隔)</label>
+            <label for="tags" class="block text-sm font-medium text-gray-700">標籤 (選填，用分號 ; 或 ； 分隔)</label>
             <input type="text" id="tags" v-model="editablePerson.tags" class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3">
           </div>
         </div>
@@ -154,7 +154,7 @@
       <form @submit.prevent="handleBatchAddTags">
           <p class="text-gray-700 mb-4">請輸入要增加的標籤，以分號分隔。這些標籤將會被新增到所有選取的人員資料中。</p>
           <div class="mb-6">
-              <label for="newTagsInput" class="block text-gray-700 font-medium mb-2">新增標籤 (以分號 ; 分隔)</label>
+              <label for="newTagsInput" class="block text-gray-700 font-medium mb-2">新增標籤 (以分號 ; 或 ； 分隔)</label>
               <input type="text" id="newTagsInput" v-model="newTagsInput" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400" placeholder="例如：學生;志工">
           </div>
           <div class="flex flex-col sm:flex-row-reverse gap-3">
@@ -185,7 +185,7 @@ const filters = ref({
 
 const pagination = ref({
     currentPage: 1,
-    pageSize: 12, // 預設每頁顯示 12 筆，以符合卡片網格佈局
+    pageSize: 12,
     totalPages: 1,
 });
 
@@ -293,7 +293,8 @@ const closeModal = () => isModalOpen.value = false;
 const handleSave = async () => {
     const personData = { 
         ...editablePerson.value, 
-        tags: editablePerson.value.tags.split(';').map(t => t.trim()).filter(Boolean)
+        // [修復] 使用正則表達式支援全形和半形分號
+        tags: editablePerson.value.tags.split(/[;；]/).map(t => t.trim()).filter(Boolean)
     };
     const success = await dataStore.savePerson(personData);
     if (success) {
@@ -335,7 +336,8 @@ const openBatchAddTagsModal = () => {
 const closeBatchAddTagsModal = () => isBatchAddTagsModalOpen.value = false;
 
 const handleBatchAddTags = async () => {
-    const tagsToAdd = newTagsInput.value.trim().split(';').map(tag => tag.trim()).filter(Boolean);
+    // [修復] 使用正則表達式支援全形和半形分號
+    const tagsToAdd = newTagsInput.value.trim().split(/[;；]/).map(tag => tag.trim()).filter(Boolean);
     if (tagsToAdd.length === 0) return;
 
     uiStore.setLoading(true);
