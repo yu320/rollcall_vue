@@ -441,18 +441,20 @@ input:focus, textarea:focus, select:focus {
         color: var(--gray-600);
     }
 
-    /* 針對內容的容器進行樣式設定 */
+    /* [修復] 針對內容的容器進行樣式設定，使其置中 */
     .table-responsive td > * {
-        text-align: center; /* <<< MODIFIED */
+        text-align: center; 
     }
 
+    /* [修復] 確保 flex 容器內的內容也置中 */
     .table-responsive td > .flex {
-        justify-content: center; /* <<< MODIFIED */
+        justify-content: center; 
     }
 
-.device-id-content {
+    /* [修復] 針對裝置ID的特殊處理 */
+    .device-id-content {
         word-break: break-all;
-        text-align: center; /* <<< MODIFIED */
+        text-align: center; 
         line-height: 1.4;
         font-size: 0.85rem;
     }
