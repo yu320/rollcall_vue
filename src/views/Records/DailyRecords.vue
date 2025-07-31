@@ -35,7 +35,7 @@
       <div v-else-if="records.length > 0">
         <h3 class="text-2xl font-bold text-gray-800 mb-4">{{ selectedDate }} 記錄 ({{ records.length }} 筆)</h3>
         <div class="overflow-x-auto table-responsive">
-          <table class="min-w-full divide-y divide-gray-200">
+          <table class="min-w-full min-w-[1024px] divide-y divide-gray-200">
             <thead class="bg-gray-50">
               <tr>
                 <th class="px-6 py-3 text-left w-12"><input type="checkbox" v-model="selectAll" class="h-4 w-4 text-indigo-600 rounded"></th>
@@ -61,7 +61,9 @@
                 <td data-label="狀態" class="px-6 py-4 whitespace-nowrap flex justify-center"><span class="status-badge" :data-status="record.status">{{ record.status }}</span></td>
                 <td data-label="活動" class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 text-center">{{ record.events?.name || '—' }}</td>
                 <td data-label="裝置ID" class="px-6 py-4 text-sm text-gray-500 text-center">
-                  <div class="break-all">{{ record.device_id || '—' }}</div>
+                  <div class="break-all sm:truncate sm:max-w-[150px] sm:mx-auto">
+                    {{ record.device_id || '—' }}
+                  </div>
                 </td>
                 <td data-label="操作" class="px-6 py-4 whitespace-nowrap text-right">
                   <button v-if="canModifyRecords" @click="confirmSingleDelete(record)" class="text-red-600 hover:text-red-800 text-sm font-medium p-1 rounded-full hover:bg-red-100">
