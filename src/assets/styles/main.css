@@ -399,7 +399,7 @@ input:focus, textarea:focus, select:focus {
 }
 
 /* 小型螢幕 (手機) */
-@media (max-width: 700px) {
+@media (max-width: 640px) {
     /* 將所有表格轉換為卡片式列表 */
     .table-responsive table, .table-responsive thead, .table-responsive tbody, .table-responsive th, .table-responsive td, .table-responsive tr {
         display: block;
