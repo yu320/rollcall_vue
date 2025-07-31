@@ -1,3 +1,5 @@
+// src/utils/index.js
+
 import { format, parse, isValid } from 'date-fns';
 import { zhTW } from 'date-fns/locale';
 import { DATETIME_PARSE_FORMATS } from '@/utils/constants';
@@ -55,8 +57,18 @@ export function parseFlexibleDateTime(dateTimeStr) {
         return new Date(NaN);
     }
 
+    let normalizedString = dateTimeStr.trim();
+
+    // [FIXED] 轉換全形數字為半形數字
+    normalizedString = normalizedString.replace(/[０-９]/g, function(s) {
+        return String.fromCharCode(s.charCodeAt(0) - 0xFEE0);
+    });
+
+    // [FIXED] 轉換全形空格為半形空格
+    normalizedString = normalizedString.replace(/　/g, ' ');
+
     // 將中文的「下午/上午」替換為 date-fns 可以識別的 AM/PM
-    const normalizedString = dateTimeStr.trim()
+    normalizedString = normalizedString
         .replace(/下午/g, 'PM')
         .replace(/上午/g, 'AM');
 
