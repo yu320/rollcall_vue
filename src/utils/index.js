@@ -55,30 +55,35 @@ export function parseFlexibleDateTime(dateTimeStr) {
     
     // Step 2: 嘗試提取時間部分並手動轉換為 24 小時制，以提高解析成功率
     // 範例: "2025/3/4 PM 06:41:25" 轉換為 "2025/3/4 18:41:25"
-    // 匹配日期、時間、以及可選的 AM/PM 標記
-    const dateTimePartsMatch = processedDateTimeString.match(/(.*?)\s*(\d{1,2}:\d{2}(?::\d{2})?(?:\.\d+)?)\s*(AM|PM)?/i);
+    // 【核心修正】修正正規表示式以匹配 "日期 AM/PM 時間" 的順序
+    const dateTimePartsMatch = processedDateTimeString.match(/(.*?)\s*(AM|PM)?\s*(\d{1,2}:\d{2}(?::\d{2})?(?:\.\d+)?)/i);
 
     if (dateTimePartsMatch) {
-        const [, datePart, timePart, amPmMarker] = dateTimePartsMatch;
-        let [hours, minutes, seconds] = timePart.split(':').map(Number);
+        // 【核心修正】調整解構賦值的順序以匹配新的正規表示式群組
+        const [, datePart, amPmMarker, timePart] = dateTimePartsMatch;
 
-        if (amPmMarker) {
-            const isPM = amPmMarker.toUpperCase() === 'PM';
-            if (isPM && hours < 12) { // PM 時段，且小時數小於 12 (例如 01 PM, 06 PM)
-                hours += 12;
-            } else if (!isPM && hours === 12) { // AM 時段，且小時數為 12 (即午夜 12 AM)
-                hours = 0;
+        // 【核心修正】增加保護，確保 timePart 被正確捕獲
+        if (datePart && timePart) {
+            let [hours, minutes, seconds] = timePart.split(':').map(Number);
+
+            if (amPmMarker) {
+                const isPM = amPmMarker.toUpperCase() === 'PM';
+                if (isPM && hours < 12) { // PM 時段，且小時數小於 12 (例如 01 PM, 06 PM)
+                    hours += 12;
+                } else if (!isPM && hours === 12) { // AM 時段，且小時數為 12 (即午夜 12 AM)
+                    hours = 0;
+                }
             }
-        }
-        
-        // 重構為 24 小時制的時間字串 (HH:mm:ss)
-        const formattedTime = [
-            String(hours).padStart(2, '0'),
-            String(minutes).padStart(2, '0'),
-            String(seconds || 0).padStart(2, '0') // 如果沒有秒數，預設為 0
-        ].join(':');
+            
+            // 重構為 24 小時制的時間字串 (HH:mm:ss)
+            const formattedTime = [
+                String(hours).padStart(2, '0'),
+                String(minutes).padStart(2, '0'),
+                String(seconds || 0).padStart(2, '0') // 如果沒有秒數，預設為 0
+            ].join(':');
 
-        processedDateTimeString = `${datePart.trim()} ${formattedTime}`;
+            processedDateTimeString = `${datePart.trim()} ${formattedTime}`;
+        }
     }
 
     const formats = DATETIME_PARSE_FORMATS;
