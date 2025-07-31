@@ -74,7 +74,7 @@ onMounted(async () => {
   try {
     await Promise.all([
       loadSettings(),
-      loadCodes()
+      loadCodes(),
       dataStore.fetchRolesAndPermissions() // 確保角色資料已載入
 
     ]);
