@@ -1,28 +1,9 @@
 <template>
-  <!-- 
-    最外層的容器，只有在使用者登入後才顯示。
-    min-h-screen: 確保容器至少佔據整個視窗高度。
-    bg-gradient-to-br from-blue-50 to-indigo-100: 設定頁面背景的漸變色。
-    overflow-x-hidden: 【重要】隱藏任何超出容器水平範圍的內容，防止頁面出現水平滾動條或被拉伸。
-  -->
   <div v-if="authStore.isLoggedIn" class="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 overflow-x-hidden">
-    <!-- 應用程式的頂部導覽列 -->
     <AppHeader />
-    <!-- 應用程式的主要導覽列 (頁籤) -->
     <AppNav />
     
-    <!-- 
-      主要內容區域。
-      id="mainContent": 用於識別主內容區塊。
-      container mx-auto px-4 py-8: 設定容器寬度、水平置中、左右內邊距和上下內邊距。
-    -->
     <main id="mainContent" class="container mx-auto px-4 py-8">
-      <!-- 
-        Vue Router 的路由視圖，用於顯示當前匹配的組件。
-        v-slot="{ Component }": 獲取當前路由匹配的組件實例。
-        <transition name="fade" mode="out-in">: 為路由切換添加淡入淡出動畫。
-        <keep-alive>: 緩存組件實例，避免重複渲染，提升效能。
-      -->
       <router-view v-slot="{ Component }">
         <transition name="fade" mode="out-in">
           <keep-alive>
@@ -32,7 +13,6 @@
       </router-view>
     </main>
     
-    <!-- 頁腳版權資訊 -->
     <footer class="bg-gray-800 py-5 mt-10 shadow-inner">
         <div class="container mx-auto px-4 text-center text-gray-400 text-sm">
             &copy; Copyright &copy; 2025 Hong. All rights Reserved
@@ -40,22 +20,11 @@
     </footer>
   </div>
 
-  <!-- 
-    如果使用者未登入 (authStore.isLoggedIn 為 false)，則只顯示路由視圖。
-    這通常用於顯示登入頁面。
-  -->
   <router-view v-else></router-view>
 
-  <!-- 全局載入遮罩，根據 uiStore.isLoading 狀態顯示 -->
   <LoadingOverlay />
-  <!-- 全局訊息提示框，根據 uiStore.messages 顯示 -->
   <MessageBox />
 
-  <!-- 
-    個人資料修改/密碼變更彈窗。
-    :show="isProfileModalOpen": 控制彈窗的顯示與隱藏。
-    @close="closeProfileModal": 監聽彈窗的關閉事件。
-  -->
   <Modal :show="isProfileModalOpen" @close="closeProfileModal">
     <template #header>修改個人資料</template>
     <form @submit.prevent="handleUpdateProfile" class="p-6">
@@ -80,11 +49,6 @@
     </form>
   </Modal>
 
-  <!-- 
-    全局確認彈窗，用於需要使用者確認的操作。
-    :show="uiStore.confirmation.visible": 控制彈窗的顯示與隱藏。
-    @close="uiStore.handleCancel": 監聽彈窗的關閉事件，觸發取消操作。
-  -->
   <Modal :show="uiStore.confirmation.visible" @close="uiStore.handleCancel">
     <template #header>{{ uiStore.confirmation.title }}</template>
     <p class="text-gray-700 mb-6 text-lg">{{ uiStore.confirmation.body }}</p>
@@ -102,10 +66,6 @@
     </div>
   </Modal>
 
-  <!-- 
-    閒置警告彈窗。
-    當使用者長時間未操作時，會彈出此視窗提醒即將登出。
-  -->
   <Transition name="modal-fade">
     <div v-if="isWarningModalOpen" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[1001]">
       <div class="bg-white rounded-xl shadow-2xl w-full max-w-md mx-4 overflow-hidden transform transition-all duration-300" 
@@ -155,12 +115,11 @@ const errors = reactive({              // 用於密碼驗證的錯誤訊息
 });
 
 // --- 閒置計時器和警告彈窗的狀態變數 ---
-let logoutTimer = null;         // 自動登出計時器
-let warningTimer = null;        // 閒置警告計時器
-let countdownInterval = null;   // 警告彈窗中的倒數計時器
-const isWarningModalOpen = ref(false); // 控制閒置警告彈窗的顯示與隱藏
-const inactivityCountdown = ref(INACTIVITY_WARNING_TIME / 1000); // 警告倒數的初始值
-const isInteractionLocked = ref(false); // 控制當警告彈窗顯示時，是否鎖定背景活動來重置計時器
+let warningTimer = null; // 修正：只保留一個主要計時器
+let countdownInterval = null;
+const isWarningModalOpen = ref(false);
+const inactivityCountdown = ref(INACTIVITY_WARNING_TIME / 1000);
+const isInteractionLocked = ref(false);
 
 /**
  * 重置所有閒置計時器。
@@ -173,20 +132,13 @@ const resetTimers = () => {
     }
 
     // 清除所有現有的計時器和倒數
-    clearTimeout(logoutTimer);
     clearTimeout(warningTimer);
     clearInterval(countdownInterval); 
     isWarningModalOpen.value = false; // 確保警告彈窗關閉
     inactivityCountdown.value = INACTIVITY_WARNING_TIME / 1000; // 重置倒數計時
 
-    // 設定自動登出計時器
-    logoutTimer = setTimeout(() => {
-        if (authStore.isLoggedIn) { // 確保使用者仍然登入中
-            authStore.logout(); // 執行登出操作
-        }
-    }, INACTIVITY_LOGOUT_TIME);
-
-    // 設定閒置警告計時器 (在自動登出前觸發)
+    // 設定單一的閒置警告計時器
+    // 它會在 INACTIVITY_LOGOUT_TIME - INACTIVITY_WARNING_TIME 後觸發
     const timeUntilWarning = INACTIVITY_LOGOUT_TIME - INACTIVITY_WARNING_TIME;
     
     // 確保警告時間間隔為非負數
@@ -194,21 +146,29 @@ const resetTimers = () => {
         warningTimer = setTimeout(() => {
             // 只有在使用者登入且警告彈窗未開啟時才顯示警告
             if (authStore.isLoggedIn && !isWarningModalOpen.value) {
-                isWarningModalOpen.value = true; // 開啟警告彈窗
-                isInteractionLocked.value = true; // 【重要】鎖定互動，防止背景活動重置計時器
+                isWarningModalOpen.value = true;
+                isInteractionLocked.value = true; // 鎖定互動，防止背景活動重置計時器
                 
                 // 開始警告彈窗內的倒數計時
                 countdownInterval = setInterval(() => {
                     if (inactivityCountdown.value > 0) {
                         inactivityCountdown.value--;
                     } else {
-                        clearInterval(countdownInterval); // 倒數結束時清除計時器
+                        // 當倒數結束時，直接呼叫登出函式
+                        clearInterval(countdownInterval); 
+                        authStore.logout();
                     }
                 }, 1000);
             }
         }, timeUntilWarning); 
     } else {
         console.warn('[App.vue] INACTIVITY_WARNING_TIME 大於 INACTIVITY_LOGOUT_TIME。警告將不會顯示。');
+        // 為了確保至少能登出，如果警告時間設定有問題，就直接使用總登出時間
+        warningTimer = setTimeout(() => {
+            if (authStore.isLoggedIn) {
+                authStore.logout();
+            }
+        }, INACTIVITY_LOGOUT_TIME);
     }
 };
 
@@ -248,7 +208,7 @@ const handleStayLoggedIn = () => {
  * 強制登出使用者。
  */
 const handleLogoutNow = () => {
-    clearTimeout(logoutTimer);      // 清除自動登出計時器
+    clearTimeout(warningTimer);      // 清除自動登出計時器
     clearInterval(countdownInterval); // 清除倒數計時
     isWarningModalOpen.value = false; // 立即關閉警告彈窗
     isInteractionLocked.value = false; // 解鎖互動
@@ -268,8 +228,7 @@ watch(() => authStore.isLoggedIn, (newVal) => {
         resetTimers();            // 啟動計時器
     } else {      // 如果使用者登出
         removeActivityListeners(); // 移除活動監聽器
-        clearTimeout(logoutTimer);   // 清除所有計時器
-        clearTimeout(warningTimer);
+        clearTimeout(warningTimer);   // 清除所有計時器
         clearInterval(countdownInterval);
         isWarningModalOpen.value = false; // 確保警告彈窗關閉
         isInteractionLocked.value = false; // 確保互動解鎖
