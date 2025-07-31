@@ -83,7 +83,7 @@
 </template>
 
 <script setup>
-import { ref, reactive, nextTick } from 'vue'; 
+import { ref, reactive, nextTick, watch } from 'vue'; // [MODIFIED] Import watch
 import { useRoute } from 'vue-router';
 import { useAuthStore } from '@/store/auth';
 
@@ -112,43 +112,40 @@ const managementButtonRef = ref(null);
 const canView = (permission) => authStore.hasPermission(permission);
 const isRouteActive = (path) => route.path.startsWith(path);
 
-// [NEW] Handles clicks, primarily for mobile toggle
+// [NEW] Watch for route changes to close all dropdowns
+watch(() => route.path, () => {
+  Object.keys(dropdowns).forEach(key => {
+    dropdowns[key] = false;
+  });
+});
+
 const handleClick = (menu) => {
   if (window.innerWidth <= 768) {
     const currentState = dropdowns[menu];
-    // Close all menus first
     Object.keys(dropdowns).forEach(key => dropdowns[key] = false);
-    // Then toggle the clicked one
     dropdowns[menu] = !currentState;
   }
 };
 
-// [NEW] Handles mouse entering the button OR the menu, for desktop hover
 const handleMouseEnter = (menu) => {
   if (window.innerWidth > 768) {
-    // Cancel any pending close timer
     if (closeTimers[menu]) {
       clearTimeout(closeTimers[menu]);
       closeTimers[menu] = null;
     }
-    // Open the dropdown
     openDropdown(menu);
   }
 };
 
-// [NEW] Handles mouse leaving the button OR the menu, for desktop hover
 const handleMouseLeave = (menu) => {
   if (window.innerWidth > 768) {
-    // Set a timer to close the dropdown after a short delay
     closeTimers[menu] = setTimeout(() => {
       dropdowns[menu] = false;
-    }, 200); // 200ms delay
+    }, 200);
   }
 };
 
-// This function now just sets the state and positions the menu
 const openDropdown = async (menu) => {
-  // Close other dropdowns
   for (const key in dropdowns) {
     if (key !== menu) {
       dropdowns[key] = false;
@@ -197,13 +194,13 @@ const openDropdown = async (menu) => {
 /* 手機版下拉選單固定定位和滿寬度 */
 @media (max-width: 768px) {
     .dropdown-menu-floating {
-        position: fixed; /* 使用 fixed 定位確保不被父元素裁剪 */
-        left: 1rem;      /* 距離左邊 1rem */
-        right: 1rem;     /* 距離右邊 1rem，達到滿寬度效果 */
-        width: auto;     /* 寬度自動調整 */
-        max-width: calc(100vw - 2rem); /* 最大寬度為視口寬度減去左右 padding */
-        top: auto;       /* 讓垂直定位由 JS 或其他 flex/grid 屬性控制 */
-        margin-top: 0;   /* 移除上邊距 */
+        position: fixed;
+        left: 1rem;
+        right: 1rem;
+        width: auto;
+        max-width: calc(100vw - 2rem);
+        top: auto;
+        margin-top: 0;
     }
 }
 </style>
