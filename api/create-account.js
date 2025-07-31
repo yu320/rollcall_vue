@@ -88,6 +88,7 @@ export default async function handler(req, res) {
       password,
       email_confirm: true,
       app_metadata: {
+        source: 'admin_creation', // 標記此帳號由管理員建立
         role: roleName,           // 傳遞角色名稱
         nickname: nickname        // 傳遞暱稱
       }
@@ -97,12 +98,8 @@ export default async function handler(req, res) {
       if (signUpError.message.includes('User already registered')) {
         return res.status(409).json({ error: '此 Email 已被其他帳號使用。' });
       }
-      // 將詳細的後端錯誤訊息回傳給前端，方便除錯
       return res.status(500).json({ error: `建立認證使用者失敗: ${signUpError.message}` });
     }
-
-    // 【*** 核心修正 ***】
-    // 移除手動更新 profiles 表的程式碼，因為新的 handle_new_user 觸發器會自動完成
 
     await recordAdminAuditLog(supabaseAdmin, adminUserId, {
         action_type: 'CREATE',
