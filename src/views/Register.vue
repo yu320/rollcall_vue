@@ -7,10 +7,8 @@
     </div>
     
     <Transition name="login-card-fade" mode="out-in">
-      <div v-if="!authStore.loading"
-        class="login-card w-full max-w-md rounded-2xl p-8 md:p-10"
-      >
-        <div class="text-center mb-8">
+      <div v-if="!authStore.loading" class="login-card w-full max-w-md rounded-2xl">
+        <div class="p-8 md:p-10 text-center">
           <div class="flex justify-center mb-4">
             <div class="bg-indigo-600 p-3 rounded-full shadow-lg">
                 <svg xmlns="http://www.w3.org/2000/svg" class="h-10 w-10 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -21,79 +19,72 @@
           <h1 class="text-2xl font-bold text-gray-800">建立新帳號</h1>
           <p class="text-gray-600 mt-2">歡迎加入！請填寫以下資訊</p>
         </div>
-        
-        <form class="space-y-4" @submit.prevent="handleRegister">
-          <div>
-            <label for="email" class="block text-sm font-medium text-gray-700 mb-1">帳號</label>
-            <input v-model="credentials.email" id="email" type="text" required class="form-input block w-full px-3 py-2 border border-gray-300 rounded-lg" placeholder="請輸入帳號 (若無 @ 將自動加入預設網域)">
-          </div>
-          
-          <div>
-            <label for="nickname" class="block text-sm font-medium text-gray-700 mb-1">暱稱</label>
-            <input v-model="credentials.nickname" id="nickname" type="text" required class="form-input block w-full px-3 py-2 border border-gray-300 rounded-lg" placeholder="您希望別人如何稱呼您">
-          </div>
 
-          <div>
-            <label for="password" class="block text-sm font-medium text-gray-700 mb-1">密碼</label>
-            <input v-model="credentials.password" id="password" type="password" required class="form-input block w-full px-3 py-2 border border-gray-300 rounded-lg" placeholder="至少 6 位數">
-            <div class="mt-2">
-                <div class="flex space-x-1">
-                    <div id="strength1" class="h-1 w-1/4 rounded transition-all duration-200" :class="passwordStrength >= 1 ? passwordStrengthClass : 'bg-gray-200'"></div>
-                    <div id="strength2" class="h-1 w-1/4 rounded transition-all duration-200" :class="passwordStrength >= 2 ? passwordStrengthClass : 'bg-gray-200'"></div>
-                    <div id="strength3" class="h-1 w-1/4 rounded transition-all duration-200" :class="passwordStrength >= 3 ? passwordStrengthClass : 'bg-gray-200'"></div>
-                    <div id="strength4" class="h-1 w-1/4 rounded transition-all duration-200" :class="passwordStrength >= 4 ? passwordStrengthClass : 'bg-gray-200'"></div>
-                </div>
-                <p id="strengthText" class="text-xs mt-1" :class="passwordStrengthTextClass">{{ passwordStrengthText }}</p>
+        <div class="px-8 md:px-10 pb-8 md:pb-10 overflow-y-auto max-h-[70vh]">
+          <form class="space-y-4" @submit.prevent="handleRegister">
+            <div>
+              <label for="email" class="block text-sm font-medium text-gray-700 mb-1">帳號</label>
+              <input v-model="credentials.email" id="email" type="text" required class="form-input block w-full px-3 py-2 border border-gray-300 rounded-lg" placeholder="請輸入帳號 (若無 @ 將自動加入預設網域)">
             </div>
-            <p v-if="errors.password" class="text-red-600 text-xs mt-1">{{ errors.password }}</p>
-          </div>
+            
+            <div>
+              <label for="nickname" class="block text-sm font-medium text-gray-700 mb-1">暱稱</label>
+              <input v-model="credentials.nickname" id="nickname" type="text" required class="form-input block w-full px-3 py-2 border border-gray-300 rounded-lg" placeholder="您希望別人如何稱呼您">
+            </div>
 
-          <div>
-            <label for="confirmPassword" class="block text-sm font-medium text-gray-700 mb-1">確認密碼</label>
-            <input v-model="credentials.confirmPassword" id="confirmPassword" type="password" required class="form-input block w-full px-3 py-2 border border-gray-300 rounded-lg" placeholder="請再次輸入您的密碼">
-            <p v-if="errors.confirmPassword" class="text-red-600 text-xs mt-1">{{ errors.confirmPassword }}</p>
-          </div>
-
-          <div>
-            <label for="registrationCode" class="block text-sm font-medium text-gray-700 mb-1">註冊碼</label>
-            <input v-model="credentials.registrationCode" id="registrationCode" type="text" class="form-input block w-full px-3 py-2 border border-gray-300 rounded-lg" placeholder="請向管理員索取 (如果需要)">
-          </div>
-          
-          <div class="flex items-start">
-              <input type="checkbox" id="terms" v-model="agreedToTerms" required class="mt-1 h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded">
-              <label for="terms" class="ml-3 text-sm text-gray-700">
-                  我同意 <a href="#" class="text-indigo-600 hover:text-indigo-500 underline" @click.prevent="showTermsModal('服務條款')">服務條款</a> 和 
-                  <a href="#" class="text-indigo-600 hover:text-indigo-500 underline" @click.prevent="showTermsModal('隱私政策')">隱私政策</a>
-              </label>
-          </div>
-          <p v-if="errors.terms" class="text-red-600 text-xs mt-1">{{ errors.terms }}</p>
-          
-          <p v-if="authStore.error" class="text-red-600 text-sm pt-2 text-center">{{ authStore.error }}</p>
-          
-          <div class="pt-4">
-            <button type="submit" class="login-btn w-full flex justify-center py-3 px-4 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white items-center">
-              註冊
-            </button>
-          </div>
-
-          <div class="mt-6 text-center">
-            <p class="text-sm text-gray-600">
-              已經有帳號了？
-              <router-link to="/login" class="font-medium text-indigo-600 hover:text-indigo-500">
-                返回登入
-              </router-link>
-            </p>
-          </div>
-        </form>
-        </div>
-
-      <div v-else class="car-loading-overlay">
-          <div class="road">
-              <div class="car">
-                  <div class="wheel front"></div>
-                  <div class="wheel back"></div>
+            <div>
+              <label for="password" class="block text-sm font-medium text-gray-700 mb-1">密碼</label>
+              <input v-model="credentials.password" id="password" type="password" required class="form-input block w-full px-3 py-2 border border-gray-300 rounded-lg" placeholder="至少 6 位數">
+              <div class="mt-2">
+                  <div class="flex space-x-1">
+                      <div id="strength1" class="h-1 w-1/4 rounded transition-all duration-200" :class="passwordStrength >= 1 ? passwordStrengthClass : 'bg-gray-200'"></div>
+                      <div id="strength2" class="h-1 w-1/4 rounded transition-all duration-200" :class="passwordStrength >= 2 ? passwordStrengthClass : 'bg-gray-200'"></div>
+                      <div id="strength3" class="h-1 w-1/4 rounded transition-all duration-200" :class="passwordStrength >= 3 ? passwordStrengthClass : 'bg-gray-200'"></div>
+                      <div id="strength4" class="h-1 w-1/4 rounded transition-all duration-200" :class="passwordStrength >= 4 ? passwordStrengthClass : 'bg-gray-200'"></div>
+                  </div>
+                  <p id="strengthText" class="text-xs mt-1" :class="passwordStrengthTextClass">{{ passwordStrengthText }}</p>
               </div>
-          </div>
+              <p v-if="errors.password" class="text-red-600 text-xs mt-1">{{ errors.password }}</p>
+            </div>
+
+            <div>
+              <label for="confirmPassword" class="block text-sm font-medium text-gray-700 mb-1">確認密碼</label>
+              <input v-model="credentials.confirmPassword" id="confirmPassword" type="password" required class="form-input block w-full px-3 py-2 border border-gray-300 rounded-lg" placeholder="請再次輸入您的密碼">
+              <p v-if="errors.confirmPassword" class="text-red-600 text-xs mt-1">{{ errors.confirmPassword }}</p>
+            </div>
+
+            <div>
+              <label for="registrationCode" class="block text-sm font-medium text-gray-700 mb-1">註冊碼</label>
+              <input v-model="credentials.registrationCode" id="registrationCode" type="text" class="form-input block w-full px-3 py-2 border border-gray-300 rounded-lg" placeholder="請向管理員索取 (如果需要)">
+            </div>
+            
+            <div class="flex items-start">
+                <input type="checkbox" id="terms" v-model="agreedToTerms" required class="mt-1 h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded">
+                <label for="terms" class="ml-3 text-sm text-gray-700">
+                    我同意 <a href="#" class="text-indigo-600 hover:text-indigo-500 underline" @click.prevent="showTermsModal('服務條款')">服務條款</a> 和 
+                    <a href="#" class="text-indigo-600 hover:text-indigo-500 underline" @click.prevent="showTermsModal('隱私政策')">隱私政策</a>
+                </label>
+            </div>
+            <p v-if="errors.terms" class="text-red-600 text-xs mt-1">{{ errors.terms }}</p>
+            
+            <p v-if="authStore.error" class="text-red-600 text-sm pt-2 text-center">{{ authStore.error }}</p>
+            
+            <div class="pt-4">
+              <button type="submit" class="login-btn w-full flex justify-center py-3 px-4 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white items-center">
+                註冊
+              </button>
+            </div>
+
+            <div class="mt-6 text-center">
+              <p class="text-sm text-gray-600">
+                已經有帳號了？
+                <router-link to="/login" class="font-medium text-indigo-600 hover:text-indigo-500">
+                  返回登入
+                </router-link>
+              </p>
+            </div>
+          </form>
+        </div>
       </div>
     </Transition>
   </div>
