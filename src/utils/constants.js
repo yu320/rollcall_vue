@@ -52,6 +52,9 @@ export const PERSONNEL_IMPORT_HEADERS = {
 // --- 日期時間解析相關常數 ---
 // 彈性日期時間解析函數 (parseFlexibleDateTime) 可能支援的格式
 export const DATETIME_PARSE_FORMATS = [
+    // 【核心修正】新增格式以處理 '日期 PM 時間' 的情況
+    "yyyy/M/d p hh:mm:ss",       // 匹配 '2025/3/4 PM 06:41:25' (date-fns 專用)
+    
     // 最精確和常見的格式優先
     "yyyy/MM/dd HH:mm:ss",     // 2025/06/05 18:34:01 (24小時制)
     "yyyy-MM-dd HH:mm:ss",     // 2025-06-05 18:34:01
@@ -103,7 +106,7 @@ export const MESSAGES = {
   MISSING_COLUMNS: 'CSV 檔案缺少必要的欄位：',
   FILE_PARSE_ERROR: '檔案解析失敗',
   NO_VALID_DATA_TO_IMPORT: '沒有有效的資料可以匯入。',
-  CHECK_IN_IMPORT_SUCCESS: '刷卡紀錄匯入成功！',
+  CHECK_IN_IMPORT_SUCCESS: '打卡紀錄匯入成功！',
   PERSONNEL_IMPORT_SUCCESS: '人員資料匯入成功！',
   DATA_IMPORT_FAILED: '資料匯入失敗',
   DELETE_SUCCESS: '刪除成功！',
