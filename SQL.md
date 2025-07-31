@@ -467,13 +467,14 @@ $$;
 COMMENT ON FUNCTION public.get_daily_record_stats() IS '獲取每日報到記錄的統計資訊';
 
 -- 4.4 import_checkin_records_with_personnel_creation 簽到後端處理
-DROP FUNCTION IF EXISTS public.import_checkin_records_with_personnel_creation(jsonb[], uuid, text);
+DROP FUNCTION IF EXISTS public.import_checkin_records_with_personnel_creation(jsonb[], uuid, text, text[]);
 -- 【已更新】將此處的函式替換為您確認過的版本
 -- import_checkin_records_with_personnel_creation 函數的修正
 CREATE OR REPLACE FUNCTION public.import_checkin_records_with_personnel_creation(
     records_to_import jsonb[],
     eventid uuid DEFAULT NULL,
-    actiontype text DEFAULT '簽到'
+    actiontype text DEFAULT '簽到',
+    user_defined_tags text[] DEFAULT ARRAY[]::text[] -- 新增用戶自訂標籤參數
 )
 RETURNS TABLE (success_count int, auto_created_count int, errors text[])
 LANGUAGE plpgsql
@@ -489,6 +490,7 @@ DECLARE
     record_status text;
     event_start_time timestamptz;
     event_end_time timestamptz;
+    all_tags text[]; -- 組合系統標籤和用戶自訂標籤
     processed_success_count int := 0;
     processed_auto_created_count int := 0;
     processed_errors text[] := ARRAY[]::text[];
@@ -547,19 +549,20 @@ BEGIN
         IF person_id IS NULL THEN
             -- 人員不存在，自動創建
             BEGIN -- Start of inner block for exception handling during personnel creation
+                all_tags := ARRAY['系統匯入'] || user_defined_tags;
                 
                 IF person_input_type = '學號' THEN
                     -- 如果提供的是學號，自動生成一個卡號 (學號中的純數字部分)
                     generated_card_number := REGEXP_REPLACE(person_code, '[^0-9]', '', 'g'); -- 提取純數字
                     IF generated_card_number = '' THEN generated_card_number := SUBSTRING(gen_random_uuid()::text FROM 1 FOR 10); END IF; -- UUID 作為 fallback
                     INSERT INTO public.personnel (name, code, card_number, tags, created_at, updated_at)
-                    VALUES (person_name, person_code, generated_card_number, ARRAY['系統匯入'], NOW(), NOW())
+                    VALUES (person_name, person_code, generated_card_number, all_tags, NOW(), NOW())
                     RETURNING id INTO person_id;
                 ELSIF person_input_type = '卡號' THEN
                     -- 如果提供的是卡號，自動生成一個學號 (AUTO_ + 卡號)
                     generated_code := CONCAT('AUTO_', person_card_number);
                     INSERT INTO public.personnel (name, code, card_number, tags, created_at, updated_at)
-                    VALUES (person_name, generated_code, person_card_number, ARRAY['系統匯入'], NOW(), NOW())
+                    VALUES (person_name, generated_code, person_card_number, all_tags, NOW(), NOW())
                     RETURNING id INTO person_id;
                 ELSE -- 如果 person_input_type 是未知，根據 input 內容判斷
                     IF rec->>'input' ~ '^[0-9]+$' THEN -- 如果 input 是純數字，視為卡號
@@ -569,9 +572,9 @@ BEGIN
                         generated_code := rec->>'input';
                         generated_card_number := REGEXP_REPLACE(rec->>'input', '[^0-9]', '', 'g'); -- 提取純數字
                         IF generated_card_number = '' THEN generated_card_number := SUBSTRING(gen_random_uuid()::text FROM 1 FOR 10); END IF;
-                    END IF;
+                    END IF; 
                     INSERT INTO public.personnel (name, code, card_number, tags, created_at, updated_at)
-                    VALUES (person_name, generated_code, generated_card_number, ARRAY['系統匯入'], NOW(), NOW())
+                    VALUES (person_name, generated_code, generated_card_number, all_tags, NOW(), NOW())
                     RETURNING id INTO person_id;
                 END IF;
                 
@@ -619,14 +622,14 @@ BEGIN
 
     RETURN QUERY SELECT processed_success_count, processed_auto_created_count, processed_errors;
 
-END;
-$$;
-COMMENT ON FUNCTION public.import_checkin_records_with_personnel_creation(jsonb[], uuid, text) IS '批次匯入簽到記錄，如果人員不存在則自動創建，並根據活動時間計算狀態';
+END; 
+$$; 
+COMMENT ON FUNCTION public.import_checkin_records_with_personnel_creation(jsonb[], uuid, text, text[]) IS '批次匯入簽到記錄，如果人員不存在則自動創建，並根據活動時間計算狀態，支持自定義標籤。';
 
 
 -- [NEW] 4.5 save_event_with_participants
 -- [FIXED] 4.5 save_event_with_participants
--- 修正了 event_id 變數與欄位名稱衝突導致的 "ambiguous reference" 錯誤
+-- 修正了 event_id 變數與欄位名稱衝突導致的 "ambiguous reference" 錯誤 
 DROP FUNCTION IF EXISTS public.save_event_with_participants(jsonb, uuid[]);
 CREATE OR REPLACE FUNCTION public.save_event_with_participants(
     event_data jsonb,
@@ -857,5 +860,7 @@ COMMIT;
 
 -- 如果在測試過程中遇到錯誤，可以使用以下命令回滾所有變更：
 -- ROLLBACK
+
+
 
 </markdown>
