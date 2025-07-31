@@ -1,7 +1,7 @@
 import { createClient } from '@supabase/supabase-js';
 
 /**
- * In a Serverless Function, log an audit trail.
+ * 在 Serverless Function 中記錄稽核日誌。
  */
 async function recordAdminAuditLog(supabaseAdmin, adminUserId, logDetails) {
   try {
@@ -21,34 +21,29 @@ async function recordAdminAuditLog(supabaseAdmin, adminUserId, logDetails) {
       old_value: old_value_json,
       new_value: new_value_json,
     });
-    if (error) console.error("Failed to record admin audit log:", error);
+    if (error) console.error("記錄稽核日誌失敗:", error);
   } catch (err) {
-    console.error("Error occurred while recording admin audit log:", err);
+    console.error("記錄稽核日誌時發生錯誤:", err);
   }
 }
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
     res.setHeader('Allow', ['POST']);
-    return res.status(405).json({ error: `Request method ${req.method} not allowed` });
+    return res.status(405).json({ error: `請求方法 ${req.method} 不允許` });
   }
 
   if (!process.env.SUPABASE_URL || !process.env.SUPABASE_SERVICE_KEY) {
-    console.error('Server configuration error: SUPABASE_URL or SUPABASE_SERVICE_KEY not set in environment variables.');
-    return res.status(500).json({ error: 'Server configuration error' });
+    console.error('伺服器設定錯誤: 環境變數中未設定 SUPABASE_URL 或 SUPABASE_SERVICE_KEY。');
+    return res.status(500).json({ error: '伺服器設定錯誤' });
   }
 
   const supabaseAdmin = createClient(
     process.env.SUPABASE_URL,
     process.env.SUPABASE_SERVICE_KEY,
     {
-      db: {
-        schema: 'public', // Explicitly specify the schema
-      },
-      auth: {
-        autoRefreshToken: false, // Typically not needed in a serverless environment
-        persistSession: false,   // Typically not needed in a serverless environment
-      }
+      db: { schema: 'public' },
+      auth: { autoRefreshToken: false, persistSession: false }
     }
   );
 
@@ -57,7 +52,7 @@ export default async function handler(req, res) {
 
   try {
     if (!adminUserId) {
-      return res.status(401).json({ error: 'Admin user ID is required for this operation.' });
+      return res.status(401).json({ error: '此操作需要管理員使用者 ID。' });
     }
     
     const { data: adminProfile, error: adminProfileError } = await supabaseAdmin
@@ -67,62 +62,60 @@ export default async function handler(req, res) {
       .single();
 
     if (adminProfileError || !adminProfile?.roles?.name) {
-        console.error("Account creation failed: Unauthorized or unassigned admin role", { adminUserId, adminProfileError });
-        return res.status(403).json({ error: 'Unauthorized operation or unassigned admin role.' });
+        return res.status(403).json({ error: '未授權的操作或未指派管理員角色。' });
     }
 
     const adminRole = adminProfile.roles.name;
 
-    // --- **CORE FIX 1:** Update permission check to 'accounts:manage_users' ---
     const { data: hasPermission, error: rpcError } = await supabaseAdmin.rpc('user_has_permission', { p_user_id: adminUserId, p_permission_name: 'accounts:manage_users' });
     
     if (rpcError) {
-      console.error("Account creation failed: RPC permission check failed", { adminUserId, rpcError });
-      return res.status(500).json({ error: 'Permission check failed.' });
-    }
-
-    if (adminRole !== 'superadmin' && !hasPermission) {
-      console.warn("Account creation attempt by non-superadmin without permission.", { adminUserId });
-      return res.status(403).json({ error: 'Unauthorized: You do not have permission to create user accounts.' });
+      return res.status(500).json({ error: '權限檢查失敗。' });
     }
     
-    if (adminRole === 'admin' && roleName === 'superadmin') {
-        console.warn("Admin attempted to create a superadmin account.", { adminUserId });
-        return res.status(403).json({ error: 'Admins cannot create superadmin accounts.' });
+    if (adminRole !== 'superadmin' && !hasPermission) {
+      return res.status(403).json({ error: '未經授權：您沒有權限建立使用者帳號。' });
     }
 
-    // --- **CORE FIX 2:** Pass user details in `app_metadata` for the trigger to use ---
+    if (adminRole === 'admin' && roleName === 'superadmin') {
+        return res.status(403).json({ error: '管理員無法建立超級管理員帳號。' });
+    }
+
+    // 【*** 核心修正 ***】
+    // 在建立使用者時，透過 app_metadata 傳遞 'source', 'role', 'nickname' 給資料庫觸發器
     const { data: userData, error: signUpError } = await supabaseAdmin.auth.admin.createUser({
       email,
       password,
-      email_confirm: true, // Auto-confirm the email
+      email_confirm: true,
       app_metadata: {
-        source: 'admin_creation', // Mark this as an admin action
-        role: roleName,           // Pass the role name
-        nickname: nickname        // Pass the nickname
+        source: 'admin_creation', // 標記此帳號由管理員建立
+        role: roleName,           // 傳遞角色名稱
+        nickname: nickname        // 傳遞暱稱
       }
     });
 
     if (signUpError) {
       if (signUpError.message.includes('User already registered')) {
-        return res.status(409).json({ error: 'This email is already in use by another account.' });
+        return res.status(409).json({ error: '此 Email 已被其他帳號使用。' });
       }
-      return res.status(500).json({ error: signUpError.message || 'Failed to create authentication user.' });
+      // 將詳細的後端錯誤訊息回傳給前端，方便除錯
+      return res.status(500).json({ error: `建立認證使用者失敗: ${signUpError.message}` });
     }
 
-    // --- **CORE FIX 3:** Remove manual profile creation; the DB trigger now handles it ---
-    
+    // 【*** 核心修正 ***】
+    // 移除手動更新 profiles 表的程式碼，因為新的 handle_new_user 觸發器會自動完成
+
     await recordAdminAuditLog(supabaseAdmin, adminUserId, {
         action_type: 'CREATE',
         target_table: 'profiles',
         target_id: userData.user.id,
-        description: `Created account: ${email} (Role: ${roleName})`,
+        description: `建立帳號: ${email} (角色: ${roleName})`,
         new_value: { id: userData.user.id, email, role: roleName, nickname }
     });
 
     res.status(200).json({ success: true, userId: userData.user.id });
   } catch (error) {
-    console.error("An unexpected error occurred in the create-account handler:", error);
-    res.status(500).json({ error: error.message || 'An unexpected error occurred' });
+    console.error("建立帳號 handler 發生未預期錯誤:", error);
+    res.status(500).json({ error: error.message || '發生預期外的錯誤' });
   }
 }
