@@ -2,6 +2,7 @@ import { createClient } from '@supabase/supabase-js';
 
 /**
  * 在 Serverless Function 中記錄稽核日誌。
+ * 這個函式可以直接使用 supabaseAdmin 客戶端。
  */
 async function recordAdminAuditLog(supabaseAdmin, adminUserId, logDetails) {
   try {
@@ -21,9 +22,9 @@ async function recordAdminAuditLog(supabaseAdmin, adminUserId, logDetails) {
       old_value: old_value_json,
       new_value: new_value_json,
     });
-    if (error) console.error("記錄稽核日誌失敗:", error);
+    if (error) console.error("記錄管理員稽核日誌失敗:", error);
   } catch (err) {
-    console.error("記錄稽核日誌時發生錯誤:", err);
+    console.error("記錄管理員稽核日誌時發生錯誤:", err);
   }
 }
 
@@ -62,7 +63,7 @@ export default async function handler(req, res) {
       .single();
 
     if (adminProfileError || !adminProfile?.roles?.name) {
-        return res.status(403).json({ error: '未授權的操作或未指派管理員角色。' });
+      return res.status(403).json({ error: '未授權的操作或未指派管理員角色。' });
     }
 
     const adminRole = adminProfile.roles.name;
@@ -77,20 +78,31 @@ export default async function handler(req, res) {
       return res.status(403).json({ error: '未經授權：您沒有權限建立使用者帳號。' });
     }
 
-    if (adminRole === 'admin' && roleName === 'superadmin') {
-        return res.status(403).json({ error: '管理員無法建立超級管理員帳號。' });
+    // [新增] 檢查要建立的角色是否存在且合法
+    const { data: targetRole, error: roleError } = await supabaseAdmin
+      .from('roles')
+      .select('id, name')
+      .eq('name', roleName)
+      .single();
+
+    if (roleError || !targetRole) {
+      return res.status(400).json({ error: `指定的角色名稱 '${roleName}' 無效或不存在。` });
     }
 
-    // 【*** 核心修正 ***】
-    // 在建立使用者時，透過 app_metadata 傳遞 'source', 'role', 'nickname' 給資料庫觸發器
+    // [新增] 管理員不能建立超級管理員帳號的檢查
+    if (adminRole === 'admin' && targetRole.name === 'superadmin') {
+      return res.status(403).json({ error: '管理員無法建立超級管理員帳號。' });
+    }
+
+    // 【修正】將 roleName 傳遞給 app_metadata
     const { data: userData, error: signUpError } = await supabaseAdmin.auth.admin.createUser({
       email,
       password,
       email_confirm: true,
       app_metadata: {
-        source: 'admin_creation', // 標記此帳號由管理員建立
-        role: roleName,           // 傳遞角色名稱
-        nickname: nickname        // 傳遞暱稱
+        source: 'admin_creation',
+        role: roleName,
+        nickname: nickname
       }
     });
 
