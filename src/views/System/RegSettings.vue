@@ -134,7 +134,7 @@ const openModal = (code = null) => {
   if (code) {
     editableCode.value = { 
       ...code,
-      expires_at: toLocalISOString(code.expires_at)
+      expires_at: toLocalISOString(code.expires_at),
       role_id: code.role_id || null // 確保 role_id 被正確載入
     };
   } else {
