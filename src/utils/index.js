@@ -37,7 +37,7 @@ export function formatDate(date) {
     return `${year}-${month}-${day}`;
 }
 
-/**
+**
  * 彈性解析日期時間字串。
  * 嘗試多種常見的日期時間格式進行解析。
  * @param {string} dateTimeStr - 日期時間字串。
@@ -48,33 +48,49 @@ export function parseFlexibleDateTime(dateTimeStr) {
 
     let processedDateTimeString = String(dateTimeStr).trim();
 
-    // Step 1: Normalize Chinese AM/PM to English AM/PM, and ensure proper spacing
-    // 將「下午」和「上午」替換為標準的「PM」和「AM」，並保留其後的空白
+    // Step 1: 將中文的「下午」和「上午」替換為標準的「PM」和「AM」，並統一空格
     processedDateTimeString = processedDateTimeString
-        .replace(/下午(\s*)/g, 'PM$1')
-        .replace(/上午(\s*)/g, 'AM$1');
+        .replace(/下午/g, 'PM')
+        .replace(/上午/g, 'AM')
+        .replace(/\s+/g, ' ') // 將多個空格替換為單一空格
+        .trim();
     
-    // Step 2: 將 AM/PM 標記移動到時間的結尾（如果它目前在時間之前）
-    // 範例: "2025/3/4 PM 06:41:25" 轉換為 "2025/3/4 06:41:25 PM"
-    // 這個正規表達式會捕捉：(日期部分)(可選空白)(AM/PM標記)(可選空白)(時間部分)
-    // 時間部分支援 HH:mm:ss 或 HH:mm
-    const amPmBeforeTimeMatch = processedDateTimeString.match(/^(.*?)\s*(AM|PM)\s*(\d{1,2}:\d{2}(?::\d{2})?(?:\.\d+)?)$/i);
-    
-    if (amPmBeforeTimeMatch) {
-        const [, datePart, amPmMarker, timePart] = amPmBeforeTimeMatch;
-        // 重構字串為 "日期 時間 AM/PM"
-        processedDateTimeString = `${datePart.trim()} ${timePart.trim()} ${amPmMarker.trim()}`;
-    }
+    // Step 2: 嘗試提取時間部分並手動轉換為 24 小時制，以提高解析成功率
+    // 範例: "2025/3/4 PM 06:41:25" 轉換為 "2025/3/4 18:41:25"
+    // 匹配日期、時間、以及可選的 AM/PM 標記
+    const dateTimePartsMatch = processedDateTimeString.match(/(.*?)\s*(\d{1,2}:\d{2}(?::\d{2})?(?:\.\d+)?)\s*(AM|PM)?/i);
 
-    // Step 3: 確保所有空白字元都只是一個單一的空格，並移除前後多餘空白
-    processedDateTimeString = processedDateTimeString.replace(/\s+/g, ' ').trim();
+    if (dateTimePartsMatch) {
+        const [, datePart, timePart, amPmMarker] = dateTimePartsMatch;
+        let [hours, minutes, seconds] = timePart.split(':').map(Number);
+
+        if (amPmMarker) {
+            const isPM = amPmMarker.toUpperCase() === 'PM';
+            if (isPM && hours < 12) { // PM 時段，且小時數小於 12 (例如 01 PM, 06 PM)
+                hours += 12;
+            } else if (!isPM && hours === 12) { // AM 時段，且小時數為 12 (即午夜 12 AM)
+                hours = 0;
+            }
+        }
+        
+        // 重構為 24 小時制的時間字串 (HH:mm:ss)
+        const formattedTime = [
+            String(hours).padStart(2, '0'),
+            String(minutes).padStart(2, '0'),
+            String(seconds || 0).padStart(2, '0') // 如果沒有秒數，預設為 0
+        ].join(':');
+
+        processedDateTimeString = `${datePart.trim()} ${formattedTime}`;
+    }
 
     const formats = DATETIME_PARSE_FORMATS;
 
     for (const fmt of formats) {
         try {
-            // 使用 date-fns 嘗試解析
-            const parsedDate = parse(processedDateTimeString, fmt, new Date(), { locale: zhTW });
+            // 注意：這裡只會使用不包含 'a' (AM/PM) 的格式來解析，因為我們已經手動轉換了
+            const tempFmt = fmt.replace(/\s*a$/, ''); // 移除格式字串中的 ' a'
+            
+            const parsedDate = parse(processedDateTimeString, tempFmt, new Date(), { locale: zhTW });
             if (!isNaN(parsedDate.getTime())) {
                 return parsedDate;
             }
@@ -85,7 +101,6 @@ export function parseFlexibleDateTime(dateTimeStr) {
     }
     return new Date(NaN); // 如果所有格式都無法解析，返回無效日期
 }
-
 /**
  * 檢查是否為有效的卡號 (純數字)。
  * @param {string} cardNumber - 卡號字串。
