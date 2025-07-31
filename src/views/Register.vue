@@ -1,5 +1,5 @@
 <template>
-<div class="login-container flex justify-center p-4 py-12">
+  <div class="login-container flex justify-center p-4 py-12">
     <div class="animated-bg">
       <div class="animated-bg-shape shape-1"></div>
       <div class="animated-bg-shape shape-2"></div>
@@ -23,7 +23,6 @@
         </div>
         
         <form class="space-y-4" @submit.prevent="handleRegister">
-        
           <div>
             <label for="email" class="block text-sm font-medium text-gray-700 mb-1">帳號</label>
             <input v-model="credentials.email" id="email" type="text" required class="form-input block w-full px-3 py-2 border border-gray-300 rounded-lg" placeholder="請輸入帳號 (若無 @ 將自動加入預設網域)">
@@ -77,17 +76,16 @@
             </button>
           </div>
 
-
-        <div class="mt-6 text-center">
-          <p class="text-sm text-gray-600">
-            已經有帳號了？
-            <router-link to="/login" class="font-medium text-indigo-600 hover:text-indigo-500">
-              返回登入
-            </router-link>
-          </p>
+          <div class="mt-6 text-center">
+            <p class="text-sm text-gray-600">
+              已經有帳號了？
+              <router-link to="/login" class="font-medium text-indigo-600 hover:text-indigo-500">
+                返回登入
+              </router-link>
+            </p>
+          </div>
+        </form>
         </div>
-      </form>
-    </div>
 
       <div v-else class="car-loading-overlay">
           <div class="road">
@@ -128,38 +126,27 @@ const agreedToTerms = ref(false);
 const passwordStrength = ref(0);
 
 const passwordStrengthText = computed(() => {
-    const texts = ['密碼強度', '很弱', '弱', '中等', '強', '很強'];
+    const texts = ['密碼強度', '很弱', '弱', '中等', '強'];
     return texts[passwordStrength.value];
 });
 
 const passwordStrengthClass = computed(() => {
-    const classes = ['', 'bg-red-400', 'bg-orange-400', 'bg-yellow-400', 'bg-green-400', 'bg-green-600'];
+    const classes = ['', 'bg-red-400', 'bg-orange-400', 'bg-yellow-400', 'bg-green-400'];
     return classes[passwordStrength.value];
 });
 
 const passwordStrengthTextClass = computed(() => {
-    const classes = ['text-gray-500', 'text-red-500', 'text-orange-500', 'text-yellow-500', 'text-green-500', 'text-green-700'];
+    const classes = ['text-gray-500', 'text-red-500', 'text-orange-500', 'text-yellow-500', 'text-green-500'];
     return `text-xs mt-1 font-medium ${classes[passwordStrength.value]}`;
 });
 
 const calculatePasswordStrength = (password) => {
     let strength = 0;
-    if (password.length >= 8) {
-        strength++;
-    }
-    if (/[a-z]/.test(password)) {
-        strength++;
-    }
-    if (/[A-Z]/.test(password)) {
-        strength++;
-    }
-    if (/[0-9]/.test(password)) {
-        strength++;
-    }
-    if (/[^A-Za-z0-9]/.test(password)) {
-        strength++;
-    }
-    return Math.min(strength, 4);
+    if (password.length >= 8) strength++;
+    if (/[A-Z]/.test(password)) strength++;
+    if (/[0-9]/.test(password)) strength++;
+    if (/[^A-Za-z0-9]/.test(password)) strength++;
+    return strength;
 };
 
 watch(() => credentials.password, (newPassword) => {
@@ -186,7 +173,6 @@ watch(() => credentials.confirmPassword, (newConfirmPassword) => {
 
 
 const validateForm = () => {
-    // Reset errors
     errors.password = '';
     errors.confirmPassword = '';
     errors.terms = '';
@@ -215,7 +201,6 @@ const handleRegister = async () => {
         return;
     }
     
-    // Check for email domain and append if missing
     let finalEmail = credentials.email;
     if (finalEmail && !finalEmail.includes('@')) {
       finalEmail = finalEmail + DEFAULT_EMAIL_DOMAIN;
@@ -244,13 +229,8 @@ const showTermsModal = (policyType) => {
       bodyText,
       '我已閱讀',
       'bg-indigo-600 hover:bg-indigo-700'
-    ).then(() => {
-      // User clicked "I have read"
-    }).catch(() => {
-      // User cancelled
-    });
+    ).then(() => {}).catch(() => {});
 };
-
 </script>
 
 <style scoped>
