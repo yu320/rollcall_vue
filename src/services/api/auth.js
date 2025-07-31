@@ -112,7 +112,3 @@ export async function signUp({ email, password, nickname, registrationCode }) {
   if (error) throw error;
   return data;
 }
-
-export async function login(email, password) {
-  // ...
-}
