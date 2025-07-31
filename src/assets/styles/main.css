@@ -319,15 +319,19 @@ input:focus, textarea:focus, select:focus {
     text-transform: uppercase;
     color: var(--gray-500);
 }
-/* NEW: 為「類型」和「狀態」欄位的標頭設定居中對齊 */
-.data-grid th:nth-child(5), /* 選擇第五個 th (類型) */
-.data-grid th:nth-child(6) { /* 選擇第六個 th (狀態) */
+/* NEW: 為「學號/卡號」、「類型」、「狀態」、「關聯活動」欄位的標頭設定居中對齊 */
+.data-grid th:nth-child(4), /* 學號/卡號 */
+.data-grid th:nth-child(5), /* 類型 */
+.data-grid th:nth-child(6), /* 狀態 */
+.data-grid th:nth-child(7) { /* 關聯活動 */
     text-align: center;
 }
 
-/* NEW: 為「類型」和「狀態」欄位的數據儲存格設定 Flexbox 居中對齊 */
+/* NEW: 為「學號/卡號」、「類型」、「狀態」、「關聯活動」欄位的數據儲存格設定 Flexbox 居中對齊 */
+.data-grid td[data-label="學號/卡號"],
 .data-grid td[data-label="類型"],
-.data-grid td[data-label="狀態"] {
+.data-grid td[data-label="狀態"],
+.data-grid td[data-label="活動"] { /* data-label for "關聯活動" in DailyRecords.vue is "活動" */
     display: flex; /* 將 td 設為 flex 容器 */
     justify-content: center; /* 水平居中對齊內容 */
     align-items: center; /* 垂直居中對齊內容 */
@@ -486,15 +490,15 @@ input:focus, textarea:focus, select:focus {
     }
 
 /* NEW: 手機版下，特定欄位的內容也居中 */
+  .table-responsive td[data-label="學號/卡號"] > *,
   .table-responsive td[data-label="類型"] .type-badge,
-  .table-responsive td[data-label="狀態"] .status-badge {
-    margin-left: auto; /* 確保在 grid 佈局下也能居中 */
+  .table-responsive td[data-label="狀態"] .status-badge,
+  .table-responsive td[data-label="活動"] > * {
+    /* 將 margin: auto 應用於這些元素，讓它們在各自的 grid 儲存格中居中 */
+    margin-left: auto;
     margin-right: auto;
-    /* 由於 .type-badge 和 .status-badge 已經是 inline-flex，
-       且其父元素 td 在移動端是 grid，
-       直接對膠囊應用 margin: auto 應該能讓它們在各自的 grid 儲存格中居中。
-       不需要 text-align: center; 在這裡，因為 flex/inline-flex/grid 處理對齊。
-    */
+    /* 確保文字對齊也居中，以防內容是純文字而非膠囊 */
+    text-align: center;
   }
 
 .device-id-content {
