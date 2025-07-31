@@ -148,7 +148,7 @@
 
     <div class="text-center mt-12 hidden-message" :class="{ 'revealed': showHiddenMessage }">
       <p>
-        這是一個隱藏的訊息：<span class="unselectable">「祝你們活動順利！！🎁還有其他的地方有彩蛋喔～」</span>
+        <span class="unselectable">這是一個隱藏的訊息：「祝你們活動順利！！🎁還有其他的地方有彩蛋喔～」</span>
       </p>
     </div>
   </div>
