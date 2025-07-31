@@ -4,6 +4,7 @@
  * 將固定不變的數值或字串集中管理，方便未來修改。
  */
 
+// --- 系統設定 ---
 // 批量操作的大小
 export const BATCH_SIZE = 500;
 
@@ -16,6 +17,12 @@ export const INACTIVITY_LOGOUT_TIME = 15 * 60 * 1000;
 // 在自動登出前多久顯示警告 (毫秒) - 1 分鐘
 export const INACTIVITY_WARNING_TIME = 1 * 60 * 1000;
 
+// --- Supabase 表格名稱 ---
+export const PERSONNEL_TABLE = 'personnel';
+export const CHECK_IN_TABLE = 'check_in_records';
+export const EVENTS_TABLE = 'events';
+
+// --- 使用者角色 ---
 // 使用者角色的顯示名稱
 export const USER_ROLE_NAMES = {
     superadmin: '超級管理員',
@@ -46,46 +53,63 @@ export const PERSONNEL_IMPORT_HEADERS = {
 // 彈性日期時間解析函數 (parseFlexibleDateTime) 可能支援的格式
 export const DATETIME_PARSE_FORMATS = [
     // 最精確和常見的格式優先
-    "yyyy/MM/dd HH:mm:ss",      // 2025/06/05 18:34:01 (24小時制)
-    "yyyy-MM-dd HH:mm:ss",      // 2025-06-05 18:34:01
-    "yyyy/MM/dd hh:mm:ss a",    // 2025/06/05 06:34:01 PM (12小時制帶AM/PM)
-    "yyyy-MM-dd hh:mm:ss a",    // 2025-06-05 06:34:01 PM
+    "yyyy/MM/dd HH:mm:ss",     // 2025/06/05 18:34:01 (24小時制)
+    "yyyy-MM-dd HH:mm:ss",     // 2025-06-05 18:34:01
+    "yyyy/MM/dd hh:mm:ss a",   // 2025/06/05 06:34:01 PM (12小時制帶AM/PM)
+    "yyyy-MM-dd hh:mm:ss a",   // 2025-06-05 06:34:01 PM
 
     // 處理單數字月份/日期 (含前導零小時和無前導零小時)
-    "yyyy/M/d HH:mm:ss",        // 2025/6/5 18:34:01
-    "yyyy-M-d HH:mm:ss",        // 2025-6-5 18:34:01
-    "yyyy/M/d hh:mm:ss a",      // 2025/6/5 06:34:01 PM
-    "yyyy-M-d hh:mm:ss a",      // 2025-6-5 06:34:01 PM
-    "yyyy/M/d h:mm:ss a",       // 2025/6/5 6:34:01 PM
-    "yyyy-M-d h:mm:ss a",       // 2025-6-5 6:34:01 PM
+    "yyyy/M/d HH:mm:ss",       // 2025/6/5 18:34:01
+    "yyyy-M-d HH:mm:ss",       // 2025-6-5 18:34:01
+    "yyyy/M/d hh:mm:ss a",     // 2025/6/5 06:34:01 PM
+    "yyyy-M-d hh:mm:ss a",     // 2025-6-5 06:34:01 PM
+    "yyyy/M/d h:mm:ss a",      // 2025/6/5 6:34:01 PM
+    "yyyy-M-d h:mm:ss a",      // 2025-6-5 6:34:01 PM
 
     // 無秒數的格式 (含單數字月/日)
-    "yyyy/MM/dd HH:mm",         // 2025/06/05 18:34
-    "yyyy-MM-dd HH:mm",         // 2025-06/05 18:34
-    "yyyy/M/d HH:mm",           // 2025/6/5 18:34
-    "yyyy-M-d HH:mm",           // 2025-6-5 18:34
-    "yyyy/MM/dd hh:mm a",       // 2025/06/05 06:34 PM
-    "yyyy-MM-dd hh:mm a",       // 2025-06-05 06:34 PM
-    "yyyy/M/d hh:mm a",         // 2025/6/5 06:34 PM
-    "yyyy-M-d hh:mm a",         // 2025-6-5 06:34 PM
-    "yyyy/MM/dd h:mm a",        // 2025/06/05 6:34 PM
-    "yyyy-MM-dd h:mm a",        // 2025-06-05 6:34 PM
-    "yyyy/M/d h:mm a",          // 2025/6/5 6:34 PM
-    "yyyy-M-d h:mm a",          // 2025-6-5 6:34 PM
+    "yyyy/MM/dd HH:mm",        // 2025/06/05 18:34
+    "yyyy-MM-dd HH:mm",        // 2025-06/05 18:34
+    "yyyy/M/d HH:mm",          // 2025/6/5 18:34
+    "yyyy-M-d HH:mm",          // 2025-6-5 18:34
+    "yyyy/MM/dd hh:mm a",      // 2025/06/05 06:34 PM
+    "yyyy-MM-dd hh:mm a",      // 2025-06-05 06:34 PM
+    "yyyy/M/d hh:mm a",        // 2025/6/5 06:34 PM
+    "yyyy-M-d hh:mm a",        // 2025-6-5 06:34 PM
+    "yyyy/MM/dd h:mm a",       // 2025/06/05 6:34 PM
+    "yyyy-MM-dd h:mm a",       // 2025-06-05 6:34 PM
+    "yyyy/M/d h:mm a",         // 2025/6/5 6:34 PM
+    "yyyy-M-d h:mm a",         // 2025-6-5 6:34 PM
 
     // 純日期格式 (含單數字月/日)
-    "yyyy/MM/dd",               // 2025/06/05
-    "yyyy-MM-dd",               // 2025-06-05
-    "yyyy/M/d",                 // 2025/6/5
-    "yyyy-M-d",                 // 2025-6-5
-    "MM/dd/yyyy",               // 06/05/2025
-    "M/d/yyyy",                 // 6/5/2025
+    "yyyy/MM/dd",              // 2025/06/05
+    "yyyy-MM-dd",              // 2025-06-05
+    "yyyy/M/d",                // 2025/6/5
+    "yyyy-M-d",                // 2025-6-5
+    "MM/dd/yyyy",              // 06/05/2025
+    "M/d/yyyy",                // 6/5/2025
 
     // 純時間格式 (含單數字小時)
-    "HH:mm:ss",                 // 18:34:01
-    "HH:mm",                    // 18:34
-    "h:mm:ss a",                // 6:34:01 PM
-    "hh:mm:ss a",               // 06:34:01 PM
-    "h:mm a",                   // 6:34 PM
-    "hh:mm a",                  // 06:34 PM
+    "HH:mm:ss",                // 18:34:01
+    "HH:mm",                   // 18:34
+    "h:mm:ss a",               // 6:34:01 PM
+    "hh:mm:ss a",              // 06:34:01 PM
+    "h:mm a",                  // 6:34 PM
+    "hh:mm a",                 // 06:34 PM
 ];
+
+// --- 系統訊息 ---
+export const MESSAGES = {
+  FILE_NOT_SELECTED: '請先選擇一個檔案。',
+  MISSING_COLUMNS: 'CSV 檔案缺少必要的欄位：',
+  FILE_PARSE_ERROR: '檔案解析失敗',
+  NO_VALID_DATA_TO_IMPORT: '沒有有效的資料可以匯入。',
+  CHECK_IN_IMPORT_SUCCESS: '刷卡紀錄匯入成功！',
+  PERSONNEL_IMPORT_SUCCESS: '人員資料匯入成功！',
+  DATA_IMPORT_FAILED: '資料匯入失敗',
+  DELETE_SUCCESS: '刪除成功！',
+  DELETE_FAILED: '刪除失敗',
+  UPDATE_SUCCESS: '更新成功！',
+  UPDATE_FAILED: '更新失敗',
+  CREATE_SUCCESS: '新增成功！',
+  CREATE_FAILED: '新增失敗',
+};
