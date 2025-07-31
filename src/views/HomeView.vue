@@ -17,8 +17,6 @@
     <div class="home-stars" :style="{ '--star-hue-rotate': `${bgHue}deg` }"></div>
     <div class="home-floating-element"></div>
 
-    <!-- 飛碟元素已移除 -->
-
     <div class="floating-snacks-container">
       <div
         v-for="snack in floatingSnacks"
@@ -148,7 +146,7 @@
       </router-link>
     </div>
 
-    <div class="text-center mt-12 hidden-message">
+    <div class="text-center mt-12 hidden-message" :class="{ 'revealed': showHiddenMessage }">
       <p>
         這是一個隱藏的訊息：<span class="unselectable">「祝你們活動順利！！🎁還有其他的地方有彩蛋喔～」</span>
       </p>
@@ -168,7 +166,6 @@ const canViewAny = (permissions) => permissions.some(permission => authStore.has
 
 const triggerWelcomeAnimation = () => {
   showWelcomeAnimation.value = true;
-  // 動畫時長結束後，將 showWelcomeAnimation 設為 false，移除 animate-wiggle 類別，動畫停止
   setTimeout(() => {
     showWelcomeAnimation.value = false;
   }, 1000); 
@@ -212,6 +209,7 @@ const PineappleCakeIcon = {
 const floatingSnacks = ref([]);
 let snackSpawnInterval;
 const snacksSparkling = ref(false);
+const showHiddenMessage = ref(false); // New reactive variable for hidden message visibility
 
 const createSnack = () => {
   const snackTypes = [
@@ -238,13 +236,6 @@ const triggerSnackEffect = (snack) => {
   }, 300); // Reset click effect after 0.3s
 };
 
-// --- 飛碟穿越彩蛋 ---
-const ufoActive = ref(false);
-// ufoTimeout 變數已移除，因為飛碟元素已移除
-
-// triggerUFO 函數已移除，因為飛碟元素已移除
-
-
 // --- 背景點擊色調變化彩蛋 ---
 const bgHue = ref(0);
 const handleBackgroundClick = (event) => {
@@ -268,6 +259,7 @@ const handleKeyDown = (event) => {
   // Check if the current sequence matches the konami sequence
   if (pressedKeys.value.join('') === konamiSequence.join('')) {
     snacksSparkling.value = true;
+    showHiddenMessage.value = true; // Reveal hidden message
     setTimeout(() => {
       snacksSparkling.value = false;
     }, 1500); // Sparkle duration
@@ -359,8 +351,6 @@ onMounted(() => {
     }
   }, 3000); // Every 3 seconds
 
-  // triggerUFO(); // 飛碟元素已移除，所以此行也移除
-
   // Add global event listener for keyboard input
   window.addEventListener('keydown', handleKeyDown);
 
@@ -392,7 +382,6 @@ onMounted(() => {
 onUnmounted(() => {
   // Clear all intervals and timeouts when the component is unmounted
   clearInterval(snackSpawnInterval);
-  // clearTimeout(ufoTimeout); // 飛碟元素已移除，所以此行也移除
   // Remove global event listeners
   window.removeEventListener('keydown', handleKeyDown);
   // Ensure all dynamically added floating snacks are removed from the DOM
@@ -410,6 +399,7 @@ onUnmounted(() => {
 .bg-custom-midnight-green { background-color: #124559; }
 .bg-custom-air-force-blue { background-color: #598392; }
 .text-custom-beige { color: #eff6e0; }
+.text-custom-midnight-green { color: #124559; } /* Added for hidden text */
 
 /* 功能卡片通用樣式 */
 .feature-card {
@@ -624,29 +614,24 @@ onUnmounted(() => {
 }
 
 /* --- 隱藏文字樣式 --- */
-.hidden-message {
-  user-select: none; /* 防止直接選取 */
-  -webkit-user-select: none; /* For Webkit browsers */
-  -moz-user-select: none; /* For Firefox */
-  -ms-user-select: none; /* For Internet Explorer/Edge */
-  color: transparent; /* 預設文字透明 */
-  text-shadow: 0 0 8px rgba(0,0,0,0.5); /* 模糊陰影模擬隱藏 */
-  transition: color 0.3s ease, text-shadow 0.3s ease;
+.hidden-message .unselectable {
+  color: transparent; /* Text is transparent by default */
+  filter: blur(3px); /* Apply blur to hide */
+  transition: filter 0.3s ease; /* Smooth transition for blur */
 }
 
-/* 當滑鼠選取文字時，顯示文字 */
-.hidden-message::selection {
-  background-color: transparent; /* 保持背景透明 */
-  color: var(--custom-rich-black); /* 顯示文字顏色 */
-  text-shadow: none; /* 移除陰影 */
+/* When the message is revealed, change color and remove blur */
+.hidden-message.revealed .unselectable {
+  color: var(--custom-midnight-green); /* Darker color when revealed */
+  filter: blur(0px); /* Remove blur */
 }
-/* For older browsers that don't support ::selection pseudo-element for custom text selection behavior */
+
+/* For older browsers or fallback for selection (though not the primary unlock) */
 .hidden-message:hover .unselectable {
-  color: var(--custom-rich-black); /* 顯示文字顏色 */
-  text-shadow: none; /* 移除陰影 */
+  /* This rule is less important now that 'egg' is the primary trigger */
+  /* Kept for potential hover effect fallback, but `color` is now set by `revealed` class */
 }
 
-/* 飛碟相關的 CSS 樣式已移除 */
 
 /* --- 卡片標題微晃彩蛋樣式 --- */
 @keyframes wiggle-title {
