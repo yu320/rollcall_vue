@@ -6,7 +6,6 @@
     --       或安全地更新現有資料庫以符合最新架構。
 ---
 
-``` SQL
 -- 啟動一個事務，確保所有操作的原子性
 BEGIN;
 
@@ -138,7 +137,7 @@ CREATE TABLE IF NOT EXISTS public.personnel (
     code text NOT NULL,
     card_number text NOT NULL,
     building text NULL,
-    tags text[] NULL,
+    tags text[] NULL, -- 人員的標籤欄位保留
     updated_at timestamp with time zone NOT NULL DEFAULT now(),
     CONSTRAINT personnel_pkey PRIMARY KEY (id),
     CONSTRAINT personnel_card_number_key UNIQUE (card_number),
@@ -249,6 +248,7 @@ CREATE TABLE IF NOT EXISTS public.check_in_records (
     event_id uuid NULL,
     status text NULL,
     action_type text NOT NULL DEFAULT '簽到',
+    -- tags text[] NULL, -- 【已移除】報到記錄的標籤欄位，根據用戶要求
     CONSTRAINT check_in_records_pkey PRIMARY KEY (id),
     CONSTRAINT check_in_records_event_id_fkey FOREIGN KEY (event_id) REFERENCES public.events(id) ON DELETE SET NULL,
     CONSTRAINT check_in_records_personnel_id_fkey FOREIGN KEY (personnel_id) REFERENCES public.personnel(id) ON DELETE SET NULL
@@ -293,6 +293,12 @@ BEGIN
         UPDATE public.check_in_records SET success = COALESCE(success, FALSE) WHERE success IS NULL;
         ALTER TABLE public.check_in_records ALTER COLUMN success SET NOT NULL;
     END IF;
+
+    -- 【已移除】用於添加 'tags' 欄位的邏輯，因為用戶要求 'tags' 不在 check_in_records 中
+    -- IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'check_in_records' AND column_name = 'tags') THEN
+    --     ALTER TABLE public.check_in_records ADD COLUMN tags text[] NULL;
+    --     COMMENT ON COLUMN public.check_in_records.tags IS '報到記錄的標籤，用陣列儲存';
+    -- END IF;
 
 END $$;
 
@@ -380,7 +386,7 @@ ON CONFLICT (role_id, permission_id) DO NOTHING;
 
 -- 4.1 handle_new_user
 DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
-DROP FUNCTION IF EXISTS public.handle_new_user();
+DROP FUNCTION IF EXISTS public.handle_new_user() CASCADE; -- 添加 CASCADE
 CREATE OR REPLACE FUNCTION public.handle_new_user()
 RETURNS TRIGGER AS $$
 DECLARE
@@ -416,19 +422,28 @@ DROP POLICY IF EXISTS "Allow authorized users to update events" ON public.events
 DROP POLICY IF EXISTS "Allow authorized users to delete events" ON public.events;
 
 DROP POLICY IF EXISTS "Allow authorized users to read records" ON public.check_in_records;
+CREATE POLICY "Allow authorized users to read records" ON public.check_in_records FOR SELECT USING (public.user_has_permission(auth.uid(), 'records:view'));
 DROP POLICY IF EXISTS "Allow authorized users to create records" ON public.check_in_records;
+CREATE POLICY "Allow authorized users to create records" ON public.check_in_records FOR INSERT WITH CHECK (public.user_has_permission(auth.uid(), 'records:create'));
 DROP POLICY IF EXISTS "Allow authorized users to delete records" ON public.check_in_records;
+CREATE POLICY "Allow authorized users to delete records" ON public.check_in_records FOR DELETE USING (public.user_has_permission(auth.uid(), 'records:delete'));
 
 DROP POLICY IF EXISTS "Allow admin to read audit logs" ON public.audit_logs;
+CREATE POLICY "Allow admin to read audit logs" ON public.audit_logs FOR SELECT USING (public.user_has_permission(auth.uid(), 'accounts:manage'));
 DROP POLICY IF EXISTS "Allow authenticated users to insert audit logs" ON public.audit_logs;
+CREATE POLICY "Allow authenticated users to insert audit logs" ON public.audit_logs FOR INSERT WITH CHECK (auth.role() = 'authenticated');
 
+-- --- 策略: roles, permissions, role_permissions ---
 DROP POLICY IF EXISTS "Allow admins to manage roles" ON public.roles;
+CREATE POLICY "Allow admins to manage roles" ON public.roles FOR ALL USING (public.user_has_permission(auth.uid(), 'accounts:manage')) WITH CHECK (public.user_has_permission(auth.uid(), 'accounts:manage'));
 DROP POLICY IF EXISTS "Allow admins to manage permissions" ON public.permissions;
+CREATE POLICY "Allow admins to manage permissions" ON public.permissions FOR ALL USING (public.user_has_permission(auth.uid(), 'accounts:manage')) WITH CHECK (public.user_has_permission(auth.uid(), 'accounts:manage'));
 DROP POLICY IF EXISTS "Allow admins to manage role_permissions" ON public.role_permissions;
+CREATE POLICY "Allow admins to manage role_permissions" ON public.role_permissions FOR ALL USING (public.user_has_permission(auth.uid(), 'accounts:manage')) WITH CHECK (public.user_has_permission(auth.uid(), 'accounts:manage'));
 
 DROP POLICY IF EXISTS "Allow authorized users to manage event participants" ON public.event_participants; -- [NEW] Drop policy for event_participants
 
-DROP FUNCTION IF EXISTS public.user_has_permission(p_user_id uuid, p_permission_name text);
+DROP FUNCTION IF EXISTS public.user_has_permission(p_user_id uuid, p_permission_name text) CASCADE; -- 添加 CASCADE
 CREATE OR REPLACE FUNCTION public.user_has_permission(p_user_id uuid, p_permission_name text)
 RETURNS boolean AS $$
 DECLARE
@@ -467,20 +482,21 @@ $$;
 COMMENT ON FUNCTION public.get_daily_record_stats() IS '獲取每日報到記錄的統計資訊';
 
 -- 4.4 import_checkin_records_with_personnel_creation 簽到後端處理
-DROP FUNCTION IF EXISTS public.import_checkin_records_with_personnel_creation(jsonb[], uuid, text, text[]);
--- 【已更新】將此處的函式替換為您確認過的版本
--- import_checkin_records_with_personnel_creation 函數的修正
+-- 【新增】多個 DROP FUNCTION 語句以確保移除所有衝突的簽名
+DROP FUNCTION IF EXISTS public.import_checkin_records_with_personnel_creation(jsonb, uuid, text, text[]) CASCADE;
+DROP FUNCTION IF EXISTS public.import_checkin_records_with_personnel_creation(text, uuid, jsonb, text[]) CASCADE;
+DROP FUNCTION IF EXISTS public.import_checkin_records_with_personnel_creation(jsonb[], uuid, text, text[]) CASCADE;
 CREATE OR REPLACE FUNCTION public.import_checkin_records_with_personnel_creation(
-    records_to_import jsonb[],
+    records_to_import jsonb, -- 這裡應該是單個 JSONB 物件，而不是陣列
     eventid uuid DEFAULT NULL,
     actiontype text DEFAULT '簽到',
-    user_defined_tags text[] DEFAULT ARRAY[]::text[] -- 新增用戶自訂標籤參數
+    user_defined_tags text[] DEFAULT ARRAY[]::text[] -- 用戶自訂標籤參數
 )
 RETURNS TABLE (success_count int, auto_created_count int, errors text[])
 LANGUAGE plpgsql
 AS $$
 DECLARE
-    rec jsonb;
+    rec JSONB;
     person_id uuid;
     person_name text;
     person_code text;
@@ -494,7 +510,6 @@ DECLARE
     processed_success_count int := 0;
     processed_auto_created_count int := 0;
     processed_errors text[] := ARRAY[]::text[];
-    -- 將 generated_code 和 generated_card_number 聲明移到主 DECLARE 區塊
     generated_code text;
     generated_card_number text;
 BEGIN
@@ -505,7 +520,8 @@ BEGIN
         WHERE id = eventid;
     END IF;
 
-    FOR rec IN SELECT unnest(records_to_import)
+    -- 遍歷傳入的記錄陣列 (records_to_import 現在是單個 JSONB，所以需要 jsonb_array_elements)
+    FOR rec IN SELECT * FROM jsonb_array_elements(records_to_import)
     LOOP
         -- 從 name_at_checkin 獲取姓名，並確保移除空白字元
         person_name := TRIM(rec->>'name_at_checkin');
@@ -624,7 +640,7 @@ BEGIN
 
 END; 
 $$; 
-COMMENT ON FUNCTION public.import_checkin_records_with_personnel_creation(jsonb[], uuid, text, text[]) IS '批次匯入簽到記錄，如果人員不存在則自動創建，並根據活動時間計算狀態，支持自定義標籤。';
+COMMENT ON FUNCTION public.import_checkin_records_with_personnel_creation(jsonb, uuid, text, text[]) IS '批次匯入簽到記錄，如果人員不存在則自動創建，並根據活動時間計算狀態，支持自定義標籤。';
 
 
 -- [NEW] 4.5 save_event_with_participants
@@ -860,7 +876,3 @@ COMMIT;
 
 -- 如果在測試過程中遇到錯誤，可以使用以下命令回滾所有變更：
 -- ROLLBACK
-
-
-
-</markdown>
