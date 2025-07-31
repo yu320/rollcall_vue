@@ -544,13 +544,13 @@ input:focus, textarea:focus, select:focus {
     content: '';
     position: absolute;
     inset: 0; /* 讓偽元素和卡片一樣大 */
-    border-radius: 1rem; /* 1rem 對應 rounded-2xl */
+    /* border-radius: 1rem; /* 1rem 對應 rounded-2xl */
     
     /* [關鍵] 使用和頁面相同的背景漸層，但不透明 */
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    /* background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
     
     z-index: -1; /* 將這個背景層放到卡片內容的後面 */
-} */
+
 
 .form-input:focus {
     border-color: #4f46e5;
