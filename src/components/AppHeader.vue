@@ -1,13 +1,12 @@
 <template>
   <header class="bg-white shadow-lg">
-    <div class="container mx-auto px-4 py-5 flex flex-wrap justify-between items-center gap-4">
-      <div class="flex items-center">
+    <router-link to="/" class="flex items-center cursor-pointer">
         <img :src="logoUrl" alt="簽到系統Logo" class="h-12 w-12 rounded-full shadow-md mr-4">
         <div>
           <h1 class="text-3xl md:text-4xl font-extrabold text-indigo-800">點名系統</h1>
           <p class="text-gray-500 text-sm md:text-base mt-1">使用前要匯入名單&創建活動</p>
         </div>
-      </div>
+    </router-link>
 
       <div v-if="isLoggedIn && user" class="flex items-center gap-4 flex-wrap justify-center sm:justify-end w-full sm:w-auto">
         <span class="text-gray-700 font-medium px-3 py-1 bg-gray-100 rounded-full order-first sm:order-none">
