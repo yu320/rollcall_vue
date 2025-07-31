@@ -7,8 +7,13 @@
 
         <router-link v-if="canView('checkin:use')" to="/checkin" class="tab-button" active-class="tab-active">報到系統</router-link>
         
-        <div v-if="canView('reports:view')" class="relative" @mouseenter="openDropdown('dataAnalysis')" @mouseleave="startCloseTimer('dataAnalysis')">
-          <button ref="dataAnalysisButtonRef" class="tab-button flex items-center" :class="{ 'tab-active': isRouteActive('/dashboard') || isRouteActive('/report') }">
+        <div v-if="canView('reports:view')" class="relative" @mouseenter="handleMouseEnter('dataAnalysis')" @mouseleave="handleMouseLeave('dataAnalysis')">
+          <button 
+            ref="dataAnalysisButtonRef" 
+            @click="handleClick('dataAnalysis')" 
+            class="tab-button flex items-center" 
+            :class="{ 'tab-active': isRouteActive('/dashboard') || isRouteActive('/report') }"
+          >
             <span>資料分析</span>
             <svg class="w-4 h-4 ml-1 transition-transform" :class="{'rotate-180': dropdowns.dataAnalysis}" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
           </button>
@@ -16,16 +21,21 @@
             ref="dataAnalysisMenuRef" 
             v-if="dropdowns.dataAnalysis" 
             class="dropdown-menu-floating"
-            @mouseenter="cancelCloseTimer('dataAnalysis')" 
-            @mouseleave="startCloseTimer('dataAnalysis')"
+            @mouseenter="handleMouseEnter('dataAnalysis')" 
+            @mouseleave="handleMouseLeave('dataAnalysis')"
           >
             <router-link to="/dashboard" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">儀錶板</router-link>
             <router-link to="/report" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">報表</router-link>
           </div>
         </div>
 
-        <div v-if="canView('records:view')" class="relative" @mouseenter="openDropdown('records')" @mouseleave="startCloseTimer('records')">
-            <button ref="recordsButtonRef" class="tab-button flex items-center" :class="{ 'tab-active': isRouteActive('/records') }">
+        <div v-if="canView('records:view')" class="relative" @mouseenter="handleMouseEnter('records')" @mouseleave="handleMouseLeave('records')">
+            <button 
+              ref="recordsButtonRef" 
+              @click="handleClick('records')" 
+              class="tab-button flex items-center" 
+              :class="{ 'tab-active': isRouteActive('/records') }"
+            >
                 <span>檢視記錄</span>
                 <svg class="w-4 h-4 ml-1 transition-transform" :class="{'rotate-180': dropdowns.records}" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
             </button>
@@ -33,16 +43,21 @@
               ref="recordsMenuRef" 
               v-if="dropdowns.records" 
               class="dropdown-menu-floating"
-              @mouseenter="cancelCloseTimer('records')" 
-              @mouseleave="startCloseTimer('records')"
+              @mouseenter="handleMouseEnter('records')" 
+              @mouseleave="handleMouseLeave('records')"
             >
                 <router-link to="/records/activity" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">活動記錄</router-link>
                 <router-link to="/records/daily" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">每日記錄</router-link>
             </div>
         </div>
 
-        <div v-if="canView('personnel:read') || canView('events:create') || canView('accounts:manage_users') || canView('accounts:manage')" class="relative" @mouseenter="openDropdown('management')" @mouseleave="startCloseTimer('management')">
-            <button ref="managementButtonRef" class="tab-button flex items-center" :class="{ 'tab-active': isRouteActive('/events') || isRouteActive('/personnel') || isRouteActive('/import') || isRouteActive('/system') }">
+        <div v-if="canView('personnel:read') || canView('events:create') || canView('accounts:manage_users') || canView('accounts:manage')" class="relative" @mouseenter="handleMouseEnter('management')" @mouseleave="handleMouseLeave('management')">
+            <button 
+              ref="managementButtonRef" 
+              @click="handleClick('management')" 
+              class="tab-button flex items-center" 
+              :class="{ 'tab-active': isRouteActive('/events') || isRouteActive('/personnel') || isRouteActive('/import') || isRouteActive('/system') }"
+            >
                 <span>資料管理</span>
                 <svg class="w-4 h-4 ml-1 transition-transform" :class="{'rotate-180': dropdowns.management}" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
             </button>
@@ -50,14 +65,16 @@
               ref="managementMenuRef" 
               v-if="dropdowns.management" 
               class="dropdown-menu-floating"
-              @mouseenter="cancelCloseTimer('management')" 
-              @mouseleave="startCloseTimer('management')"
+              @mouseenter="handleMouseEnter('management')" 
+              @mouseleave="handleMouseLeave('management')"
             >
                 <router-link v-if="canView('events:create')" to="/events" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">活動管理</router-link>
                 <router-link v-if="canView('personnel:read')" to="/personnel" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">人員管理</router-link>
                 <router-link v-if="canView('personnel:create')" to="/import/personnel" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">人員資料匯入</router-link>
                 <router-link v-if="canView('records:create')" to="/import/checkin" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">簽到記錄匯入</router-link>
-                <router-link v-if="canView('accounts:manage_users')" to="/system/accounts" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">帳號管理</router-link> <router-link v-if="canView('accounts:manage')" to="/system/permissions" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">權限管理</router-link> </div>
+                <router-link v-if="canView('accounts:manage_users')" to="/system/accounts" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">帳號管理</router-link>
+                <router-link v-if="canView('accounts:manage')" to="/system/permissions" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">權限管理</router-link>
+            </div>
         </div>
 
       </div>
@@ -73,21 +90,18 @@ import { useAuthStore } from '@/store/auth';
 const route = useRoute();
 const authStore = useAuthStore();
 
-// 'reactive' 用於管理一組相關的狀態，這裡用來控制所有下拉選單的開關
 const dropdowns = reactive({
   dataAnalysis: false,
   records: false,
   management: false,
 });
 
-// [NEW] 用於儲存延遲關閉計時器的 ID
 const closeTimers = reactive({
   dataAnalysis: null,
   records: null,
   management: null,
 });
 
-// Vue 模板引用，用於直接訪問 DOM 元素 
 const dataAnalysisMenuRef = ref(null);
 const recordsMenuRef = ref(null);
 const managementMenuRef = ref(null);
@@ -95,19 +109,46 @@ const dataAnalysisButtonRef = ref(null);
 const recordsButtonRef = ref(null);
 const managementButtonRef = ref(null);
 
-
-// 檢查使用者是否擁有特定權限
 const canView = (permission) => authStore.hasPermission(permission);
-
-// 檢查當前路由是否匹配特定路徑前綴，用於高亮顯示父級下拉選單
 const isRouteActive = (path) => route.path.startsWith(path);
 
-// [MODIFIED] 打開指定的下拉選單，並清除可能存在的關閉計時器
-const openDropdown = async (menu) => { 
-  // 當滑鼠移入主按鈕時，取消任何待處理的關閉計時器
-  cancelCloseTimer(menu);
+// [NEW] Handles clicks, primarily for mobile toggle
+const handleClick = (menu) => {
+  if (window.innerWidth <= 768) {
+    const currentState = dropdowns[menu];
+    // Close all menus first
+    Object.keys(dropdowns).forEach(key => dropdowns[key] = false);
+    // Then toggle the clicked one
+    dropdowns[menu] = !currentState;
+  }
+};
 
-  // 先關閉所有其他下拉選單
+// [NEW] Handles mouse entering the button OR the menu, for desktop hover
+const handleMouseEnter = (menu) => {
+  if (window.innerWidth > 768) {
+    // Cancel any pending close timer
+    if (closeTimers[menu]) {
+      clearTimeout(closeTimers[menu]);
+      closeTimers[menu] = null;
+    }
+    // Open the dropdown
+    openDropdown(menu);
+  }
+};
+
+// [NEW] Handles mouse leaving the button OR the menu, for desktop hover
+const handleMouseLeave = (menu) => {
+  if (window.innerWidth > 768) {
+    // Set a timer to close the dropdown after a short delay
+    closeTimers[menu] = setTimeout(() => {
+      dropdowns[menu] = false;
+    }, 200); // 200ms delay
+  }
+};
+
+// This function now just sets the state and positions the menu
+const openDropdown = async (menu) => {
+  // Close other dropdowns
   for (const key in dropdowns) {
     if (key !== menu) {
       dropdowns[key] = false;
@@ -115,8 +156,7 @@ const openDropdown = async (menu) => {
   }
   dropdowns[menu] = true;
 
-  // 等待 DOM 更新，確保 v-if 渲染了菜單元素
-  await nextTick(); 
+  await nextTick();
 
   let menuElement = null;
   let buttonElement = null;
@@ -131,35 +171,9 @@ const openDropdown = async (menu) => {
     buttonElement = managementButtonRef.value;
   }
 
-  if (menuElement && buttonElement) {
-    // 強制設定 display: block，以確保在所有情況下都能顯示
-    menuElement.style.display = 'block'; 
-
-    if (window.innerWidth <= 768) { // 手機版
-      const rect = buttonElement.getBoundingClientRect();
-      menuElement.style.top = `${rect.bottom + window.scrollY + 4}px`; 
-    } else { // 桌面版，清除可能的手機版 top 設定
-      menuElement.style.top = ''; 
-    }
-  }
-};
-
-// [NEW] 開始一個計時器，在延遲後關閉選單
-const startCloseTimer = (menu) => {
-  // 清除舊的計時器，以防萬一
-  clearTimeout(closeTimers[menu]);
-  // 設定一個新的計時器，200毫秒後關閉選單
-  closeTimers[menu] = setTimeout(() => {
-    dropdowns[menu] = false;
-  }, 300); // 200毫秒的延遲
-};
-
-// [NEW] 取消即將關閉選單的計時器
-const cancelCloseTimer = (menu) => {
-  // 如果存在一個待處理的關閉計時器，就清除它
-  if (closeTimers[menu]) {
-    clearTimeout(closeTimers[menu]);
-    closeTimers[menu] = null;
+  if (menuElement && buttonElement && window.innerWidth <= 768) {
+    const rect = buttonElement.getBoundingClientRect();
+    menuElement.style.top = `${rect.bottom + window.scrollY + 4}px`;
   }
 };
 
@@ -169,8 +183,6 @@ const cancelCloseTimer = (menu) => {
 /* 專屬於此元件的樣式 */
 .dropdown-menu-floating {
   position: absolute;
-  /* `v-if` 會直接控制元素的渲染與移除，所以不需要 display: none; */
-  /* display: none; */ 
   z-index: 50;
   top: 100%;
   left: 0;
@@ -182,7 +194,7 @@ const cancelCloseTimer = (menu) => {
   border: 1px solid #e5e7eb;
 }
 
-/* [NEW] 手機版下拉選單固定定位和滿寬度 */
+/* 手機版下拉選單固定定位和滿寬度 */
 @media (max-width: 768px) {
     .dropdown-menu-floating {
         position: fixed; /* 使用 fixed 定位確保不被父元素裁剪 */
