@@ -46,36 +46,45 @@ export function formatDate(date) {
 export function parseFlexibleDateTime(dateTimeStr) {
     if (!dateTimeStr) return new Date(NaN);
 
-    let processedDateTimeString = String(dateTimeStr)
-        .replace(/下午\s*/g, 'PM ') // 將中文的「下午」轉換為標準的 PM
-        .replace(/上午\s*/g, 'AM '); // 將中文的「上午」轉換為標準的 AM
+    let processedDateTimeString = String(dateTimeStr).trim();
+
+    // Step 1: Normalize Chinese AM/PM to English AM/PM, and ensure proper spacing
+    // 將「下午」和「上午」替換為標準的「PM」和「AM」，並保留其後的空白
+    processedDateTimeString = processedDateTimeString
+        .replace(/下午(\s*)/g, 'PM$1')
+        .replace(/上午(\s*)/g, 'AM$1');
     
-    // NEW: 處理 AM/PM 標記出現在時間之前的格式
-    // 例如： "2025/6/5 PM 06:34:01" 轉換為 "2025/6/5 06:34:01 PM"
-    const potentialAmPmBeforeTime = processedDateTimeString.match(/(.*?)(\s+(AM|PM)\s+)(\d{1,2}(:\d{2}){1,2}(?:\.\d+)?.*)/i);
-    if (potentialAmPmBeforeTime) {
-        const [, datePart, , amPmMarker, timePartAndRest] = potentialAmPmBeforeTime;
-        processedDateTimeString = `${datePart.trim()} ${timePartAndRest.trim()} ${amPmMarker.trim()}`;
-        // 移除可能產生的多餘空格
-        processedDateTimeString = processedDateTimeString.replace(/\s+/g, ' ').trim();
+    // Step 2: 將 AM/PM 標記移動到時間的結尾（如果它目前在時間之前）
+    // 範例: "2025/3/4 PM 06:41:25" 轉換為 "2025/3/4 06:41:25 PM"
+    // 這個正規表達式會捕捉：(日期部分)(可選空白)(AM/PM標記)(可選空白)(時間部分)
+    // 時間部分支援 HH:mm:ss 或 HH:mm
+    const amPmBeforeTimeMatch = processedDateTimeString.match(/^(.*?)\s*(AM|PM)\s*(\d{1,2}:\d{2}(?::\d{2})?(?:\.\d+)?)$/i);
+    
+    if (amPmBeforeTimeMatch) {
+        const [, datePart, amPmMarker, timePart] = amPmBeforeTimeMatch;
+        // 重構字串為 "日期 時間 AM/PM"
+        processedDateTimeString = `${datePart.trim()} ${timePart.trim()} ${amPmMarker.trim()}`;
     }
+
+    // Step 3: 確保所有空白字元都只是一個單一的空格，並移除前後多餘空白
+    processedDateTimeString = processedDateTimeString.replace(/\s+/g, ' ').trim();
 
     const formats = DATETIME_PARSE_FORMATS;
 
     for (const fmt of formats) {
         try {
+            // 使用 date-fns 嘗試解析
             const parsedDate = parse(processedDateTimeString, fmt, new Date(), { locale: zhTW });
             if (!isNaN(parsedDate.getTime())) {
                 return parsedDate;
             }
         } catch (e) {
-            // 如果解析失敗，繼續嘗試下一個格式
-            // console.warn(`解析失敗: "${processedDateTimeString}" 使用格式 "${fmt}"`); // 可選：用於除錯
+            // 如果解析失敗，繼續嘗試下一個格式，您可以移除此註解來查看詳細錯誤
+            // console.warn(`解析失敗: "${processedDateTimeString}" 使用格式 "${fmt}"，錯誤:`, e.message);
         }
     }
     return new Date(NaN); // 如果所有格式都無法解析，返回無效日期
 }
-
 
 /**
  * 檢查是否為有效的卡號 (純數字)。
