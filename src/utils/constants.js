@@ -52,8 +52,11 @@ export const PERSONNEL_IMPORT_HEADERS = {
 // --- 日期時間解析相關常數 ---
 // 彈性日期時間解析函數 (parseFlexibleDateTime) 可能支援的格式
 export const DATETIME_PARSE_FORMATS = [
-    // 【核心修正】新增格式以處理 '日期 PM 時間' 的情況
-    "yyyy/M/d p hh:mm:ss",       // 匹配 '2025/3/4 PM 06:41:25' (date-fns 專用)
+    // 處理 '日期 PM 時間' 的情況，優先放前面
+    "yyyy/M/d p hh:mm:ss",       // 匹配 '2025/3/4 PM 06:41:25'
+    "yyyy/M/d p h:mm:ss",        // 匹配 '2025/3/4 PM 6:41:25'
+    "yyyy/M/d p hh:mm",          // 匹配 '2025/3/4 PM 06:41'
+    "yyyy/M/d p h:mm",           // 匹配 '2025/3/4 PM 6:41'
     
     // 最精確和常見的格式優先
     "yyyy/MM/dd HH:mm:ss",     // 2025/06/05 18:34:01 (24小時制)
