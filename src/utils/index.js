@@ -37,7 +37,7 @@ export function formatDate(date) {
     return `${year}-${month}-${day}`;
 }
 
-**
+/**
  * 彈性解析日期時間字串。
  * 嘗試多種常見的日期時間格式進行解析。
  * @param {string} dateTimeStr - 日期時間字串。
