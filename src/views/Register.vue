@@ -76,7 +76,7 @@
               註冊
             </button>
           </div>
-        </form>
+
 
         <div class="mt-6 text-center">
           <p class="text-sm text-gray-600">
@@ -87,6 +87,7 @@
           </p>
         </div>
       </div>
+  </form>
 
       <div v-else class="car-loading-overlay">
           <div class="road">
