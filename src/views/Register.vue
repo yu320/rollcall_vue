@@ -86,8 +86,8 @@
             </router-link>
           </p>
         </div>
-      </div>
-  </form>
+      </form>
+    </div>
 
       <div v-else class="car-loading-overlay">
           <div class="road">

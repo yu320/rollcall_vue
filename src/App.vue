@@ -1,9 +1,9 @@
 <template>
-  <div v-if="authStore.isLoggedIn" class="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 overflow-x-hidden">
+  <div v-if="authStore.isLoggedIn" class="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 overflow-x-hidden flex flex-col">
     <AppHeader />
     <AppNav />
     
-    <main id="mainContent" class="container mx-auto px-4 py-8">
+    <main id="mainContent" class="container mx-auto px-4 py-8 flex-grow">
       <router-view v-slot="{ Component }">
         <transition name="fade" mode="out-in">
           <keep-alive>
