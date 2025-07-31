@@ -466,9 +466,10 @@ END;
 $$;
 COMMENT ON FUNCTION public.get_daily_record_stats() IS '獲取每日報到記錄的統計資訊';
 
--- 4.4 import_checkin_records_with_personnel_creation
+-- 4.4 import_checkin_records_with_personnel_creation 簽到後端處理
 DROP FUNCTION IF EXISTS public.import_checkin_records_with_personnel_creation(jsonb[], uuid, text);
 -- 【已更新】將此處的函式替換為您確認過的版本
+-- import_checkin_records_with_personnel_creation 函數的修正
 CREATE OR REPLACE FUNCTION public.import_checkin_records_with_personnel_creation(
     records_to_import jsonb[],
     eventid uuid DEFAULT NULL,
@@ -491,89 +492,111 @@ DECLARE
     processed_success_count int := 0;
     processed_auto_created_count int := 0;
     processed_errors text[] := ARRAY[]::text[];
+    -- 將 generated_code 和 generated_card_number 聲明移到主 DECLARE 區塊
     generated_code text;
     generated_card_number text;
 BEGIN
-    -- 1. 如果有關聯活動，先取得活動的開始與結束時間，用於判斷是否遲到
+    -- 獲取活動時間，如果提供了 eventId
     IF eventid IS NOT NULL THEN
         SELECT start_time, end_time INTO event_start_time, event_end_time
         FROM public.events
         WHERE id = eventid;
     END IF;
 
-    -- 2. 遍歷前端傳來的所有記錄
     FOR rec IN SELECT unnest(records_to_import)
     LOOP
-        -- 從 JSON 中提取資料
-        person_name := rec->>'name';
-        person_code := rec->>'identifier';
-        person_card_number := rec->>'identifier';
+        -- 從 name_at_checkin 獲取姓名，並確保移除空白字元
+        person_name := TRIM(rec->>'name_at_checkin');
+        person_code := rec->>'input'; -- 從 'input' 鍵獲取學號/卡號
+        person_card_number := rec->>'input'; -- 從 'input' 鍵獲取學號/卡號
         person_input_type := rec->>'input_type';
 
-        -- 3. 檢查人員是否存在於資料庫中
+        -- 檢查姓名是否為空，若為空則記錄錯誤並跳過
+        IF person_name IS NULL OR person_name = '' THEN
+            processed_errors := array_append(processed_errors, format('記錄失敗 (學號/卡號: %s): 姓名欄位不能為空。', rec->>'input'));
+            CONTINUE; -- 跳過此筆記錄
+        END IF;
+
+        -- 檢查人員是否存在 (優先使用 code，然後 card_number)
         person_id := NULL;
         personnel_exists := FALSE;
 
         IF person_input_type = '學號' THEN
             SELECT id INTO person_id FROM public.personnel WHERE code = person_code;
+            IF person_id IS NOT NULL THEN
+                personnel_exists := TRUE;
+            END IF;
         ELSIF person_input_type = '卡號' THEN
             SELECT id INTO person_id FROM public.personnel WHERE card_number = person_card_number;
+            IF person_id IS NOT NULL THEN
+                personnel_exists := TRUE;
+            END IF;
         ELSE
-            -- 如果類型未知，則都嘗試比對一次
+            -- 如果 input_type 未知，則嘗試同時檢查學號和卡號
             SELECT id INTO person_id FROM public.personnel WHERE code = person_code LIMIT 1;
-            IF person_id IS NULL THEN
+            IF person_id IS NOT NULL THEN
+                personnel_exists := TRUE;
+            ELSE
                 SELECT id INTO person_id FROM public.personnel WHERE card_number = person_card_number LIMIT 1;
+                IF person_id IS NOT NULL THEN
+                    personnel_exists := TRUE;
+                END IF;
             END IF;
         END IF;
-        
-        IF person_id IS NOT NULL THEN
-            personnel_exists := TRUE;
-        END IF;
 
-        -- 4. 如果人員不存在，則自動建立一筆新的人員資料
         IF person_id IS NULL THEN
-            BEGIN
+            -- 人員不存在，自動創建
+            BEGIN -- Start of inner block for exception handling during personnel creation
+                
                 IF person_input_type = '學號' THEN
-                    -- 如果提供的是學號，自動生成一個隨機卡號
-                    generated_card_number := REPLACE(TRANSLATE(person_code, 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ', ''), ' ', '');
-                    IF generated_card_number = '' THEN generated_card_number := gen_random_uuid()::text; END IF;
+                    -- 如果提供的是學號，自動生成一個卡號 (學號中的純數字部分)
+                    generated_card_number := REGEXP_REPLACE(person_code, '[^0-9]', '', 'g'); -- 提取純數字
+                    IF generated_card_number = '' THEN generated_card_number := SUBSTRING(gen_random_uuid()::text FROM 1 FOR 10); END IF; -- UUID 作為 fallback
                     INSERT INTO public.personnel (name, code, card_number, tags, created_at, updated_at)
                     VALUES (person_name, person_code, generated_card_number, ARRAY['系統匯入'], NOW(), NOW())
                     RETURNING id INTO person_id;
                 ELSIF person_input_type = '卡號' THEN
-                    -- 如果提供的是卡號，自動生成一個學號
+                    -- 如果提供的是卡號，自動生成一個學號 (AUTO_ + 卡號)
                     generated_code := CONCAT('AUTO_', person_card_number);
                     INSERT INTO public.personnel (name, code, card_number, tags, created_at, updated_at)
                     VALUES (person_name, generated_code, person_card_number, ARRAY['系統匯入'], NOW(), NOW())
                     RETURNING id INTO person_id;
-                ELSE
-                    -- 如果類型未知，預設當作學號處理
-                    generated_card_number := REPLACE(TRANSLATE(person_code, 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ', ''), ' ', '');
-                    IF generated_card_number = '' THEN generated_card_number := gen_random_uuid()::text; END IF;
+                ELSE -- 如果 person_input_type 是未知，根據 input 內容判斷
+                    IF rec->>'input' ~ '^[0-9]+$' THEN -- 如果 input 是純數字，視為卡號
+                        generated_code := CONCAT('AUTO_', rec->>'input');
+                        generated_card_number := rec->>'input';
+                    ELSE -- 如果 input 包含非數字，視為學號
+                        generated_code := rec->>'input';
+                        generated_card_number := REGEXP_REPLACE(rec->>'input', '[^0-9]', '', 'g'); -- 提取純數字
+                        IF generated_card_number = '' THEN generated_card_number := SUBSTRING(gen_random_uuid()::text FROM 1 FOR 10); END IF;
+                    END IF;
                     INSERT INTO public.personnel (name, code, card_number, tags, created_at, updated_at)
-                    VALUES (person_name, person_code, generated_card_number, ARRAY['系統匯入'], NOW(), NOW())
+                    VALUES (person_name, generated_code, generated_card_number, ARRAY['系統匯入'], NOW(), NOW())
                     RETURNING id INTO person_id;
                 END IF;
+                
                 processed_auto_created_count := processed_auto_created_count + 1;
                 personnel_exists := TRUE;
             EXCEPTION
                 WHEN unique_violation THEN
-                    -- 如果在建立時發生唯一鍵衝突 (表示資料庫中已有此人)，則回頭去查詢現有的人員ID
+                    -- 如果發生唯一約束衝突，查詢現有的人員 ID
                     IF person_input_type = '學號' THEN SELECT id INTO person_id FROM public.personnel WHERE code = person_code;
                     ELSIF person_input_type = '卡號' THEN SELECT id INTO person_id FROM public.personnel WHERE card_number = person_card_number;
                     ELSE
-                        SELECT id INTO person_id FROM public.personnel WHERE code = person_code LIMIT 1;
-                        IF person_id IS NULL THEN SELECT id INTO person_id FROM public.personnel WHERE card_number = person_card_number LIMIT 1; END IF;
+                        -- 對於未知類型，嘗試根據 input 本身查找 (學號或卡號)
+                        SELECT id INTO person_id FROM public.personnel WHERE code = rec->>'input' LIMIT 1;
+                        IF person_id IS NULL THEN
+                            SELECT id INTO person_id FROM public.personnel WHERE card_number = rec->>'input' LIMIT 1;
+                        END IF;
                     END IF;
                     personnel_exists := TRUE;
                 WHEN OTHERS THEN
-                    -- 如果發生其他錯誤，記錄下來並跳過此筆資料
                     processed_errors := array_append(processed_errors, format('自動創建人員失敗 (%s): %s', person_name, SQLERRM));
                     CONTINUE;
-            END;
+            END; -- End of inner block for exception handling
         END IF;
 
-        -- 5. 判斷簽到狀態 (準時、遲到、成功等)
+        -- 判斷簽到狀態 (準時、遲到、成功等)
         IF actiontype = '簽到' THEN
             IF eventid IS NOT NULL AND event_start_time IS NOT NULL THEN
                 IF (rec->>'timestamp')::timestamptz > event_start_time THEN record_status := '遲到';
@@ -582,19 +605,18 @@ BEGIN
         ELSIF actiontype = '簽退' THEN record_status := '簽退成功';
         ELSE record_status := '未知狀態'; END IF;
 
-        -- 6. 將最終處理好的記錄插入到 check_in_records 資料表中
+        -- 將最終處理好的記錄插入到 check_in_records 資料表中
         BEGIN
             INSERT INTO public.check_in_records (created_at, input, input_type, success, name_at_checkin, personnel_id, device_id, event_id, status, action_type)
-            VALUES ((rec->>'timestamp')::timestamptz, rec->>'identifier', person_input_type, personnel_exists, person_name, person_id, rec->>'device_id', eventid, record_status, actiontype);
+            VALUES ((rec->>'timestamp')::timestamptz, rec->>'input', person_input_type, personnel_exists, person_name, person_id, rec->>'device_id', eventid, record_status, actiontype);
             processed_success_count := processed_success_count + 1;
         EXCEPTION
             WHEN OTHERS THEN
-                processed_errors := array_append(processed_errors, format('插入記錄失敗 (%s, %s): %s', person_name, rec->>'identifier', SQLERRM));
+                processed_errors := array_append(processed_errors, format('插入記錄失敗 (%s, %s): %s', person_name, rec->>'input', SQLERRM));
         END;
 
     END LOOP;
 
-    -- 7. 返回處理結果
     RETURN QUERY SELECT processed_success_count, processed_auto_created_count, processed_errors;
 
 END;
