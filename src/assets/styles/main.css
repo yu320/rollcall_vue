@@ -324,6 +324,14 @@ input:focus, textarea:focus, select:focus {
    響應式設計 (Responsive Design) - 優化手機瀏覽體驗
    ========================================================================== */
 
+/* [NEW] 大於手機的螢幕尺寸 (平板、電腦) */
+@media (min-width: 641px) {
+    .table-responsive table {
+        min-width: 1024px; /* 設定最小寬度，觸發水平捲動 */
+    }
+}
+
+
 /* 中等螢幕及以下 (例如平板) */
 @media (max-width: 768px) {
   .tab-button {
@@ -436,7 +444,7 @@ input:focus, textarea:focus, select:focus {
     .table-responsive td:before {
         /* [修正] 移除絕對定位，讓其成為 Grid 的一部分 */
         content: attr(data-label);
-        text-align: center; /* <<< MODIFIED */
+        text-align: center; 
         font-weight: 600;
         color: var(--gray-600);
     }
@@ -465,6 +473,38 @@ input:focus, textarea:focus, select:focus {
         align-items: center;
     }
 }
+
+/* [NEW] 手機橫向模式優化 */
+@media (max-width: 900px) and (orientation: landscape) {
+    .table-responsive tr {
+        margin-bottom: 0.75rem; /* 稍微減少橫向時的卡片間距 */
+    }
+
+    .table-responsive td {
+        /* 調整橫向時標籤和內容的比例，讓內容有更多空間 */
+        grid-template-columns: 30% 1fr;
+        padding: 0.6rem 1rem; /* 稍微縮小內邊距 */
+    }
+
+    .table-responsive td:before {
+        text-align: right; /* 橫向時標籤靠右對齊，讓內容看起來更整齊 */
+        padding-right: 1rem;
+    }
+
+    .table-responsive td > * {
+        text-align: left; /* 橫向時，內容靠左對齊更易讀 */
+        font-size: 0.9rem;
+    }
+
+    .table-responsive td > .flex {
+        justify-content: flex-start;
+    }
+
+    .device-id-content {
+        text-align: left;
+    }
+}
+
 
 /* 報表頁籤樣式 */
 .report-tab {
