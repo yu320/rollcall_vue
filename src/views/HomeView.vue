@@ -6,7 +6,7 @@
         @click="triggerWelcomeAnimation"
         :class="{ 'animate-wiggle': showWelcomeAnimation }"
       >
-        歡迎使用報到管理系統 <span class="text-3xl">👋</span>
+        {{ authStore.user?.nickname || '使用者' }}歡迎管理系統 <span class="text-3xl">👋</span>
       </h1>
       <p class="text-xl md:text-2xl opacity-90">
         <span v-if="authStore.isLoggedIn">歡迎，{{ authStore.user?.nickname || '使用者' }}！</span>
