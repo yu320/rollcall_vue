@@ -401,6 +401,7 @@ input:focus, textarea:focus, select:focus {
     /* [修復] 確保手機版表格寬度不超出螢幕，以移除橫向捲動 */
     .table-responsive table {
         min-width: 100%;
+        width: 100% !important;
     }
 
     /* 將表格轉換為卡片式列表 */
@@ -436,6 +437,8 @@ input:focus, textarea:focus, select:focus {
         grid-template-columns: 35% 1fr;
         grid-gap: 1rem;
         align-items: center;
+        /* [修復] 新增此行以置中所有內容 */
+        text-align: center;
     }
 
     .table-responsive tr td:last-child {
@@ -445,23 +448,18 @@ input:focus, textarea:focus, select:focus {
     /* 創建手機版的標籤 */
     .table-responsive td:before {
         content: attr(data-label);
-        text-align: center; 
         font-weight: 600;
         color: var(--gray-600);
     }
 
-    /* 針對內容的容器進行樣式設定，使其置中 */
-    .table-responsive td > * {
-        text-align: center; 
-    }
-
+    /* 確保 flex 容器內的內容也置中 */
     .table-responsive td > .flex {
         justify-content: center; 
     }
 
+    /* 針對裝置ID的特殊處理 */
     .device-id-content {
         word-break: break-all;
-        text-align: center; 
         line-height: 1.4;
         font-size: 0.85rem;
     }
@@ -488,17 +486,13 @@ input:focus, textarea:focus, select:focus {
         padding-right: 1rem;
     }
 
-    .table-responsive td > * {
+    .table-responsive td > *, .table-responsive td {
         text-align: left;
         font-size: 0.9rem;
     }
 
     .table-responsive td > .flex {
         justify-content: flex-start;
-    }
-
-    .device-id-content {
-        text-align: left;
     }
 }
 
