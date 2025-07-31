@@ -326,7 +326,7 @@ input:focus, textarea:focus, select:focus {
 
 /* [NEW] 大於手機的螢幕尺寸 (平板、電腦) */
 @media (min-width: 641px) {
-    .table-responsive table {
+    .table-responsive table.table-fixed {
         min-width: 1024px; /* 設定最小寬度，觸發水平捲動 */
     }
 }
