@@ -35,18 +35,18 @@
       <div v-else-if="records.length > 0">
         <h3 class="text-2xl font-bold text-gray-800 mb-4">{{ selectedDate }} 記錄 ({{ records.length }} 筆)</h3>
         <div class="overflow-x-auto table-responsive">
-          <table class="min-w-full min-w-[1024px] divide-y divide-gray-200">
+          <table class="min-w-[1024px] w-full table-fixed divide-y divide-gray-200">
             <thead class="bg-gray-50">
               <tr>
-                <th class="px-6 py-3 text-left w-12"><input type="checkbox" v-model="selectAll" class="h-4 w-4 text-indigo-600 rounded"></th>
-                <th class="px-6 py-3 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider">時間</th>
-                <th class="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">姓名</th>
-                <th class="px-6 py-3 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider">學號/卡號</th>
-                <th class="px-6 py-3 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider">類型</th>
-                <th class="px-6 py-3 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider">狀態</th>
-                <th class="px-6 py-3 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider">關聯活動</th>
+                <th class="w-16 px-6 py-3 text-left"><input type="checkbox" v-model="selectAll" class="h-4 w-4 text-indigo-600 rounded"></th>
+                <th class="w-24 px-6 py-3 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider">時間</th>
+                <th class="w-32 px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">姓名</th>
+                <th class="w-32 px-6 py-3 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider">學號/卡號</th>
+                <th class="w-28 px-6 py-3 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider">類型</th>
+                <th class="w-32 px-6 py-3 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider">狀態</th>
+                <th class="w-40 px-6 py-3 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider">關聯活動</th>
                 <th class="px-6 py-3 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider">裝置ID</th>
-                <th class="px-6 py-3 text-right text-xs font-semibold text-gray-600 uppercase tracking-wider">操作</th>
+                <th class="w-20 px-6 py-3 text-right text-xs font-semibold text-gray-600 uppercase tracking-wider">操作</th>
               </tr>
             </thead>
             <tbody class="bg-white divide-y divide-gray-100">
@@ -57,8 +57,12 @@
                 <td data-label="學號/卡號" class="px-6 py-4 whitespace-nowrap text-sm text-gray-800 text-center">
                   <span :class="dataStore.getInputColorClass(record.input)" class="font-semibold">{{ record.input }}</span>
                 </td>
-                <td data-label="類型" class="px-6 py-4 whitespace-nowrap flex justify-center"><span class="type-badge" :data-type="record.action_type">{{ record.action_type }}</span></td>
-                <td data-label="狀態" class="px-6 py-4 whitespace-nowrap flex justify-center"><span class="status-badge" :data-status="record.status">{{ record.status }}</span></td>
+                <td data-label="類型" class="px-6 py-4 whitespace-nowrap text-center">
+                  <span class="type-badge" :data-type="record.action_type">{{ record.action_type }}</span>
+                </td>
+                <td data-label="狀態" class="px-6 py-4 whitespace-nowrap text-center">
+                  <span class="status-badge" :data-status="record.status">{{ record.status }}</span>
+                </td>
                 <td data-label="活動" class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 text-center">{{ record.events?.name || '—' }}</td>
                 <td data-label="裝置ID" class="px-6 py-4 text-sm text-gray-500 text-center">
                   <div class="break-all sm:truncate sm:max-w-[150px] sm:mx-auto">
