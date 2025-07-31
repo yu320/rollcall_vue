@@ -105,7 +105,6 @@ export async function signUp({ email, password, nickname, registrationCode }) {
       data: {
         nickname: nickname,
         registration_code: registrationCode,
-        source: 'frontend_registration' // 標記來源為前台註冊
       }
     }
   });
