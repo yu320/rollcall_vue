@@ -108,36 +108,34 @@
 <script setup>
 import { ref, onMounted, computed, watch } from 'vue';
 import { useUiStore } from '@/store/ui';
-import { useAuthStore } from '@/store/auth'; // 引入 authStore 獲取權限
-import { useDataStore } from '@/store/data'; // 引入 dataStore
+import { useAuthStore } from '@/store/auth';
+import { useDataStore } from '@/store/data';
 import * as api from '@/services/api';
 import { format, parseISO } from 'date-fns';
-import { formatDateTime } from '@/utils'; // 從 utils 引入 formatDateTime
+import { formatDateTime } from '@/utils';
 
 const uiStore = useUiStore();
-const authStore = useAuthStore(); // 獲取 authStore 實例
-const dataStore = useDataStore(); // 獲取 dataStore 實例
+const authStore = useAuthStore();
+const dataStore = useDataStore();
 
 const isLoading = ref(true);
 const isDatesLoading = ref(true);
 
-const today = new Date().toISOString().split('T')[0]; // 獲取今日日期，例如 "2024-07-29"
+const today = new Date().toISOString().split('T')[0];
 const selectedDate = ref(today);
-const records = ref([]); // 當前選定日期的所有記錄
-const savedDates = ref([]); // 儲存有記錄的日期及其統計
-const selectedRecords = ref([]); // 被選取的記錄 ID 列表 
+const records = ref([]);
+const savedDates = ref([]);
+const selectedRecords = ref([]);
 const pagination = ref({
   currentPage: 1,
   pageSize: 25,
   totalPages: 1,
 });
 
-// 計算屬性：檢查用戶是否有修改記錄的權限 (admin 或 sdc)
 const canModifyRecords = computed(() => {
-  return authStore.hasPermission('records:delete') || authStore.hasPermission('records:create'); // 雖然這裡主要是刪除，但通常新增和刪除會綁定到一起
+  return authStore.hasPermission('records:delete') || authStore.hasPermission('records:create');
 });
 
-// 將 ISO 格式日期字串轉換為 YYYY-MM-DD
 const formatDateOnly = (dateInput) => {
     try {
         return format(parseISO(dateInput), 'yyyy-MM-dd');
@@ -146,36 +144,31 @@ const formatDateOnly = (dateInput) => {
     }
 };
 
-// 載入指定日期的報到記錄
 const loadRecords = async () => {
-  if (!selectedDate.value) return; // 如果沒有選擇日期，則不執行
+  if (!selectedDate.value) return;
   isLoading.value = true;
-  uiStore.setLoading(true); // 顯示全局載入遮罩
+  uiStore.setLoading(true);
   try {
-    // 傳遞 Date 物件給 API 函數
     records.value = await api.fetchRecordsByDate(new Date(selectedDate.value));
   } catch (error) {
     records.value = [];
     uiStore.showMessage(`讀取記錄失敗: ${error.message}`, 'error');
   } finally {
     isLoading.value = false;
-    uiStore.setLoading(false); // 隱藏全局載入遮罩
+    uiStore.setLoading(false);
   }
 };
 
-// 獲取所有有記錄的日期及其統計
 const fetchSavedDates = async () => {
     isDatesLoading.value = true;
     try {
-        // api.fetchAllSavedDatesWithStats() 應該返回包含 created_at, success, status 的記錄
         const dateStats = await api.fetchAllSavedDatesWithStats();
-        // 直接使用後端提供的統計數據，而不是重新計算
         savedDates.value = dateStats.map(stat => ({
             date: formatDateOnly(stat.created_at),
             total: stat.total,
             late: stat.late,
             fail: stat.fail
-        })).sort((a, b) => b.date.localeCompare(a.date)); // 按日期降序排序
+        })).sort((a, b) => b.date.localeCompare(a.date));
     } catch (error) {
         uiStore.showMessage(`讀取已儲存日期失敗: ${error.message}`, 'error');
     } finally {
@@ -183,48 +176,40 @@ const fetchSavedDates = async () => {
     }
 };
 
-// 組件掛載時，載入今日記錄並獲取所有有記錄的日期
 onMounted(() => {
   loadRecords();
   fetchSavedDates();
 });
 
-// 監聽 selectedDate 變化，重新載入記錄
 watch(selectedDate, (newDate) => {
     if (newDate) {
       loadRecords();
-      selectedRecords.value = []; // 清空選取狀態
+      selectedRecords.value = [];
     }
 });
 
-// 監聽 records 變化，更新分頁總頁數
 watch(() => records.value, (newRecords) => {
-  pagination.value.currentPage = 1; // 記錄變化時重置回第一頁
+  pagination.value.currentPage = 1;
   pagination.value.totalPages = Math.ceil(newRecords.length / pagination.value.pageSize);
 });
 
-// 監聽 pageSize 變化，更新分頁總頁數並重置頁碼
 watch(() => pagination.value.pageSize, () => {
     pagination.value.currentPage = 1;
     pagination.value.totalPages = Math.ceil(records.value.length / pagination.value.pageSize);
 });
 
-// Computed 屬性：根據分頁信息過濾記錄
 const paginatedRecords = computed(() => {
   const start = (pagination.value.currentPage - 1) * pagination.value.pageSize;
   const end = start + pagination.value.pageSize;
   return records.value.slice(start, end);
 });
 
-// Computed 屬性：控制全選框的狀態
 const selectAll = computed({
   get: () => {
-    // 只有在有記錄且所有記錄都被選中時，全選框才為勾選狀態
     const selectableRecords = paginatedRecords.value.filter(() => canModifyRecords.value);
     return selectableRecords.length > 0 && selectedRecords.value.length === selectableRecords.length;
   },
   set: (value) => {
-    // 根據 value (true/false) 來選取或取消選取所有當前頁的記錄
     if (value) {
       selectedRecords.value = paginatedRecords.value.filter(() => canModifyRecords.value).map(r => r.id);
     } else {
@@ -233,12 +218,10 @@ const selectAll = computed({
   },
 });
 
-// 選擇一個已儲存的日期
 const selectSavedDate = (date) => {
   selectedDate.value = date;
 };
 
-// 確認單筆刪除記錄
 const confirmSingleDelete = (record) => {
   uiStore.showConfirmation(
     '確認刪除記錄',
@@ -247,12 +230,9 @@ const confirmSingleDelete = (record) => {
     'bg-red-600 hover:bg-red-700'
   ).then(() => {
     deleteRecords([record.id]);
-  }).catch(() => {
-    // 用戶取消刪除
   });
 };
 
-// 確認批次刪除記錄
 const confirmBatchDelete = () => {
   if (selectedRecords.value.length === 0) {
       uiStore.showMessage('請至少選擇一筆記錄。', 'info');
@@ -265,20 +245,17 @@ const confirmBatchDelete = () => {
     'bg-red-600 hover:bg-red-700'
   ).then(() => {
     deleteRecords(selectedRecords.value);
-  }).catch(() => {
-    // 用戶取消刪除
   });
 };
 
-// 執行刪除記錄 (單筆或批次)
 const deleteRecords = async (ids) => {
   uiStore.setLoading(true);
   try {
     await api.batchDeleteRecords(ids);
     uiStore.showMessage('刪除成功', 'success');
-    selectedRecords.value = []; // 清空選取狀態
-    await loadRecords(); // 重新載入當前日期的記錄
-    await fetchSavedDates(); // 重新獲取已儲存的日期列表，以更新統計
+    selectedRecords.value = [];
+    await loadRecords();
+    await fetchSavedDates();
   } catch (error) {
     uiStore.showMessage(`刪除失敗: ${error.message}`, 'error');
   } finally {
@@ -286,7 +263,6 @@ const deleteRecords = async (ids) => {
   }
 };
 
-// 匯出當前日期的記錄為 CSV
 const exportToCSV = () => {
   if (records.value.length === 0) {
       uiStore.showMessage('沒有可匯出的資料。', 'info');
@@ -299,17 +275,16 @@ const exportToCSV = () => {
     const row = [
         recordDate,
         recordTime,
-        `"${r.name_at_checkin || ''}"`, // 姓名 
-        `"${r.input}"`, // 學號/卡號
+        `"${r.name_at_checkin || ''}"`,
+        `"${r.input}"`,
         r.action_type,
         r.status,
-        `"${r.events?.name || ''}"`, // 活動名稱
-        `"${r.device_id || ''}"` // 裝置ID
-    ].map(field => `"${String(field).replace(/"/g, '""')}"`).join(','); // 確保所有字段都用雙引號包圍並轉義內部雙引號
+        `"${r.events?.name || ''}"`,
+        `"${r.device_id || ''}"`
+    ].map(field => `"${String(field).replace(/"/g, '""')}"`).join(',');
     csvContent += row + '\n';
   });
   
-  // 添加 BOM (Byte Order Mark) 確保 Excel 等軟體打開時中文不亂碼
   const blob = new Blob([`\uFEFF${csvContent}`], { type: 'text/csv;charset=utf-8;' });
   const link = document.createElement('a');
   link.href = URL.createObjectURL(blob);
@@ -325,7 +300,7 @@ const exportToCSV = () => {
 /* 快速選擇日期卡片樣式 */
 .date-card {
   @apply p-4 rounded-lg cursor-pointer transition-all duration-200 border-2 text-center flex flex-col justify-between items-center;
-  min-height: 120px; /* 確保卡片有足夠高度 */
+  min-height: 120px;
 }
 
 .date-card-active {
@@ -336,30 +311,27 @@ const exportToCSV = () => {
   @apply bg-gray-50 hover:bg-gray-100 border-transparent text-gray-800;
 }
 
-/* 確保統計數字和文字在卡片中垂直居中 */
 .date-card span {
-  line-height: 1.4; /* 調整行高讓文字更緊湊 */
+  line-height: 1.4;
 }
 
 .date-card .text-lg {
-  font-weight: 700; /* 日期文字加粗 */
+  font-weight: 700;
 }
 
 .date-card .text-sm {
-  /* 活躍狀態下的淺色文字，這將由 date-card-active 覆蓋 */
   color: rgba(255, 255, 255, 0.8); 
 }
 
 .date-card-inactive .text-sm {
-  color: #6b7280; /* 非活躍狀態下的灰色文字 */
+  color: #6b7280;
 }
 
-/* 針對遲到和失敗的顏色，確保在兩種卡片背景下都清晰 */
 .date-card-active .text-yellow-700 {
-  color: #fcd34d; /* 活躍狀態下遲到用淺黃色 */
+  color: #fcd34d;
 }
 
 .date-card-active .text-red-700 {
-  color: #f87171; /* 活躍狀態下失敗用淺紅色 */
+  color: #f87171;
 }
 </style>
