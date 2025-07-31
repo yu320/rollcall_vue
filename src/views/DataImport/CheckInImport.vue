@@ -57,11 +57,19 @@
         </div>
       </div>
 
-      <div class="text-center pt-2">
-        <button @click="processImport" :disabled="!selectedFile || !selectedEncoding" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3 px-8 rounded-lg text-lg transition shadow-lg hover:shadow-xl disabled:bg-gray-400 disabled:cursor-not-allowed">
-          開始匯入
-        </button>
+      <div class="p-4 border border-gray-200 rounded-lg">
+        <label for="userDefinedTag" class="block text-lg font-semibold text-gray-800 mb-2 flex items-center">
+          <span class="bg-indigo-600 text-white rounded-full h-6 w-6 inline-flex items-center justify-center mr-2 text-sm">4</span>
+          新增自訂標籤 (選填)
+        </label>
+        <input type="text" id="userDefinedTag" v-model="userDefinedTag" placeholder="例如: 晨間活動, 特殊來賓..." class="w-full mt-1 border rounded-md p-2">
       </div>
+    </div>
+
+    <div class="text-center pt-2">
+      <button @click="processImport" :disabled="!selectedFile || !selectedEncoding" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3 px-8 rounded-lg text-lg transition shadow-lg hover:shadow-xl disabled:bg-gray-400 disabled:cursor-not-allowed">
+        開始匯入
+      </button>
     </div>
 
     <div v-if="importResult" class="mt-8 border-t border-gray-200 pt-6">
@@ -109,6 +117,7 @@ const actionType = ref('簽到');
 const selectedFile = ref(null);
 const importResult = ref(null);
 const selectedEncoding = ref(null);
+const userDefinedTag = ref(''); // 新增一個用於自訂標籤的響應式變數
 
 // 組件掛載後執行
 onMounted(async () => {
@@ -205,7 +214,7 @@ const processImport = async () => {
         return;
       }
 
-      // 【核心修改】在傳送給後端前，先在前端解析時間字串為標準 ISO 格式
+      // 在傳送給後端前，先在前端解析時間字串為標準 ISO 格式
       const parsedTime = parseFlexibleDateTime(timestampStr);
       if (isNaN(parsedTime.getTime())) {
         validationErrors.push(`第 ${index + 2} 行刷卡時間格式無效：'${timestampStr}'。`);
@@ -232,7 +241,7 @@ const processImport = async () => {
       recordsToProcess.push({
         name_at_checkin: person ? person.name : name,
         input: identifier,
-        timestamp: isoTimestamp, // 【核心修改】傳遞 ISO 格式的時間字串
+        timestamp: isoTimestamp, // 傳遞 ISO 格式的時間字串
         input_type: inputType,
       });
     });
@@ -246,10 +255,12 @@ const processImport = async () => {
         return;
     }
     
+    // 將 userDefinedTag 傳遞給 API
     const result = await api.importCheckinRecords({
       records: recordsToProcess,
       eventId: selectedEventId.value,
-      actionType: actionType.value
+      actionType: actionType.value,
+      userDefinedTags: userDefinedTag.value.split(';').map(t => t.trim()).filter(Boolean) // 將自訂標籤轉為陣列
     });
     
     if (result && result.length > 0) {
@@ -283,6 +294,7 @@ const processImport = async () => {
     const fileInput = document.getElementById('importCheckinFile');
     if(fileInput) fileInput.value = '';
     selectedEncoding.value = null;
+    userDefinedTag.value = ''; // 清空自訂標籤輸入框
   }
 };
 
