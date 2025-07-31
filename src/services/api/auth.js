@@ -95,3 +95,20 @@ export async function updateUserProfile(userId, payload) {
         throw error;
     }
 }
+
+// [新增 signUp 函式]
+export async function signUp({ email, password, nickname, registrationCode }) {
+  const { data, error } = await supabase.auth.signUp({
+    email,
+    password,
+    options: {
+      data: {
+        nickname: nickname,
+        registration_code: registrationCode,
+        source: 'frontend_registration' // 標記來源為前台註冊
+      }
+    }
+  });
+  if (error) throw error;
+  return data;
+}

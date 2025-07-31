@@ -1,5 +1,5 @@
 <template>
-  <div class="login-container flex items-center justify-center p-4">
+  <div class="login-container flex justify-center p-4 py-12">
     <!-- Animated background elements -->
     <div class="animated-bg">
       <div class="animated-bg-shape shape-1"></div>
@@ -83,6 +83,14 @@
             </button>
           </div>
         </form>
+        <div class="mt-6 text-center">
+          <p class="text-sm text-gray-600">
+            還沒有帳號嗎？
+            <router-link to="/register" class="font-medium text-indigo-600 hover:text-indigo-500">
+              立即註冊
+            </router-link>
+          </p>
+        </div>
       </div>
 
       <div v-else class="car-loading-overlay">

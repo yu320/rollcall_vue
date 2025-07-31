@@ -5,9 +5,7 @@ import { ref, computed } from 'vue';
 import * as api from '@/services/api';
 import router from '@/router';
 import { useUiStore } from './ui';
-import { DEFAULT_EMAIL_DOMAIN } from '@/utils/constants';
-// 引入 USER_ROLE_NAMES 常數
-import { USER_ROLE_NAMES } from '@/utils/constants'; 
+import { DEFAULT_EMAIL_DOMAIN, USER_ROLE_NAMES } from '@/utils/constants';
 
 export const useAuthStore = defineStore('auth', () => {
   const uiStore = useUiStore();
@@ -28,6 +26,22 @@ export const useAuthStore = defineStore('auth', () => {
   const hasPermission = (permissionName) => {
     return userPermissions.value.has(permissionName);
   };
+
+    // [新增 signUp 動作]
+  async function signUp(credentials) {
+    loading.value = true;
+    error.value = null;
+    try {
+      await api.signUp(credentials);
+      uiStore.showMessage('註冊成功！請檢查您的電子郵件以進行驗證，然後即可登入。', 'success');
+      router.push('/login');
+    } catch (e) {
+      error.value = e.message;
+      uiStore.showMessage(`註冊失敗: ${e.message}`, 'error');
+    } finally {
+      loading.value = false;
+    }
+  }
 
   /**
    * 處理使用者登入。
@@ -147,6 +161,7 @@ export const useAuthStore = defineStore('auth', () => {
     userRoleName,
     userPermissions,
     hasPermission,
+    signUp,
     login,
     logout,
     fetchUserProfile, // [FIXED] Expose fetchUserProfile

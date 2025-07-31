@@ -8,6 +8,8 @@ import { useUiStore } from '@/store/ui';
 // --- 路由元件引入 ---
 // 使用動態引入 (Lazy Loading) 可以優化初始載入速度
 const Login = () => import('@/views/Login.vue');
+const Register = () => import('@/views/Register.vue'); // [新增]
+const RegSettings = () => import('@/views/System/RegSettings.vue'); // [新增]
 const Overview = () => import('@/views/Overview.vue');
 const CheckIn = () => import('@/views/CheckIn.vue');
 const Dashboard = () => import('@/views/Dashboard.vue');
@@ -27,6 +29,7 @@ const HomeView = () => import('@/views/HomeView.vue'); // 新增：引入 HomeVi
 // --- 路由定義 ---
 const routes = [
   { path: '/login', name: 'Login', component: Login, meta: { requiresAuth: false } },
+  { path: '/register', name: 'Register', component: Register, meta: { requiresAuth: false } }, // [新增]
   { path: '/', name: 'Home', component: HomeView, meta: { requiresAuth: true } }, // 設置為登入後首頁
   { path: '/overview', name: 'Overview', component: Overview, meta: { requiresAuth: true, permission: 'overview:view' } }, // 總覽頁面保持原路由
   { path: '/checkin', name: 'CheckIn', component: CheckIn, meta: { requiresAuth: true, permission: 'checkin:use' } },
@@ -40,6 +43,7 @@ const routes = [
   { path: '/import/checkin', name: 'CheckInImport', component: CheckInImport, meta: { requiresAuth: true, permission: 'records:create' } },
   { path: '/system/accounts', name: 'AccountManagement', component: AccountManagement, meta: { requiresAuth: true, permission: 'accounts:manage_users' } }, // 將權限從 accounts:manage 改為 accounts:manage_users
   { path: '/system/permissions', name: 'Permissions', component: Permissions, meta: { requiresAuth: true, permission: 'accounts:manage' } }, // 保持為 accounts:manage (權限管理)
+  { path: '/system/reg-settings', name: 'RegSettings', component: RegSettings, meta: { requiresAuth: true, permission: 'settings:manage' } }, // [新增註冊碼]
   { path: '/:pathMatch(.*)*', name: 'NotFound', component: NotFound },
 ];
 
