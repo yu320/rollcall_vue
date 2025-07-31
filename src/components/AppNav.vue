@@ -151,7 +151,7 @@ const startCloseTimer = (menu) => {
   // 設定一個新的計時器，200毫秒後關閉選單
   closeTimers[menu] = setTimeout(() => {
     dropdowns[menu] = false;
-  }, 500); // 200毫秒的延遲
+  }, 300); // 200毫秒的延遲
 };
 
 // [NEW] 取消即將關閉選單的計時器
