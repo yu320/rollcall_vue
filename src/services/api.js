@@ -64,7 +64,7 @@ export async function updateUserPassword(newPassword) {
     if (error) throw error;
 }
 
-// [NEW] API for updating user profile (nickname and/or password)
+// API for updating user profile (nickname and/or password)
 export async function updateUserProfile(userId, payload) {
     let success = true;
     let errorMessage = '';
@@ -374,7 +374,7 @@ export async function batchDeleteRecords(ids) {
     }
 }
 
-// 【*** 核心修正 ***】修改函式，讓它可以接收 limit 和 offset
+// 修改函式，讓它可以接收 limit 和 offset
 export async function fetchRecentRecords(limit = 50, offset = 0) {
     const { data, error } = await supabase
         .from('check_in_records')
@@ -385,10 +385,6 @@ export async function fetchRecentRecords(limit = 50, offset = 0) {
     return data;
 }
 
-// 【*** 核心修正 ***】移除舊的、基於時間的 fetchPreviousPeriodRecords 函式
-// export async function fetchPreviousPeriodRecords(hours = 24) { ... }
-
-
 export async function fetchAllSavedDatesWithStats() {
     const { data, error } = await supabase.rpc('get_daily_record_stats');
     if (error) throw error;
@@ -396,11 +392,12 @@ export async function fetchAllSavedDatesWithStats() {
 }
 
 export async function importCheckinRecords(importData) {
-    const { records, eventId, actionType } = importData;
+    const { records, eventId, actionType, userDefinedTags } = importData; // 解構 userDefinedTags
     const { data, error } = await supabase.rpc('import_checkin_records_with_personnel_creation', { 
         records_to_import: records, 
         eventid: eventId, 
-        actiontype: actionType 
+        actiontype: actionType,
+        user_defined_tags: userDefinedTags // 傳遞 userDefinedTags
     });
     if (error) throw error;
     return data;
