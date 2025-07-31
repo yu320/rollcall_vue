@@ -1,4 +1,4 @@
-import { format, parse } from 'date-fns';
+import { format, parse, isValid } from 'date-fns';
 import { zhTW } from 'date-fns/locale';
 import { DATETIME_PARSE_FORMATS } from '@/utils/constants';
 
@@ -15,9 +15,11 @@ import { DATETIME_PARSE_FORMATS } from '@/utils/constants';
 export function formatDateTime(dateInput, formatString = 'yyyy-MM-dd HH:mm:ss') {
     if (!dateInput) return '';
     try {
-        return format(new Date(dateInput), formatString, { locale: zhTW });
+        const date = new Date(dateInput);
+        if (!isValid(date)) throw new Error('Invalid date');
+        return format(date, formatString, { locale: zhTW });
     } catch (e) {
-        console.error("Invalid date for formatting:", dateInput);
+        console.error("Invalid date for formatting:", dateInput, e);
         return '無效日期';
     }
 }
@@ -29,10 +31,17 @@ export function formatDateTime(dateInput, formatString = 'yyyy-MM-dd HH:mm:ss') 
  */
 export function formatDate(date) {
     if (!date) return '';
-    const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, '0');
-    const day = String(date.getDate()).padStart(2, '0');
-    return `${year}-${month}-${day}`;
+    try {
+        const dateObj = new Date(date);
+        if (!isValid(dateObj)) throw new Error('Invalid date');
+        const year = dateObj.getFullYear();
+        const month = String(dateObj.getMonth() + 1).padStart(2, '0');
+        const day = String(dateObj.getDate()).padStart(2, '0');
+        return `${year}-${month}-${day}`;
+    } catch(e) {
+        console.error("Invalid date for formatting:", date, e);
+        return '';
+    }
 }
 
 /**
@@ -42,67 +51,38 @@ export function formatDate(date) {
  * @returns {Date} - 解析後的 Date 物件。
  */
 export function parseFlexibleDateTime(dateTimeStr) {
-    if (!dateTimeStr) return new Date(NaN);
+    if (!dateTimeStr || typeof dateTimeStr !== 'string') {
+        return new Date(NaN);
+    }
 
-    let processedDateTimeString = String(dateTimeStr).trim();
-
-    // Step 1: 將中文的「下午」和「上午」替換為標準的「PM」和「AM」，並統一空格
-    processedDateTimeString = processedDateTimeString
+    // 將中文的「下午/上午」替換為 date-fns 可以識別的 AM/PM
+    const normalizedString = dateTimeStr.trim()
         .replace(/下午/g, 'PM')
-        .replace(/上午/g, 'AM')
-        .replace(/\s+/g, ' ') // 將多個空格替換為單一空格
-        .trim();
-    
-    // Step 2: 嘗試提取時間部分並手動轉換為 24 小時制，以提高解析成功率
-    // 範例: "2025/3/4 PM 06:41:25" 轉換為 "2025/3/4 18:41:25"
-    // 【核心修正】修正正規表示式以匹配 "日期 AM/PM 時間" 的順序
-    const dateTimePartsMatch = processedDateTimeString.match(/(.*?)\s*(AM|PM)?\s*(\d{1,2}:\d{2}(?::\d{2})?(?:\.\d+)?)/i);
+        .replace(/上午/g, 'AM');
 
-    if (dateTimePartsMatch) {
-        // 【核心修正】調整解構賦值的順序以匹配新的正規表示式群組
-        const [, datePart, amPmMarker, timePart] = dateTimePartsMatch;
-
-        // 【核心修正】增加保護，確保 timePart 被正確捕獲
-        if (datePart && timePart) {
-            let [hours, minutes, seconds] = timePart.split(':').map(Number);
-
-            if (amPmMarker) {
-                const isPM = amPmMarker.toUpperCase() === 'PM';
-                if (isPM && hours < 12) { // PM 時段，且小時數小於 12 (例如 01 PM, 06 PM)
-                    hours += 12;
-                } else if (!isPM && hours === 12) { // AM 時段，且小時數為 12 (即午夜 12 AM)
-                    hours = 0;
-                }
-            }
-            
-            // 重構為 24 小時制的時間字串 (HH:mm:ss)
-            const formattedTime = [
-                String(hours).padStart(2, '0'),
-                String(minutes).padStart(2, '0'),
-                String(seconds || 0).padStart(2, '0') // 如果沒有秒數，預設為 0
-            ].join(':');
-
-            processedDateTimeString = `${datePart.trim()} ${formattedTime}`;
+    // 遍歷所有可能的格式進行解析
+    for (const fmt of DATETIME_PARSE_FORMATS) {
+        // 使用 date-fns 的 parse 函數，並提供 locale 來正確解析 AM/PM
+        const parsedDate = parse(normalizedString, fmt, new Date(), { locale: zhTW });
+        
+        // 如果解析出來是有效的日期，就立刻返回結果
+        if (isValid(parsedDate)) {
+            return parsedDate;
         }
     }
 
-    const formats = DATETIME_PARSE_FORMATS;
-
-    for (const fmt of formats) {
-        try {
-            // 注意：這裡只會使用不包含 'a' (AM/PM) 的格式來解析，因為我們已經手動轉換了
-            const tempFmt = fmt.replace(/\s*a$/, ''); // 移除格式字串中的 ' a'
-            
-            const parsedDate = parse(processedDateTimeString, tempFmt, new Date(), { locale: zhTW });
-            if (!isNaN(parsedDate.getTime())) {
-                return parsedDate;
-            }
-        } catch (e) {
-            // 如果解析失敗，繼續嘗試下一個格式，您可以移除此註解來查看詳細錯誤
-            // console.warn(`解析失敗: "${processedDateTimeString}" 使用格式 "${fmt}"，錯誤:`, e.message);
+    // 如果所有預設格式都失敗，最後嘗試讓瀏覽器原生解析一次
+    try {
+        const nativeParsedDate = new Date(normalizedString);
+        if (isValid(nativeParsedDate)) {
+            return nativeParsedDate;
         }
+    } catch(e) {
+        // 忽略原生解析的錯誤
     }
-    return new Date(NaN); // 如果所有格式都無法解析，返回無效日期
+
+    // 如果所有方法都失敗，返回無效日期
+    return new Date(NaN);
 }
 /**
  * 檢查是否為有效的卡號 (純數字)。
