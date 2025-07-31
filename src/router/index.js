@@ -68,7 +68,7 @@ router.beforeEach(async (to, from, next) => {
     next({ name: 'Login' });
   } else if (isLoggedIn && to.name === 'Login') {
     // 如果使用者已登入，但嘗試訪問登入頁，將其導向到首頁
-    next({ name: 'Overview' });
+    next({ name: 'HomeView' });
   } else if (requiresAuth && isLoggedIn && requiredPermission) {
     // 如果頁面需要特定權限
     if (authStore.hasPermission(requiredPermission)) {
@@ -77,7 +77,7 @@ router.beforeEach(async (to, from, next) => {
     } else {
       // 使用者沒有權限，顯示提示訊息並導向到首頁
       uiStore.showMessage('您沒有權限訪問此頁面。', 'error');
-      next({ name: 'Overview' });
+      next({ name: 'HomeView' });
     }
   } else {
     // 其他情況 (例如訪問不需權限的頁面)，直接放行
