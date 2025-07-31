@@ -526,10 +526,29 @@ input:focus, textarea:focus, select:focus {
     overflow-y: auto; /* [新增] 允許垂直方向捲動 */
 }
 .login-card {
+    /* [修改] 恢復半透明背景和模糊效果 */
     backdrop-filter: blur(10px);
-    background-color: rgba(255, 255, 255, 0.9);
+    background-color: rgba(255, 255, 255, 0.85); /* 稍微降低透明度以增強效果 */
     box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+    
+    /* [新增] 建立一個新的堆疊環境，讓偽元素定位更可靠 */
+    position: relative;
+    isolation: isolate; /* 建立一個新的堆疊上下文 */
 }
+
+/* [新增] 建立一個偽元素作為卡片的"內襯"背景 */
+.login-card::before {
+    content: '';
+    position: absolute;
+    inset: 0; /* 讓偽元素和卡片一樣大 */
+    border-radius: 1rem; /* 1rem 對應 rounded-2xl */
+    
+    /* [關鍵] 使用和頁面相同的背景漸層，但不透明 */
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    
+    z-index: -1; /* 將這個背景層放到卡片內容的後面 */
+}
+
 .form-input:focus {
     border-color: #4f46e5;
     box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.2);
