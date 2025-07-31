@@ -1,12 +1,13 @@
 <template>
   <header class="bg-white shadow-lg">
-    <router-link to="/" class="flex items-center cursor-pointer">
+    <div class="container mx-auto px-4 py-5 flex flex-wrap justify-between items-center gap-4">
+      <router-link to="/" class="flex items-center cursor-pointer">
         <img :src="logoUrl" alt="簽到系統Logo" class="h-12 w-12 rounded-full shadow-md mr-4">
         <div>
           <h1 class="text-3xl md:text-4xl font-extrabold text-indigo-800">點名系統</h1>
           <p class="text-gray-500 text-sm md:text-base mt-1">使用前要匯入名單&創建活動</p>
         </div>
-    </router-link>
+      </router-link>
 
       <div v-if="isLoggedIn && user" class="flex items-center gap-4 flex-wrap justify-center sm:justify-end w-full sm:w-auto">
         <span class="text-gray-700 font-medium px-3 py-1 bg-gray-100 rounded-full order-first sm:order-none">
@@ -30,7 +31,7 @@ import { computed } from 'vue';
 import { useAuthStore } from '@/store/auth';
 import { useUiStore } from '@/store/ui';
 import logoUrl from '@/assets/logo.jpg';
-import { USER_ROLE_NAMES } from '@/utils/constants'; // 確保引入 USER_ROLE_NAMES
+import { USER_ROLE_NAMES } from '@/utils/constants';
 
 const authStore = useAuthStore();
 const uiStore = useUiStore();
@@ -48,10 +49,8 @@ const handleLogout = () => {
   authStore.logout();
 };
 
-// [MODIFIED] Renamed from openChangePasswordModal to openEditProfileModal
 const openEditProfileModal = () => {
-    // Emit an event that the root component (App.vue) can listen to
-    // [FIXED] Event name changed to match the listener in App.vue
+    // 觸發一個自定義事件，App.vue 會監聽這個事件來開啟個人資料修改彈窗
     const event = new CustomEvent('open-profile-modal');
     window.dispatchEvent(event);
 };
