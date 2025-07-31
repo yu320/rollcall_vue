@@ -18,3 +18,4 @@ export * from './api/records';
 export * from './api/reports';
 export * from './api/accounts';
 export * from './api/roles';
+export * from './api/settings'; // [新增]
