@@ -3,7 +3,7 @@
     <div class="container mx-auto px-4">
       <div class="flex flex-wrap border-b border-gray-200">
         
-        <router-link v-if="canView('overview:view')" to="/" class="tab-button" active-class="tab-active">總覽</router-link>
+        <router-link v-if="canView('overview:view')" to="/overview" class="tab-button" active-class="tab-active">總覽</router-link>
 
         <router-link v-if="canView('checkin:use')" to="/checkin" class="tab-button" active-class="tab-active">報到系統</router-link>
         
