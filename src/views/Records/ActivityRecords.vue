@@ -45,22 +45,22 @@
             <thead class="bg-gray-50">
               <tr>
                 <th class="px-6 py-3 text-left w-12"><input type="checkbox" v-model="selectAll" :disabled="!canModifyRecords" class="h-4 w-4 text-indigo-600 rounded"></th>
-                <th class="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">學號</th>
+                <th class="px-6 py-3 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider">學號</th>
                 <th class="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">姓名</th>
-                <th class="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">簽到時間</th>
-                <th class="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">簽退時間</th>
-                <th class="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">狀態</th>
+                <th class="px-6 py-3 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider">簽到時間</th>
+                <th class="px-6 py-3 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider">簽退時間</th>
+                <th class="px-6 py-3 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider">狀態</th>
                 <th class="px-6 py-3 text-right text-xs font-semibold text-gray-600 uppercase tracking-wider">操作</th>
               </tr>
             </thead>
             <tbody class="bg-white divide-y divide-gray-100">
               <tr v-for="record in paginatedRecords" :key="record.personnelId" class="hover:bg-gray-50">
                 <td data-label="選取" class="px-6 py-4"><input type="checkbox" v-model="selectedPersonnel" :value="record.personnelId" :disabled="!canModifyRecords"></td>
-                <td data-label="學號" class="px-6 py-4 whitespace-nowrap text-sm text-gray-800">{{ record.code }}</td>
+                <td data-label="學號" class="px-6 py-4 whitespace-nowrap text-sm text-gray-800 text-center">{{ record.code }}</td>
                 <td data-label="姓名" class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{{ record.name }}</td>
-                <td data-label="簽到時間" class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{{ record.checkInTime ? formatDateTime(record.checkInTime, 'HH:mm:ss') : '—' }}</td>
-                <td data-label="簽退時間" class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{{ record.checkOutTime ? formatDateTime(record.checkOutTime, 'HH:mm:ss') : '—' }}</td>
-                <td data-label="狀態" class="px-6 py-4 whitespace-nowrap"><span class="status-badge" :class="record.statusClass">{{ record.statusText }}</span></td>
+                <td data-label="簽到時間" class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 text-center">{{ record.checkInTime ? formatDateTime(record.checkInTime, 'HH:mm:ss') : '—' }}</td>
+                <td data-label="簽退時間" class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 text-center">{{ record.checkOutTime ? formatDateTime(record.checkOutTime, 'HH:mm:ss') : '—' }}</td>
+                <td data-label="狀態" class="px-6 py-4 whitespace-nowrap flex justify-center"><span class="status-badge" :data-status="record.finalStatus">{{ record.statusText }}</span></td>
                 <td data-label="操作" class="px-6 py-4 whitespace-nowrap text-right">
                   <button v-if="canModifyRecords" @click="confirmSingleDelete(record)" class="text-red-600 hover:text-red-800 text-sm font-medium p-1 rounded-full hover:bg-red-100">
                       <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
@@ -214,21 +214,21 @@ watch(allRecordsForEvent, (newRecords) => {
         const hasCheckedIn = !!p.checkInTime;
         const hasCheckedOut = !!p.checkOutTime;
         let statusText = '';
-        let statusClass = 'bg-gray-100 text-gray-800'; // 預設灰色
+        let finalStatus = ''; // 用於 data-status 屬性
 
         if (!hasCheckedIn) {
             statusText = '未簽到';
-            statusClass = 'bg-red-100 text-red-800'; // 紅色表示未簽到
+            finalStatus = '失敗';
         } else if (hasCheckedIn && !hasCheckedOut) {
             statusText = `已簽到 (${p.checkInStatus || '未知'}) / 未簽退`;
-            statusClass = 'bg-yellow-100 text-yellow-800'; // 黃色表示簽到未簽退
+            finalStatus = '遲到'; // 使用 '遲到' 的樣式 (黃色)
         } else if (hasCheckedIn && hasCheckedOut) {
             statusText = `已完成 (${p.checkInStatus || '未知'})`;
-            statusClass = 'bg-green-100 text-green-800'; // 綠色表示完成
+            finalStatus = '準時'; // 使用 '準時' 的樣式 (綠色)
         }
         
         p.statusText = statusText;
-        p.statusClass = statusClass;
+        p.finalStatus = finalStatus; // 儲存用於 data-status 的狀態
         return p;
     }).sort((a,b) => (new Date(a.checkInTime || 0) - new Date(b.checkInTime || 0))); // 按簽到時間排序
 
