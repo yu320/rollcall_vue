@@ -59,18 +59,19 @@ export function parseFlexibleDateTime(dateTimeStr) {
 
     let normalizedString = dateTimeStr.trim();
 
-    // [FIXED] 轉換全形數字為半形數字
+    // 轉換全形數字為半形數字
     normalizedString = normalizedString.replace(/[０-９]/g, function(s) {
         return String.fromCharCode(s.charCodeAt(0) - 0xFEE0);
     });
 
-    // [FIXED] 轉換全形空格為半形空格
+    // 轉換全形空格為半形空格
     normalizedString = normalizedString.replace(/　/g, ' ');
 
-    // 將中文的「下午/上午」替換為 date-fns 可以識別的 AM/PM
-    normalizedString = normalizedString
-        .replace(/下午/g, 'PM')
-        .replace(/上午/g, 'AM');
+    // 移除將中文「下午/上午」替換為 AM/PM 的邏輯，
+    // 因為 date-fns 的 zhTW 語系會直接解析中文的「上午」和「下午」。
+    // normalizedString = normalizedString
+    //     .replace(/下午/g, 'PM')
+    //     .replace(/上午/g, 'AM');
 
     // 遍歷所有可能的格式進行解析
     for (const fmt of DATETIME_PARSE_FORMATS) {
