@@ -1,4 +1,4 @@
-template>
+<template>
   <Modal :show="isModalOpen" @close="closeModal">
       <template #header>{{ isEditing ? '編輯註冊碼' : '新增註冊碼' }}</template>
       <form @submit.prevent="saveCode" class="space-y-4">
