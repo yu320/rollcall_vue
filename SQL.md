@@ -51,6 +51,19 @@ CREATE TABLE IF NOT EXISTS public.settings (
 );
 COMMENT ON TABLE public.settings IS '儲存全域系統設定，如註冊碼功能';
 
+-- [NEW] ========= 1.6. 註冊碼資料表 =========
+CREATE TABLE IF NOT EXISTS public.registration_codes (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    code TEXT NOT NULL UNIQUE,
+    description TEXT, -- 註冊碼的描述，方便管理
+    usage_limit INT, -- 可使用次數 (NULL 表示無限次)
+    times_used INT NOT NULL DEFAULT 0, -- 已使用次數
+    expires_at TIMESTAMPTZ, -- 過期時間 (NULL 表示永不過期)
+    created_by UUID REFERENCES public.profiles(id) ON DELETE SET NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+COMMENT ON TABLE public.registration_codes IS '儲存使用者前台註冊碼';
+
 -- 2.2 profiles (使用者設定檔) 資料表 - 已移至此處，因為 audit_logs 引用它
 CREATE TABLE IF NOT EXISTS public.profiles (
     id uuid NOT NULL,
@@ -356,7 +369,8 @@ INSERT INTO public.permissions (name, description) VALUES
 ('reports:personnel', '查看特定人員的詳細報表'),
 ('accounts:manage_users', '管理所有使用者帳號 (新增、編輯、刪除使用者)'),
 ('accounts:manage', '管理所有使用者角色與權限分配'),
-('settings:manage', '管理系統設定 (如註冊碼)') -- [NEW] 新增 settings 管理權限
+('settings:manage', '管理系統設定 (如註冊碼)'),
+('registration_codes:manage', '管理註冊碼 (新增、編輯、刪除)') -- [NEW] 新增註冊碼管理權限
 ON CONFLICT (name) DO NOTHING;
 
 -- 3.3 為各角色指派權限
@@ -419,6 +433,13 @@ ON CONFLICT (role_id, permission_id) DO NOTHING;
 -- [NEW] guest: 預設無任何權限，確保清空
 DELETE FROM public.role_permissions WHERE role_id = (SELECT id FROM public.roles WHERE name = 'guest');
 
+-- [NEW] 為 sdc, admin, superadmin 新增 registration_codes:manage 權限
+INSERT INTO public.role_permissions (role_id, permission_id)
+SELECT r.id, p.id
+FROM public.roles r, public.permissions p
+WHERE r.name IN ('sdc', 'admin', 'superadmin') AND p.name = 'registration_codes:manage'
+ON CONFLICT (role_id, permission_id) DO NOTHING;
+
 
 -- [NEW] 3.4. 插入預設系統設定
 INSERT INTO public.settings (key, value, description) VALUES
@@ -429,7 +450,7 @@ ON CONFLICT (key) DO NOTHING;
 
 -- ========= 4. 自動化與輔助函數 =========
 
--- 4.1 handle_new_user [MAJOR UPDATE]
+-- 4.1 handle_new_user [MAJOR UPDATE V2]
 DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
 DROP FUNCTION IF EXISTS public.handle_new_user() CASCADE;
 CREATE OR REPLACE FUNCTION public.handle_new_user()
@@ -438,50 +459,61 @@ DECLARE
     meta_data jsonb := NEW.raw_app_meta_data;
     source text;
     registration_code_provided text;
-    target_role_name text;
     target_role_id uuid;
     is_code_required boolean;
-    correct_code text;
+    valid_code_record public.registration_codes;
 BEGIN
-    -- 從 metadata 獲取註冊來源和註冊碼
     source := meta_data->>'source';
     registration_code_provided := meta_data->>'registration_code';
 
     -- **情境一：由管理員在後台建立**
     IF source = 'admin_creation' THEN
-        -- 管理員可以指定角色，若未指定則預設為 'operator'
-        target_role_name := COALESCE(meta_data->>'role', 'operator');
-        SELECT id INTO target_role_id FROM public.roles WHERE name = target_role_name;
+        SELECT id INTO target_role_id FROM public.roles WHERE name = COALESCE(meta_data->>'role', 'operator');
 
     -- **情境二：使用者從前台註冊**
     ELSE
-        -- 從 settings 資料表檢查是否需要註冊碼
+        -- 從 settings 檢查是否需要註冊碼
         SELECT (value->>0)::boolean INTO is_code_required FROM public.settings WHERE key = 'registration_code_required';
 
-        -- 如果需要註冊碼
-        IF COALESCE(is_code_required, false) THEN
-            SELECT value->>0 INTO correct_code FROM public.settings WHERE key = 'registration_code';
-            -- 檢查提供的註冊碼是否正確
-            IF registration_code_provided = correct_code THEN
-                -- 註冊碼正確，分配 'operator' 角色
-                SELECT id INTO target_role_id FROM public.roles WHERE name = 'operator';
-            ELSE
-                -- 註冊碼錯誤或未提供，分配 'guest' 角色
-                SELECT id INTO target_role_id FROM public.roles WHERE name = 'guest';
-            END IF;
-        -- 如果不需要註冊碼
-        ELSE
-            -- 直接分配 'guest' 角色
+        -- 如果不需要註冊碼，直接設為 guest
+        IF NOT COALESCE(is_code_required, false) THEN
             SELECT id INTO target_role_id FROM public.roles WHERE name = 'guest';
+        -- 如果需要註冊碼
+        ELSE
+            -- 檢查使用者是否提供註冊碼
+            IF registration_code_provided IS NULL OR registration_code_provided = '' THEN
+                RAISE EXCEPTION '註冊失敗：需要提供有效的註冊碼。';
+            END IF;
+
+            -- 驗證註冊碼
+            SELECT * INTO valid_code_record FROM public.registration_codes WHERE code = registration_code_provided;
+
+            -- 檢查碼是否存在
+            IF valid_code_record IS NULL THEN
+                RAISE EXCEPTION '註冊失敗：註冊碼無效或不存在。';
+            END IF;
+
+            -- 檢查是否過期
+            IF valid_code_record.expires_at IS NOT NULL AND valid_code_record.expires_at < now() THEN
+                RAISE EXCEPTION '註冊失敗：此註冊碼已過期。';
+            END IF;
+
+            -- 檢查使用次數
+            IF valid_code_record.usage_limit IS NOT NULL AND valid_code_record.times_used >= valid_code_record.usage_limit THEN
+                RAISE EXCEPTION '註冊失敗：此註冊碼已達使用次數上限。';
+            END IF;
+
+            -- 所有驗證通過，將角色設為 guest，並更新註冊碼使用次數
+            SELECT id INTO target_role_id FROM public.roles WHERE name = 'guest';
+            UPDATE public.registration_codes SET times_used = times_used + 1 WHERE id = valid_code_record.id;
         END IF;
     END IF;
 
-    -- 若 target_role_id 仍為 NULL (例如角色名稱錯誤)，則預設為 guest
-    IF target_role_id IS NULL THEN
-        SELECT id INTO target_role_id FROM public.roles WHERE name = 'guest';
-    END IF;
-    
     -- 插入 profiles 資料表
+    IF target_role_id IS NULL THEN
+        RAISE EXCEPTION '無法確定使用者角色。';
+    END IF;
+
     INSERT INTO public.profiles(id, email, nickname, role_id)
     VALUES(NEW.id, NEW.email, COALESCE(meta_data->>'nickname', NEW.email), target_role_id)
     ON CONFLICT (id) DO UPDATE SET email = EXCLUDED.email;
@@ -981,6 +1013,15 @@ DROP POLICY IF EXISTS "Allow authenticated users to read settings" ON public.set
 CREATE POLICY "Allow authenticated users to read settings" ON public.settings
 FOR SELECT
 USING (auth.role() = 'authenticated');
+
+-- [NEW] --- 啟用並設定 registration_codes 資料表的 RLS ---
+ALTER TABLE public.registration_codes ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Allow authorized users to manage registration codes" ON public.registration_codes;
+CREATE POLICY "Allow authorized users to manage registration codes" ON public.registration_codes
+FOR ALL
+USING (public.user_has_permission(auth.uid(), 'registration_codes:manage'))
+WITH CHECK (public.user_has_permission(auth.uid(), 'registration_codes:manage'));
 
 
 -- 如果所有步驟都成功，提交事務
