@@ -436,23 +436,23 @@ input:focus, textarea:focus, select:focus {
     .table-responsive td:before {
         /* [修正] 移除絕對定位，讓其成為 Grid 的一部分 */
         content: attr(data-label);
-        text-align: left;
+        text-align: center; /* <<< MODIFIED */
         font-weight: 600;
         color: var(--gray-600);
     }
 
     /* 針對內容的容器進行樣式設定 */
     .table-responsive td > * {
-        text-align: right;
+        text-align: center; /* <<< MODIFIED */
     }
 
     .table-responsive td > .flex {
-        justify-content: flex-end;
+        justify-content: center; /* <<< MODIFIED */
     }
 
 .device-id-content {
         word-break: break-all;
-        text-align: right;
+        text-align: center; /* <<< MODIFIED */
         line-height: 1.4;
         font-size: 0.85rem;
     }
