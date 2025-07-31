@@ -376,9 +376,21 @@ INSERT INTO public.role_permissions (role_id, permission_id)
 SELECT (SELECT id FROM public.roles WHERE name = 'operator'), p.id FROM public.permissions p WHERE p.name IN ('overview:view', 'checkin:use', 'personnel:read', 'records:create', 'records:view')
 ON CONFLICT (role_id, permission_id) DO NOTHING;
 
--- sdsc: 僅能查看報表和總覽
+-- [修復] sdsc: 新增 personnel:read 和 records:view 權限以允許讀取報表數據
+DELETE FROM public.role_permissions WHERE role_id = (SELECT id FROM public.roles WHERE name = 'sdsc');
 INSERT INTO public.role_permissions (role_id, permission_id)
-SELECT (SELECT id FROM public.roles WHERE name = 'sdsc'), p.id FROM public.permissions p WHERE p.name IN ('overview:view', 'reports:view')
+SELECT 
+    (SELECT id FROM public.roles WHERE name = 'sdsc'), 
+    p.id 
+FROM 
+    public.permissions p 
+WHERE 
+    p.name IN (
+        'overview:view', 
+        'reports:view',
+        'personnel:read', -- [NEW] 允許讀取人員資料 (報表需要)
+        'records:view'    -- [NEW] 允許檢視記錄 (報表需要)
+    )
 ON CONFLICT (role_id, permission_id) DO NOTHING;
 
 
