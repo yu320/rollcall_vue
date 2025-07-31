@@ -324,10 +324,11 @@ input:focus, textarea:focus, select:focus {
    響應式設計 (Responsive Design) - 優化手機瀏覽體驗
    ========================================================================== */
 
-/* [NEW] 大於手機的螢幕尺寸 (平板、電腦) */
+/* [NEW] 平板與電腦螢幕 (寬度大於 640px) */
 @media (min-width: 641px) {
+    /* 僅在寬螢幕上為表格設定最小寬度，以觸發水平捲動 */
     .table-responsive table.table-fixed {
-        min-width: 1024px; /* 設定最小寬度，觸發水平捲動 */
+        min-width: 1024px;
     }
 }
 
@@ -343,30 +344,28 @@ input:focus, textarea:focus, select:focus {
       font-size: 1.875rem; /* 調整標題大小 */
   }
 
-  /* [FIX] 徹底解決手機版下拉選單被裁切的問題 */
+  /* 手機版導覽列可水平滑動 */
   .sticky .container .flex.border-b {
-      flex-wrap: nowrap; /* 防止頁籤換行 */
-      overflow-x: auto;  /* 啟用水平捲動 */
-      -webkit-overflow-scrolling: touch; /* 在 iOS 上提供流暢的捲動體驗 */
-      scrollbar-width: none; /* 隱藏 Firefox 的捲動條 */
+      flex-wrap: nowrap;
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+      scrollbar-width: none;
   }
 
-  /* 隱藏 Webkit (Chrome, Safari) 的捲動條 */
   .sticky .container .flex.border-b::-webkit-scrollbar {
       display: none;
   }
 
-  /* 確保頁籤按鈕本身不會被壓縮 */
   .sticky .container .flex.border-b > .tab-button,
-  .sticky .container .flex.border-b > .relative { /* 確保下拉選單容器也不會被壓縮 */
+  .sticky .container .flex.border-b > .relative {
       flex-shrink: 0;
   }
 
-  /* [MODIFIED] 下拉選單在手機上的樣式覆蓋 */
+  /* 手機版下拉選單樣式 */
   .dropdown-menu-floating {
-    position: fixed; /* 使用 fixed 定位，確保不被父元素裁剪 */
-    z-index: 9999; /* 極高 z-index 確保在所有內容之上 */
-    top: auto; /* 由 JS 動態設定，或由彈出觸發按鈕的相對位置決定 */
+    position: fixed;
+    z-index: 9999;
+    top: auto;
     left: 1rem;
     right: 1rem;
     width: auto;
@@ -374,24 +373,23 @@ input:focus, textarea:focus, select:focus {
     margin-top: 0;
   }
 
-  /* 調整頂部導覽列的間距和對齊 */
+  /* 手機版頁首佈局 */
   header .container {
-      flex-direction: column; /* 在小螢幕上垂直堆疊 */
-      align-items: flex-start; /* 左對齊 */
-      gap: 1rem; /* 增加間距 */
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 1rem;
   }
 
   header .flex.items-center.gap-4 {
-      flex-direction: column; /* 垂直堆疊用戶資訊和按鈕 */
-      align-items: flex-start; /* 左對齊 */
-      width: 100%; /* 佔滿寬度 */
+      flex-direction: column;
+      align-items: flex-start;
+      width: 100%;
   }
 
   header .flex.items-center.gap-4 > button {
-      width: 100%; /* 按鈕佔滿寬度 */
+      width: 100%;
   }
 
-  /* 調整主要內容區域的 padding */
   main#mainContent {
       padding-left: 1rem;
       padding-right: 1rem;
@@ -400,7 +398,12 @@ input:focus, textarea:focus, select:focus {
 
 /* 小型螢幕 (手機) */
 @media (max-width: 640px) {
-    /* 將所有表格轉換為卡片式列表 */
+    /* [修復] 確保手機版表格寬度不超出螢幕，以移除橫向捲動 */
+    .table-responsive table {
+        min-width: 100%;
+    }
+
+    /* 將表格轉換為卡片式列表 */
     .table-responsive table, .table-responsive thead, .table-responsive tbody, .table-responsive th, .table-responsive td, .table-responsive tr {
         display: block;
     }
@@ -429,11 +432,10 @@ input:focus, textarea:focus, select:focus {
         border: none;
         border-bottom: 1px solid var(--gray-100);
         padding: 0.875rem 1rem;
-        /* [修正] 使用 Grid 佈局來完美分隔標籤和內容 */
         display: grid;
-        grid-template-columns: 35% 1fr; /* 左欄為標籤，右欄為內容 */
-        grid-gap: 1rem; /* 標籤和內容之間的間距 */
-        align-items: center; /* 讓內容垂直置中 */
+        grid-template-columns: 35% 1fr;
+        grid-gap: 1rem;
+        align-items: center;
     }
 
     .table-responsive tr td:last-child {
@@ -442,24 +444,21 @@ input:focus, textarea:focus, select:focus {
 
     /* 創建手機版的標籤 */
     .table-responsive td:before {
-        /* [修正] 移除絕對定位，讓其成為 Grid 的一部分 */
         content: attr(data-label);
         text-align: center; 
         font-weight: 600;
         color: var(--gray-600);
     }
 
-    /* [修復] 針對內容的容器進行樣式設定，使其置中 */
+    /* 針對內容的容器進行樣式設定，使其置中 */
     .table-responsive td > * {
         text-align: center; 
     }
 
-    /* [修復] 確保 flex 容器內的內容也置中 */
     .table-responsive td > .flex {
         justify-content: center; 
     }
 
-    /* [修復] 針對裝置ID的特殊處理 */
     .device-id-content {
         word-break: break-all;
         text-align: center; 
@@ -467,32 +466,30 @@ input:focus, textarea:focus, select:focus {
         font-size: 0.85rem;
     }
 
-    /* 對於只有按鈕或選取框的欄位，維持垂直置中 */
     .table-responsive td[data-label="操作"],
     .table-responsive td[data-label="選取"] {
         align-items: center;
     }
 }
 
-/* [NEW] 手機橫向模式優化 */
+/* 手機橫向模式優化 */
 @media (max-width: 900px) and (orientation: landscape) {
     .table-responsive tr {
-        margin-bottom: 0.75rem; /* 稍微減少橫向時的卡片間距 */
+        margin-bottom: 0.75rem;
     }
 
     .table-responsive td {
-        /* 調整橫向時標籤和內容的比例，讓內容有更多空間 */
         grid-template-columns: 30% 1fr;
-        padding: 0.6rem 1rem; /* 稍微縮小內邊距 */
+        padding: 0.6rem 1rem;
     }
 
     .table-responsive td:before {
-        text-align: right; /* 橫向時標籤靠右對齊，讓內容看起來更整齊 */
+        text-align: right;
         padding-right: 1rem;
     }
 
     .table-responsive td > * {
-        text-align: left; /* 橫向時，內容靠左對齊更易讀 */
+        text-align: left;
         font-size: 0.9rem;
     }
 
@@ -511,18 +508,18 @@ input:focus, textarea:focus, select:focus {
     cursor: pointer;
     transition: all 0.3s ease;
     border-bottom: 3px solid transparent;
-    padding: 1rem 0.25rem; /* 確保點擊區域足夠 */
-    font-size: 0.875rem; /* text-sm */
-    font-weight: 500; /* font-medium */
+    padding: 1rem 0.25rem;
+    font-size: 0.875rem;
+    font-weight: 500;
     white-space: nowrap;
 }
 .report-tab.active {
-    border-color: var(--primary-color); /* primary-color */
+    border-color: var(--primary-color);
     color: var(--primary-color);
     font-weight: 600;
 }
 
-/* --- 登入頁面樣式 (從 login.css 遷移) --- **/
+/* --- 登入頁面樣式 --- **/
 .login-container {
     min-height: 100vh;
     background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
@@ -583,65 +580,65 @@ input:focus, textarea:focus, select:focus {
     font-variant-numeric: tabular-nums;
 }
 
-/* NEW: 小車動畫樣式 (從 login.css 遷移) */
+/* 登入頁小車動畫 */
 .car-loading-overlay {
     position: absolute;
     top: 0;
     left: 0;
     width: 100%;
     height: 100%;
-    background: rgba(255, 255, 255, 0.95); /* 更不透明的白色背景 */
+    background: rgba(255, 255, 255, 0.95);
     display: flex;
     justify-content: center;
     align-items: center;
-    z-index: 1000; /* 確保在登入卡片之上 */
+    z-index: 1000;
 }
 
 .road {
-    width: 80%; /* 響應式寬度 */
-    max-width: 400px; /* 最大寬度 */
-    height: 100px; /* 較短的路面 */
+    width: 80%;
+    max-width: 400px;
+    height: 100px;
     position: relative;
     overflow: hidden;
-    background: #e0e7eb; /* 淺灰色路面 */
+    background: #e0e7eb;
     border-radius: 10px;
     box-shadow: inset 0 0 10px rgba(0,0,0,0.1);
 }
 
 .car {
-    width: 80px; /* 較小的車身 */
-    height: 40px; /* 較小的車身 */
-    background: #ff6f61; /* 紅色車身 */
-    border-radius: 8px; /* 稍微減小圓角 */
+    width: 80px;
+    height: 40px;
+    background: #ff6f61;
+    border-radius: 8px;
     position: absolute;
-    bottom: 10px; /* 調整位置，讓輪子在路面下方 */
-    animation: drive 2.5s linear infinite; /* 調整動畫速度 */
+    bottom: 10px;
+    animation: drive 2.5s linear infinite;
     box-shadow: 0 4px 0 #c62828;
-    left: -100px; /* 從螢幕外開始 */
+    left: -100px;
 }
 
 .wheel {
-    width: 16px; /* 較小的輪子 */
-    height: 16px; /* 較小的輪子 */
+    width: 16px;
+    height: 16px;
     background: #333;
     border-radius: 50%;
     position: absolute;
-    bottom: -8px; /* 調整位置 */
-    animation: spin 0.5s linear infinite; /* 調整旋轉速度 */
+    bottom: -8px;
+    animation: spin 0.5s linear infinite;
     box-shadow: inset 0 0 5px rgba(0,0,0,0.3);
 }
 
 .wheel.front {
-    left: 10px; /* 調整位置 */
+    left: 10px;
 }
 
 .wheel.back {
-    right: 10px; /* 調整位置 */
+    right: 10px;
 }
 
 @keyframes drive {
     0% { left: -100px; }
-    100% { left: calc(100% + 100px); } /* 讓車子完全穿過螢幕 */
+    100% { left: calc(100% + 100px); }
 }
 
 @keyframes spin {
@@ -649,7 +646,7 @@ input:focus, textarea:focus, select:focus {
     to { transform: rotate(360deg); }
 }
 
-/* 加在你的全局樣式或 <style scoped> 中 */
+/* 登入失敗動畫 */
 @keyframes shake {
   0% { transform: translateX(0); }
   20% { transform: translateX(-4px); }
