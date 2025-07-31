@@ -11,7 +11,7 @@
   --primary-color: #4f46e5; /* Indigo-600 */
   --primary-light: #e0e7ff; /* Indigo-100 */
   --primary-dark: #4338ca;  /* Indigo-700 */
-  
+
   /* 輔助色系 */
   --success-color: #16a34a; /* Green-600 */
   --success-light: #dcfce7; /* Green-100 */
@@ -21,7 +21,7 @@
   --warning-light: #fef3c7; /* Amber-100 */
   --info-color: #3b82f6;    /* Blue-500 */
   --info-light: #eff6ff;    /* Blue-50 */
-  
+
   /* 中性色系 */
   --gray-50: #f9fafb;
   --gray-100: #f3f4f6;
@@ -33,19 +33,19 @@
   --gray-700: #374151;
   --gray-800: #1f2937;
   --gray-900: #111827;
-  
+
   /* 尺寸 */
   --border-radius-sm: 0.375rem; /* rounded-md */
   --border-radius-md: 0.5rem;   /* rounded-lg */
   --border-radius-lg: 0.75rem;  /* rounded-xl */
-  
+
   /* 陰影 */
   --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
   --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
   --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
   --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
   --shadow-2xl: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
-  
+
   /* 動畫 */
   --transition-fast: all 0.15s ease-in-out;
   --transition-normal: all 0.3s ease-in-out;
@@ -191,7 +191,7 @@ input:focus, textarea:focus, select:focus {
 .code-n { color: #155e75; } /* Teal-800 */
 .code-o { color: #5b21b6; } /* Violet-800 */
 .code-p { color: #713f12; } /* Amber-800 */
-.code-q { color: #881337; } /* Rose-800 */
+.code-q { color: #9f1239; } /* Red-800 */
 .code-r { color: #1e40af; } /* Indigo-880 */
 .code-s { color: #14532d; } /* Green-800 */
 .code-t { color: #164e63; } /* Cyan-800 */
@@ -200,7 +200,7 @@ input:focus, textarea:focus, select:focus {
 .code-w { color: #9f1239; } /* Red-800 */
 .code-x { color: #1e3a8a; } /* Blue-800 */
 .code-y { color: #166534; } /* Emerald-800 */
-.code-z { color: #155e75; } /* Teal-200 */ 
+.code-z { color: #155e75; } /* Teal-200 */
 
 /* [NEW] 數字代碼顏色 */
 .code-digit-0 { color: #06b6d4; } /* Cyan-500 */
@@ -242,7 +242,7 @@ input:focus, textarea:focus, select:focus {
 
 /* [NEW] 類型標籤樣式 */
 .type-badge {
-    display: flex; /* 改為 Flexbox 佈局 */
+    display: inline-flex; /* 修改為 inline-flex，以便在父元素 text-align: center 時能正確居中 */
     justify-content: center; /* 水平置中 */
     align-items: center; /* 垂直置中 */
     padding: 0.25rem 0.75rem;
@@ -286,8 +286,8 @@ input:focus, textarea:focus, select:focus {
 
 /* 新增：為「成功」狀態添加顏色 */
 .status-badge[data-status="成功"] {
-    background-color: var(--success-light); 
-    color: var(--success-color); 
+    background-color: var(--success-light);
+    color: var(--success-color);
 }
 
 /* --- NEW: Report Page Styles (from old style.css) --- */
@@ -319,6 +319,17 @@ input:focus, textarea:focus, select:focus {
     text-transform: uppercase;
     color: var(--gray-500);
 }
+/* NEW: 為「類型」和「狀態」欄位的標頭設定居中對齊 */
+.data-grid th:nth-child(5), /* 選擇第五個 th (類型) */
+.data-grid th:nth-child(6) { /* 選擇第六個 th (狀態) */
+    text-align: center;
+}
+
+/* NEW: 為「類型」和「狀態」欄位的數據儲存格設定居中對齊 */
+.data-grid td[data-label="類型"],
+.data-grid td[data-label="狀態"] {
+    text-align: center; /* 讓內容居中 */
+}
 .data-grid tbody tr:hover {
     background-color: #f9fafb;
 }
@@ -326,7 +337,8 @@ input:focus, textarea:focus, select:focus {
 /* [MODIFIED] 下拉選單基礎樣式 (電腦版) */
 .dropdown-menu-floating {
     position: absolute;
-    display: none; /* 預設隱藏 */
+    /* `v-if` 會直接控制元素的渲染與移除，所以不需要 display: none; */
+    /* display: none; */
     z-index: 50;
     top: 100%;
     left: 0;
@@ -350,7 +362,7 @@ input:focus, textarea:focus, select:focus {
     padding: 0.75rem 1rem;
     font-size: 0.9rem;
   }
-  
+
   header h1 {
       font-size: 1.875rem; /* 調整標題大小 */
   }
@@ -432,7 +444,7 @@ input:focus, textarea:focus, select:focus {
         box-shadow: var(--shadow-sm);
         background-color: white;
     }
-    
+
     .table-responsive tr:last-child {
         margin-bottom: 0;
     }
@@ -465,18 +477,24 @@ input:focus, textarea:focus, select:focus {
     .table-responsive td > * {
         text-align: right;
     }
-    
+
     .table-responsive td > .flex {
         justify-content: flex-end;
     }
-    
+
+/* NEW: 手機版下，特定欄位的內容也居中 */
+  .table-responsive td[data-label="類型"] > *,
+  .table-responsive td[data-label="狀態"] > * {
+    text-align: center;
+  }
+
 .device-id-content {
         word-break: break-all;
         text-align: right;
         line-height: 1.4;
         font-size: 0.85rem;
     }
-    
+
     /* 對於只有按鈕或選取框的欄位，維持垂直置中 */
     .table-responsive td[data-label="操作"],
     .table-responsive td[data-label="選取"] {
@@ -646,4 +664,3 @@ input:focus, textarea:focus, select:focus {
 .animate-shake {
   animation: shake 0.3s ease;
 }
-
