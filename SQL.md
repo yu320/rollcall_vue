@@ -405,11 +405,14 @@ FOR EACH ROW EXECUTE PROCEDURE public.handle_new_user();
 
 -- 4.2 user_has_permission
 -- 先刪除所有依賴此函數的 RLS 策略
+DROP POLICY IF EXISTS "Allow users to read their own profile" ON public.profiles;
 DROP POLICY IF EXISTS "Allow admin to manage all profiles_select" ON public.profiles;
 DROP POLICY IF EXISTS "Allow admin to manage all profiles_insert" ON public.profiles;
 DROP POLICY IF EXISTS "Allow admin to manage all profiles_update" ON public.profiles;
 DROP POLICY IF EXISTS "Allow admin to manage all profiles_delete" ON public.profiles;
-DROP POLICY IF EXISTS "Allow users to read their own profile" ON public.profiles;
+-- NEW: Drop the specific policy for authenticated users to update their own profile if it exists
+DROP POLICY IF EXISTS "Allow authenticated users to update their own profile" ON public.profiles;
+
 
 DROP POLICY IF EXISTS "Allow authorized users to read personnel" ON public.personnel;
 DROP POLICY IF EXISTS "Allow authorized users to create personnel" ON public.personnel;
@@ -822,6 +825,10 @@ DROP POLICY IF EXISTS "Allow admin to manage all profiles_update" ON public.prof
 CREATE POLICY "Allow admin to manage all profiles_update" ON public.profiles FOR UPDATE USING (public.user_has_permission(auth.uid(), 'accounts:manage_users')) WITH CHECK (public.user_has_permission(auth.uid(), 'accounts:manage_users'));
 DROP POLICY IF EXISTS "Allow admin to manage all profiles_delete" ON public.profiles;
 CREATE POLICY "Allow admin to manage all profiles_delete" ON public.profiles FOR DELETE USING (public.user_has_permission(auth.uid(), 'accounts:manage_users'));
+-- NEW: Allow authenticated users to update their own profile
+CREATE POLICY "Allow authenticated users to update their own profile" ON public.profiles
+FOR UPDATE USING (auth.uid() = id) WITH CHECK (auth.uid() = id);
+
 
 -- --- 策略: personnel ---
 DROP POLICY IF EXISTS "Allow authorized users to read personnel" ON public.personnel;
