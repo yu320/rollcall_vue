@@ -525,19 +525,22 @@ input:focus, textarea:focus, select:focus {
     z-index: 50;
     overflow-y: auto; /* [新增] 允許垂直方向捲動 */
 }
+
 .login-card {
-    /* [修改] 恢復半透明背景和模糊效果 */
-    backdrop-filter: blur(10px);
-    background-color: rgba(255, 255, 255, 0.85); /* 稍微降低透明度以增強效果 */
+    background-color: rgb(255, 255, 255); /* 設定為完全不透明的白色 */
     box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
-    
-    /* [新增] 建立一個新的堆疊環境，讓偽元素定位更可靠 */
-    position: relative;
-    isolation: isolate; /* 建立一個新的堆疊上下文 */
+    border-radius: 1rem; /* 保留圓角 */
+    /* 移除所有與半透明和模糊相關的樣式 */
+    backdrop-filter: none;
+    position: static; /* 恢復為靜態定位，讓高度根據內容自動延伸 */
+    isolation: auto; /* 恢復預設值 */
 }
 
+/* 移除 ::before 偽元素的樣式，不再需要 */
+/* .login-card::before { ... } */
+
 /* [新增] 建立一個偽元素作為卡片的"內襯"背景 */
-.login-card::before {
+/* .login-card::before {
     content: '';
     position: absolute;
     inset: 0; /* 讓偽元素和卡片一樣大 */
@@ -547,7 +550,7 @@ input:focus, textarea:focus, select:focus {
     background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
     
     z-index: -1; /* 將這個背景層放到卡片內容的後面 */
-}
+} */
 
 .form-input:focus {
     border-color: #4f46e5;
