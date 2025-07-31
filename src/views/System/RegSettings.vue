@@ -35,7 +35,6 @@
         </div>
       </form>
     </Modal>
-  </div>
 </template>
 
 <script setup>
