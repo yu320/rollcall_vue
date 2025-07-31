@@ -1,5 +1,3 @@
-// src/utils/index.js
-
 import { format, parse } from 'date-fns';
 import { zhTW } from 'date-fns/locale';
 import { DATETIME_PARSE_FORMATS } from '@/utils/constants';
@@ -229,4 +227,3 @@ export function createSummaryCard(title, value, iconName, changeData = null) {
         </div>
     `;
 }
-
