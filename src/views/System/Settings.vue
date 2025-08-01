@@ -94,8 +94,8 @@
         </div>
         <div>
           <label for="role" class="block text-sm font-medium text-gray-700">綁定角色</label>
-          <select id="role" v-model="editableCode.role_id"  class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 bg-white">
-            <option :value="null" disabled>-- 請選擇角色(沒選為預設) --</option>
+          <select id="role" v-model="editableCode.role_id" class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 bg-white">
+            <option :value="null" disabled>-- 請選擇綁定角色 --</option>
             <option v-for="role in availableRoles" :key="role.id" :value="role.id">{{ getRoleDisplayName(role.name) }}</option>
           </select>
         </div>
@@ -232,7 +232,7 @@ const openModal = (code = null) => {
     editableCode.value = {
       code: '',
       description: '',
-      role_id: availableRoles.value[0]?.id || null,
+      role_id: null,
       usage_limit: 1,
       expires_at: '',
     };
@@ -253,7 +253,10 @@ const saveCode = async () => {
       expires_at: editableCode.value.expires_at ? new Date(editableCode.value.expires_at).toISOString() : null,
     };
     
-    // 確保 times_used 不會在新增時被傳送
+    // 【核心修正】在送出儲存前，刪除 payload 中多餘的 profiles 物件
+    // 因為 profiles (建立者暱稱) 只是用來顯示的，不能被寫入 registration_codes 資料表
+    delete payload.profiles;
+
     if (!isEditing.value) {
       delete payload.times_used;
     }
@@ -309,9 +312,9 @@ const generateRandomCode = () => {
   const lower = 'abcdefghijklmnopqrstuvwxyz';
   const digits = '0123456789';
   const all = upper + lower + digits;
-  const length = 8;
+   const length = 8;
 
-  let result = '';
+   let result = '';
   // 保證至少一個大寫、小寫、數字
   result += upper.charAt(Math.floor(Math.random() * upper.length));
   result += lower.charAt(Math.floor(Math.random() * lower.length));
@@ -320,7 +323,7 @@ const generateRandomCode = () => {
   // 剩下隨機填滿
   for (let i = 3; i < length; i++) {
     result += all.charAt(Math.floor(Math.random() * all.length));
-  }
+   }
 
   // 隨機打亂順序
   editableCode.value.code = result.split('').sort(() => 0.5 - Math.random()).join('');
@@ -345,4 +348,5 @@ const getExpiryClass = (expires_at) => {
   }
   return 'text-gray-700';
 };
+
 </script>
