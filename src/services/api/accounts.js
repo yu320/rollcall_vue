@@ -1,7 +1,6 @@
 // src/services/api/accounts.js (帳號管理相關)
+import { supabase } from '../supabase';
 import { getAdminUserId } from './helpers';
-import { supabase } from '../supabase'; // [新增] 引入 supabase 客戶端
-
 
 export async function createAccount(accountData) {
     const adminUserId = await getAdminUserId();
