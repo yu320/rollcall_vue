@@ -69,18 +69,17 @@
 
     <Modal :show="isModalOpen" @close="closeModal">
       <template #header>{{ isEditing ? '編輯註冊碼' : '新增註冊碼' }}</template>
-      <form @submit.prevent="saveCode" class="space-y-4">
-        <div>
-          <label for="code" class="block text-sm font-medium text-gray-700">註冊碼</label>
-          <div class="relative mt-1">
-            <input type="text" id="code" v-model="editableCode.code" required :disabled="isEditing" class="block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 pr-10">
-            <button type="button" @click="generateRandomCode" :disabled="isEditing" class="absolute inset-y-0 right-0 flex items-center pr-3 text-gray-400 hover:text-gray-600 disabled:opacity-50 disabled:cursor-not-allowed">
-              <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                <path d="M4 3a2 2 0 100 4h12a2 2 0 100-4H4z" />
-                <path fill-rule="evenodd" d="M3 8h14v7a2 2 0 01-2 2H5a2 2 0 01-2-2V8zm5 3a1 1 0 011-1h2a1 1 0 110 2H9a1 1 0 01-1-1z" clip-rule="evenodd" />
+<form @submit.prevent="saveCode" class="space-y-4">
+   <div>
+          <label for="code" class="block text-sm font-medium text-gray-700 flex justify-between items-center">
+            註冊碼
+            <button type="button" @click="generateRandomCode" class="focus:outline-none">
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-indigo-500 hover:text-indigo-700 cursor-pointer" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 009.828 16c-3.188 0-5.973-2.81-5.973-6a5.997 5.997 0 015.8-6 5.976 5.976 0 015.8 6m-4 9V5a2 2 0 00-2-2H6a2 2 0 00-2 2v16a2 2 0 002 2h10a2 2 0 002-2v-1m2-6h.01M5 11h.01M19 11h.01M12 16h.01M12 13h.01" />
               </svg>
             </button>
-          </div>
+          </label>
+          <input type="text" id="code" v-model="editableCode.code" required class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3">
         </div>
         <div>
           <label for="description" class="block text-sm font-medium text-gray-700">描述 (選填)</label>
@@ -123,40 +122,23 @@ const isEditing = ref(false);
 const editableCode = ref({});
 
 const toLocalISOString = (isoString) => {
-  if (!isoString) return '';
-  const date = new Date(isoString);
-  date.setMinutes(date.getMinutes() - date.getTimezoneOffset());
-  return date.toISOString().slice(0, 16);
-};
-
-const formatDateTime = (isoString) => {
-  if (!isoString) return null;
-  return format(parseISO(isoString), 'yyyy-MM-dd HH:mm');
-};
-
-const getUsageClass = (code) => {
-  if (code.usage_limit !== null && code.times_used >= code.usage_limit) {
-    return 'font-bold text-red-600';
-  }
-  return 'text-gray-700';
-};
-
-const getExpiryClass = (expires_at) => {
-  if (expires_at && isPast(parseISO(expires_at))) {
-    return 'font-bold text-red-600';
-  }
-  return 'text-gray-700';
+    if (!isoString) return '';
+    const date = new Date(isoString);
+    date.setMinutes(date.getMinutes() - date.getTimezoneOffset());
+    return date.toISOString().slice(0, 16);
 };
 
 const generateRandomCode = () => {
-    const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
-    let result = '';
-    const charactersLength = characters.length;
-    for (let i = 0; i < 8; i++) {
-        result += characters.charAt(Math.floor(Math.random() * charactersLength));
-    }
-    editableCode.value.code = result;
+  const length = 8;
+  let result = '';
+  const characters = '0123456789';
+  const charactersLength = characters.length;
+  for (let i = 0; i < length; i++) {
+    result += characters.charAt(Math.floor(Math.random() * charactersLength));
+  }
+  editableCode.value.code = result;
 };
+
 
 onMounted(async () => {
   isLoading.value = true;
@@ -190,6 +172,7 @@ const saveSettings = async () => {
     uiStore.showMessage('設定已儲存', 'success');
   } catch (error) {
     uiStore.showMessage(`儲存設定失敗: ${error.message}`, 'error');
+    // 回滾UI狀態
     settings.registration_code_required = !settings.registration_code_required;
   } finally {
     uiStore.setLoading(false);
@@ -199,7 +182,7 @@ const saveSettings = async () => {
 const openModal = (code = null) => {
   isEditing.value = !!code;
   if (code) {
-    editableCode.value = {
+    editableCode.value = { 
       ...code,
       expires_at: toLocalISOString(code.expires_at)
     };
@@ -223,6 +206,7 @@ const saveCode = async () => {
   try {
     const payload = {
       ...editableCode.value,
+      // 確保空字串轉為 null
       usage_limit: editableCode.value.usage_limit || null,
       expires_at: editableCode.value.expires_at ? new Date(editableCode.value.expires_at).toISOString() : null,
     };
@@ -261,4 +245,24 @@ const confirmDelete = (code) => {
     }
   });
 };
+
+const formatDateTime = (isoString) => {
+  if (!isoString) return null;
+  return format(parseISO(isoString), 'yyyy-MM-dd HH:mm');
+};
+
+const getUsageClass = (code) => {
+  if (code.usage_limit !== null && code.times_used >= code.usage_limit) {
+    return 'font-bold text-red-600';
+  }
+  return 'text-gray-700';
+};
+
+const getExpiryClass = (expires_at) => {
+  if (expires_at && isPast(parseISO(expires_at))) {
+    return 'font-bold text-red-600';
+  }
+  return 'text-gray-700';
+};
+
 </script>
