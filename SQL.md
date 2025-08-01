@@ -158,6 +158,10 @@ CREATE TABLE IF NOT EXISTS public.system_settings (
     updated_at timestamp with time zone DEFAULT now()
 );
 COMMENT ON TABLE public.system_settings IS '儲存全域系統設定';
+-- 預設啟用註冊碼功能
+INSERT INTO public.system_settings (setting_key, setting_value, description)
+VALUES ('registration_code_required', 'true', '使用者註冊時是否必須提供有效的註冊碼')
+ON CONFLICT (setting_key) DO NOTHING;
 
 -- ========= 2. 應用程式核心資料表建立與遷移 =========
 
