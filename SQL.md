@@ -5,7 +5,7 @@
     -- 描述: 這個 SQL 腳本為通用版本，可用於全新資料庫的初始化，
     --       或安全地更新現有資料庫以符合最新架構。
 ---
-``` SQL
+
 -- 啟動一個事務，確保所有操作的原子性
 BEGIN;
 
@@ -376,21 +376,9 @@ INSERT INTO public.role_permissions (role_id, permission_id)
 SELECT (SELECT id FROM public.roles WHERE name = 'operator'), p.id FROM public.permissions p WHERE p.name IN ('overview:view', 'checkin:use', 'personnel:read', 'records:create', 'records:view')
 ON CONFLICT (role_id, permission_id) DO NOTHING;
 
--- [修復] sdsc: 新增 personnel:read 和 records:view 權限以允許讀取報表數據
-DELETE FROM public.role_permissions WHERE role_id = (SELECT id FROM public.roles WHERE name = 'sdsc');
+-- sdsc: 僅能查看報表和總覽
 INSERT INTO public.role_permissions (role_id, permission_id)
-SELECT 
-    (SELECT id FROM public.roles WHERE name = 'sdsc'), 
-    p.id 
-FROM 
-    public.permissions p 
-WHERE 
-    p.name IN (
-        'overview:view', 
-        'reports:view',
-        'personnel:read', -- [NEW] 允許讀取人員資料 (報表需要)
-        'records:view'    -- [NEW] 允許檢視記錄 (報表需要)
-    )
+SELECT (SELECT id FROM public.roles WHERE name = 'sdsc'), p.id FROM public.permissions p WHERE p.name IN ('overview:view', 'reports:view')
 ON CONFLICT (role_id, permission_id) DO NOTHING;
 
 
@@ -417,14 +405,11 @@ FOR EACH ROW EXECUTE PROCEDURE public.handle_new_user();
 
 -- 4.2 user_has_permission
 -- 先刪除所有依賴此函數的 RLS 策略
-DROP POLICY IF EXISTS "Allow users to read their own profile" ON public.profiles;
 DROP POLICY IF EXISTS "Allow admin to manage all profiles_select" ON public.profiles;
 DROP POLICY IF EXISTS "Allow admin to manage all profiles_insert" ON public.profiles;
 DROP POLICY IF EXISTS "Allow admin to manage all profiles_update" ON public.profiles;
 DROP POLICY IF EXISTS "Allow admin to manage all profiles_delete" ON public.profiles;
--- NEW: Drop the specific policy for authenticated users to update their own profile if it exists
-DROP POLICY IF EXISTS "Allow authenticated users to update their own profile" ON public.profiles;
-
+DROP POLICY IF EXISTS "Allow users to read their own profile" ON public.profiles;
 
 DROP POLICY IF EXISTS "Allow authorized users to read personnel" ON public.personnel;
 DROP POLICY IF EXISTS "Allow authorized users to create personnel" ON public.personnel;
@@ -824,7 +809,10 @@ ALTER TABLE public.personnel ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.events ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.check_in_records ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.audit_logs ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.event_participants ENABLE ROW LEVEL SECURITY; -- [NEW] Enable RLS for event_participants
+ALTER TABLE public.roles ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.permissions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.role_permissions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.event_participants ENABLE ROW LEVEL SECURITY;
 
 -- --- 策略: profiles ---
 DROP POLICY IF EXISTS "Allow users to read their own profile" ON public.profiles;
@@ -837,10 +825,6 @@ DROP POLICY IF EXISTS "Allow admin to manage all profiles_update" ON public.prof
 CREATE POLICY "Allow admin to manage all profiles_update" ON public.profiles FOR UPDATE USING (public.user_has_permission(auth.uid(), 'accounts:manage_users')) WITH CHECK (public.user_has_permission(auth.uid(), 'accounts:manage_users'));
 DROP POLICY IF EXISTS "Allow admin to manage all profiles_delete" ON public.profiles;
 CREATE POLICY "Allow admin to manage all profiles_delete" ON public.profiles FOR DELETE USING (public.user_has_permission(auth.uid(), 'accounts:manage_users'));
--- NEW: Allow authenticated users to update their own profile
-CREATE POLICY "Allow authenticated users to update their own profile" ON public.profiles
-FOR UPDATE USING (auth.uid() = id) WITH CHECK (auth.uid() = id);
-
 
 -- --- 策略: personnel ---
 DROP POLICY IF EXISTS "Allow authorized users to read personnel" ON public.personnel;
@@ -895,4 +879,3 @@ COMMIT;
 
 -- 如果在測試過程中遇到錯誤，可以使用以下命令回滾所有變更：
 -- ROLLBACK
-```
