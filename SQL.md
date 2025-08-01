@@ -1,12 +1,11 @@
 # 報到管理系統 - 整合與修正後資料庫設定與遷移腳本
 ---
     -- 作者: Hong
-    -- 版本: 5.0.0 (新增註冊功能)
+    -- 版本: 4.0.0 (新增活動指定參與人員功能)
     -- 描述: 這個 SQL 腳本為通用版本，可用於全新資料庫的初始化，
     --       或安全地更新現有資料庫以符合最新架構。
 ---
 ``` SQL
-
 -- 啟動一個事務，確保所有操作的原子性
 BEGIN;
 
@@ -68,19 +67,11 @@ BEGIN
         COMMENT ON COLUMN public.profiles.role_id IS '關聯到 roles 資料表的使用者角色 ID';
         -- 為現有 `profiles` 記錄設定預設的 `role_id`
         UPDATE public.profiles SET role_id = default_role_id WHERE role_id IS NULL;
-       
         -- 添加外鍵約束
         ALTER TABLE public.profiles ADD CONSTRAINT profiles_role_id_fkey FOREIGN KEY (role_id) REFERENCES public.roles(id) ON DELETE SET NULL;
     ELSE
         -- 如果 role_id 已存在但為 NULL，也為其設定預設值
         UPDATE public.profiles SET role_id = default_role_id WHERE role_id IS NULL;
-        
-    END IF;
-
-        -- [NEW] 添加 `registration_code_used` 欄位如果不存在
-    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'profiles' AND column_name = 'registration_code_used') THEN
-        ALTER TABLE public.profiles ADD COLUMN registration_code_used text NULL;
-        COMMENT ON COLUMN public.profiles.registration_code_used IS '使用者註冊時使用的註冊碼';
     END IF;
 
     -- 確保 `email` 欄位存在且為 NOT NULL
@@ -135,33 +126,6 @@ CREATE TABLE IF NOT EXISTS public.audit_logs (
     CONSTRAINT audit_logs_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.profiles(id) ON DELETE SET NULL
 );
 COMMENT ON TABLE public.audit_logs IS '記錄重要的系統操作，用於稽核和安全性追蹤';
-
--- ========= [NEW] 1.5 註冊碼與系統設定資料表 =========
-CREATE TABLE IF NOT EXISTS public.registration_codes (
-    id uuid NOT NULL DEFAULT gen_random_uuid(),
-    code text NOT NULL UNIQUE,
-    expires_at timestamp with time zone,
-    max_uses integer,
-    use_count integer NOT NULL DEFAULT 0,
-    is_active boolean NOT NULL DEFAULT true,
-    created_by uuid NOT NULL,
-    created_at timestamp with time zone NOT NULL DEFAULT now(),
-    CONSTRAINT registration_codes_pkey PRIMARY KEY (id),
-    CONSTRAINT registration_codes_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.profiles(id) ON DELETE CASCADE
-);
-COMMENT ON TABLE public.registration_codes IS '儲存使用者註冊碼及其限制';
-
-CREATE TABLE IF NOT EXISTS public.system_settings (
-    setting_key text NOT NULL PRIMARY KEY,
-    setting_value text,
-    description text,
-    updated_at timestamp with time zone DEFAULT now()
-);
-COMMENT ON TABLE public.system_settings IS '儲存全域系統設定';
--- 預設啟用註冊碼功能
-INSERT INTO public.system_settings (setting_key, setting_value, description)
-VALUES ('registration_code_required', 'true', '使用者註冊時是否必須提供有效的註冊碼')
-ON CONFLICT (setting_key) DO NOTHING;
 
 -- ========= 2. 應用程式核心資料表建立與遷移 =========
 
@@ -330,6 +294,12 @@ BEGIN
         ALTER TABLE public.check_in_records ALTER COLUMN success SET NOT NULL;
     END IF;
 
+    -- 【已移除】用於添加 'tags' 欄位的邏輯，因為用戶要求 'tags' 不在 check_in_records 中
+    -- IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'check_in_records' AND column_name = 'tags') THEN
+    --     ALTER TABLE public.check_in_records ADD COLUMN tags text[] NULL;
+    --     COMMENT ON COLUMN public.check_in_records.tags IS '報到記錄的標籤，用陣列儲存';
+    -- END IF;
+
 END $$;
 
 -- [NEW] 2.5 event_participants (活動參與人員) 資料表
@@ -372,9 +342,7 @@ INSERT INTO public.permissions (name, description) VALUES
 ('reports:view', '查看報表與儀錶板'),
 ('reports:personnel', '查看特定人員的詳細報表'),
 ('accounts:manage_users', '管理所有使用者帳號 (新增、編輯、刪除使用者)'),
-('accounts:manage', '管理所有使用者角色與權限分配'),
-('reg_codes:manage', '管理註冊碼'),
-('system_settings:manage', '管理系統設定')
+('accounts:manage', '管理所有使用者角色與權限分配')
 ON CONFLICT (name) DO NOTHING;
 
 -- 3.3 為各角色指派權限
@@ -400,7 +368,7 @@ END $$;
 INSERT INTO public.role_permissions (role_id, permission_id)
 SELECT (SELECT id FROM public.roles WHERE name = 'sdc'), p.id
 FROM public.permissions p
-WHERE p.name NOT IN ('accounts:manage_users', 'accounts:manage', 'reg_codes:manage', 'system_settings:manage')
+WHERE p.name NOT IN ('accounts:manage_users', 'accounts:manage')
 ON CONFLICT (role_id, permission_id) DO NOTHING;
 
 -- operator: 僅能進行報到和查看記錄
@@ -849,93 +817,6 @@ END;
 $$;
 COMMENT ON FUNCTION public.get_event_dashboard_data(uuid) IS '獲取指定活動的儀錶板數據，能根據活動設定計算應到人數。';
 
--- [NEW] 4.2 register_user 函式
-DROP FUNCTION IF EXISTS public.register_user(text, text, text, text);
-CREATE OR REPLACE FUNCTION public.register_user(
-    p_email text,
-    p_password text,
-    p_nickname text,
-    p_registration_code text DEFAULT NULL
-)
-RETURNS uuid
-LANGUAGE plpgsql
-SECURITY DEFINER
-AS $$
-DECLARE
-    v_code_id uuid;
-    v_new_user_id uuid;
-    v_code_required boolean;
-BEGIN
-    -- 1. 檢查系統設定是否需要註冊碼
-    SELECT (setting_value = 'true') INTO v_code_required
-    FROM public.system_settings
-    WHERE setting_key = 'registration_code_required';
-
-    -- 如果需要註冊碼，則進行驗證
-    IF v_code_required THEN
-        IF p_registration_code IS NULL THEN
-            RAISE EXCEPTION '系統目前需要註冊碼才能註冊。';
-        END IF;
-
-        SELECT id INTO v_code_id
-        FROM public.registration_codes
-        WHERE code = p_registration_code
-          AND is_active = true
-          AND (expires_at IS NULL OR expires_at > now())
-          AND (max_uses IS NULL OR use_count < max_uses);
-
-        IF v_code_id IS NULL THEN
-            RAISE EXCEPTION '無效、過期或已達使用上限的註冊碼。';
-        END IF;
-    END IF;
-
-    -- 2. 建立使用者 (此處使用 Supabase 內建的 signup 函式更為安全)
-    -- 注意：直接 INSERT INTO auth.users 是不被推薦的做法，這裡為了符合您現有邏輯而保留。
-    -- 更安全的方式是從前端呼叫 supabase.auth.signUp()，然後在後端用 trigger 處理 profile。
-    -- 但為了實現一個獨立的 RPC，我們繼續使用此方法。
-    INSERT INTO auth.users (instance_id, id, aud, role, email, encrypted_password, email_confirmed_at, recovery_token, recovery_sent_at, last_sign_in_at, raw_app_meta_data, raw_user_meta_data, created_at, updated_at, confirmation_token, email_change, email_change_token_new, recovery_token_encrypted)
-    values (
-      current_setting('app.instance_id')::uuid,
-      gen_random_uuid(),
-      'authenticated',
-      'authenticated',
-      p_email,
-      crypt(p_password, gen_salt('bf')),
-      now(),
-      '',
-      null,
-      null,
-      '{"provider":"email","providers":["email"]}',
-      jsonb_build_object('nickname', p_nickname),
-      now(),
-      now(),
-      '',
-      '',
-      '',
-      '');
-
-    SELECT id INTO v_new_user_id FROM auth.users WHERE email = p_email;
-
-    -- 3. handle_new_user 觸發器會自動建立 profile，我們只需更新它
-    UPDATE public.profiles
-    SET 
-        nickname = p_nickname,
-        registration_code_used = p_registration_code
-    WHERE id = v_new_user_id;
-
-    -- 4. 如果提供了有效的註冊碼，則更新其使用次數
-    IF p_registration_code IS NOT NULL AND v_code_id IS NOT NULL THEN
-        UPDATE public.registration_codes
-        SET use_count = use_count + 1
-        WHERE id = v_code_id;
-    END IF;
-
-    RETURN v_new_user_id;
-END;
-$$;
-COMMENT ON FUNCTION public.register_user(text, text, text, text) IS '註冊新使用者，並根據系統設定決定是否需要驗證註冊碼';
-
-
 
 -- ========= 5. 啟用 RLS 並定義安全策略 =========
 ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
@@ -944,8 +825,6 @@ ALTER TABLE public.events ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.check_in_records ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.audit_logs ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.event_participants ENABLE ROW LEVEL SECURITY; -- [NEW] Enable RLS for event_participants
-ALTER TABLE public.registration_codes ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.system_settings ENABLE ROW LEVEL SECURITY;
 
 -- --- 策略: profiles ---
 DROP POLICY IF EXISTS "Allow users to read their own profile" ON public.profiles;
@@ -1009,17 +888,6 @@ CREATE POLICY "Allow admins to manage role_permissions" ON public.role_permissio
 CREATE POLICY "Allow authorized users to manage event participants" ON public.event_participants FOR ALL
 USING (public.user_has_permission(auth.uid(), 'events:update'))
 WITH CHECK (public.user_has_permission(auth.uid(), 'events:update'));
-
--- --- 策略: registration_codes ---
-CREATE POLICY "Allow authorized users to manage registration codes" ON public.registration_codes
-FOR ALL USING (public.user_has_permission(auth.uid(), 'reg_codes:manage'))
-WITH CHECK (public.user_has_permission(auth.uid(), 'reg_codes:manage'));
-
--- --- 策略: system_settings ---
-CREATE POLICY "Allow authorized users to manage system settings" ON public.system_settings
-FOR ALL USING (public.user_has_permission(auth.uid(), 'system_settings:manage'))
-WITH CHECK (public.user_has_permission(auth.uid(), 'system_settings:manage'));
-
 
 
 -- 如果所有步驟都成功，提交事務
