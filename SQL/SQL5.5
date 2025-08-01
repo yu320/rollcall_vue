@@ -269,12 +269,18 @@ COMMENT ON FUNCTION public.user_has_permission(uuid, text)
 IS '檢查特定使用者是否擁有指定的權限。superadmin 擁有所有權限。';
 
 -- 處理新使用者註冊時自動建立 profile
+-- ========= 更新 handle_new_user 函數以自動生成暱稱 =========
+-- 描述: 這個新版本的函數會在 nickname 未提供時，
+--       自動截取 Email 的 @ 符號前的部分作為預設暱稱。
+
 CREATE OR REPLACE FUNCTION public.handle_new_user()
 RETURNS TRIGGER AS $$
 DECLARE
     meta_data jsonb := NEW.raw_app_meta_data;
     source text;
     target_role_id uuid;
+    -- 【新增】宣告一個變數來儲存最終的暱稱
+    final_nickname text; 
 BEGIN
     source := meta_data->>'source';
     IF source = 'admin_creation' THEN
@@ -291,9 +297,19 @@ BEGIN
         END IF;
     END IF;
 
+    -- 【核心修改】檢查傳入的 nickname，如果為空或不存在，則從 email 中截取
+    -- COALESCE: 尋找第一個非 NULL 的值
+    -- NULLIF(..., ''): 如果傳入的 nickname 是空字串，將其視為 NULL
+    -- split_part(NEW.email, '@', 1): 將 email 按 @ 分割，並取第一部分
+    final_nickname := COALESCE(NULLIF(meta_data->>'nickname', ''), split_part(NEW.email, '@', 1));
+
+    -- 使用 final_nickname 變數來插入資料
     INSERT INTO public.profiles(id, email, nickname, role_id)
-    VALUES(NEW.id, NEW.email, COALESCE(meta_data->>'nickname', NEW.email), target_role_id)
-    ON CONFLICT (id) DO UPDATE SET email = EXCLUDED.email;
+    VALUES(NEW.id, NEW.email, final_nickname, target_role_id)
+    ON CONFLICT (id) DO UPDATE SET 
+        email = EXCLUDED.email,
+        nickname = EXCLUDED.nickname; -- 確保在衝突時也能更新暱稱
+
     RETURN NEW;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;

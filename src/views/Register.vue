@@ -72,15 +72,25 @@
                <p v-if="errors.confirmPassword" class="text-red-600 text-xs mt-1">{{ errors.confirmPassword }}</p>
             </div>
             
-            <div v-if="isCodeRequired === null">
-              <p class="text-center text-gray-500 py-3">正在讀取註冊設定...</p>
+            <div>
+              <label for="registration_code" class="block text-sm font-medium text-gray-700 mb-1">
+                註冊碼 
+                <span v-if="isCodeRequired === true" class="text-red-500">*</span>
+                <span v-else class="text-gray-500">(選填)</span>
+              </label>
+              <div class="relative">
+                <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H5v-2H3v-2H1v-4a6 6 0 016-6h4a6 6 0 016 6z" /></svg>
+                </div>
+                <input 
+                  v-model="credentials.registration_code" 
+                  id="registration_code" 
+                  type="text" 
+                  class="form-input block w-full pl-10 pr-3 py-3 border border-gray-300 rounded-lg" 
+                  :placeholder="isCodeRequired ? '請向管理員索取' : '若有註冊碼請在此輸入'"
+                >
+              </div>
             </div>
-            <div v-else-if="isCodeRequired === true">
-              <label for="registration_code" class="block text-sm font-medium text-gray-700 mb-1">註冊碼</label>
-               <div class="relative">
-                  <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                      <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H5v-2H3v-2H1v-4a6 6 0 016-6h4a6 6 0 016 6z" /></svg>
-                  </div>
 <input v-model="credentials.registration_code" id="registration_code" type="text" class="form-input block w-full pl-10 pr-3 py-3 border border-gray-300 rounded-lg" placeholder="請向管理員索取">               </div>
             </div>
             

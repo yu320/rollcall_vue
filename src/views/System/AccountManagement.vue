@@ -96,6 +96,7 @@
         <div class="mb-6">
           <label for="accountRole" class="block text-gray-700 font-medium mb-2">角色</label>
           <select id="accountRole" v-model="editableAccount.role_id" class="w-full px-4 py-2 border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-indigo-500">
+          <option :value="null" disabled>-- 請選擇角色 --</option>
             <option v-for="role in availableRolesForAssignment" :key="role.id" :value="role.id">
               {{ getRoleDisplayName(role.name) }}
             </option>

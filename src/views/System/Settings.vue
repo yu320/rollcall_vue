@@ -94,7 +94,8 @@
         </div>
         <div>
           <label for="role" class="block text-sm font-medium text-gray-700">綁定角色</label>
-          <select id="role" v-model="editableCode.role_id" required class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 bg-white">
+          <select id="role" v-model="editableCode.role_id"  class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 bg-white">
+            <option :value="null" disabled>-- 請選擇角色(沒選為預設) --</option>
             <option v-for="role in availableRoles" :key="role.id" :value="role.id">{{ getRoleDisplayName(role.name) }}</option>
           </select>
         </div>
