@@ -1,0 +1,13 @@
+-- 為所有在 auth.users 中存在但尚未有 profile 的使用者，建立對應的 profile 記錄
+INSERT INTO public.profiles (id, email, nickname, role_id)
+SELECT
+    u.id,                                     -- 使用者的 UUID
+    u.email,                                  -- 使用者的 email
+    u.email,                                  -- 預設使用 email 作為 nickname
+    (SELECT id FROM public.roles WHERE name = 'operator') -- 指派預設的角色 (例如 'operator')
+FROM
+    auth.users u
+LEFT JOIN
+    public.profiles p ON u.id = p.id
+WHERE
+    p.id IS NULL; -- 關鍵條件：只選擇那些在 profiles 表中找不到對應 ID 的使用者
