@@ -19,10 +19,9 @@ export async function updateSetting(key, value) {
 }
 
 export async function fetchRegistrationCodes() {
-    // 【核心修正】將關聯查詢的語法從 'profiles!...' 修改為 'profiles:created_by(...)'
     const { data, error } = await supabase
         .from('registration_codes')
-        .select('*, profiles:created_by(nickname)') // <-- 修正後的語法
+        .select('*, profiles:created_by(nickname)')
         .order('created_at', { ascending: false });
         
     if (error) throw error;
@@ -36,9 +35,10 @@ export async function createRegistrationCode(codeData) {
     const { error } = await supabase.from('registration_codes').insert(payload);
     if (error) throw error;
 
+    // 【核心修正】在讀取剛插入的資料時，也加入與 fetchRegistrationCodes 相同的關聯查詢
     const { data: insertedData } = await supabase
         .from('registration_codes')
-        .select('*')
+        .select('*, profiles:created_by(nickname)') // <-- 修正點
         .eq('code', payload.code)
         .single();
 
@@ -59,9 +59,10 @@ export async function updateRegistrationCode(id, updateData) {
     const { error } = await supabase.from('registration_codes').update(updateData).eq('id', id);
     if (error) throw error;
 
+    // 【核心修正】在讀取更新後的資料時，也加入與 fetchRegistrationCodes 相同的關聯查詢
     const { data: updatedData } = await supabase
         .from('registration_codes')
-        .select('*')
+        .select('*, profiles:created_by(nickname)') // <-- 修正點
         .eq('id', id)
         .single();
 
