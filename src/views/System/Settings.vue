@@ -33,7 +33,7 @@
           <thead class="bg-gray-50">
             <tr>
               <th class="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">註冊碼</th>
-              <th class="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">描述</th>
+              <th class="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">綁定角色</th>
               <th class="px-6 py-3 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider">使用次數</th>
               <th class="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">過期時間</th>
               <th class="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">建立者</th>
@@ -43,7 +43,7 @@
           <tbody class="bg-white divide-y divide-gray-100">
             <tr v-for="code in codes" :key="code.id" class="hover:bg-gray-50">
               <td data-label="註冊碼" class="px-6 py-4 font-mono text-indigo-700 font-semibold">{{ code.code }}</td>
-              <td data-label="描述" class="px-6 py-4 text-sm text-gray-600">{{ code.description || '—' }}</td>
+              <td data-label="綁定角色" class="px-6 py-4 text-sm text-gray-600">{{ getRoleName(code.role_id) || '預設' }}</td>
               <td data-label="使用次數" class="px-6 py-4 text-sm text-center">
                 <span :class="getUsageClass(code)">{{ code.times_used }} / {{ code.usage_limit || '∞' }}</span>
               </td>
@@ -69,21 +69,25 @@
 
     <Modal :show="isModalOpen" @close="closeModal">
       <template #header>{{ isEditing ? '編輯註冊碼' : '新增註冊碼' }}</template>
-<form @submit.prevent="saveCode" class="space-y-4">
-   <div>
-          <label for="code" class="block text-sm font-medium text-gray-700 flex justify-between items-center">
-            註冊碼
-            <button type="button" @click="generateRandomCode" class="focus:outline-none">
-              <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-indigo-500 hover:text-indigo-700 cursor-pointer" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 009.828 16c-3.188 0-5.973-2.81-5.973-6a5.997 5.997 0 015.8-6 5.976 5.976 0 015.8 6m-4 9V5a2 2 0 00-2-2H6a2 2 0 00-2 2v16a2 2 0 002 2h10a2 2 0 002-2v-1m2-6h.01M5 11h.01M19 11h.01M12 16h.01M12 13h.01" />
+      <form @submit.prevent="saveCode" class="space-y-4">
+        <div>
+          <label for="code" class="block text-sm font-medium text-gray-700">註冊碼</label>
+          <div class="mt-1 flex rounded-md shadow-sm">
+            <input type="text" id="code" v-model="editableCode.code" required class="flex-1 block w-full border-gray-300 rounded-none rounded-l-md focus:ring-indigo-500 focus:border-indigo-500">
+            <button @click="generateRandomCode" type="button" class="relative -ml-px inline-flex items-center space-x-2 px-4 py-2 border border-gray-300 text-sm font-medium rounded-r-md text-gray-700 bg-gray-50 hover:bg-gray-100 focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500">
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M12 6V4m0 16v-2m8-8h2M4 12H2m15.364 6.364l-1.414-1.414M6.343 6.343l-1.414 1.414m12.728 0l-1.414-1.414M6.343 17.657l-1.414-1.414M16 12a4 4 0 11-8 0 4 4 0 018 0z" />
               </svg>
+              <span>隨機</span>
             </button>
-          </label>
-          <input type="text" id="code" v-model="editableCode.code" required class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3">
+          </div>
         </div>
         <div>
-          <label for="description" class="block text-sm font-medium text-gray-700">描述 (選填)</label>
-          <input type="text" id="description" v-model="editableCode.description" class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3">
+          <label for="role" class="block text-sm font-medium text-gray-700">綁定角色 (選填，預設為操作員)</label>
+          <select id="role" v-model="editableCode.role_id" class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 bg-white">
+            <option :value="null">-- 使用系統預設角色 (操作員) --</option>
+            <option v-for="role in availableRoles" :key="role.id" :value="role.id">{{ role.name }}</option>
+          </select>
         </div>
         <div>
           <label for="usage_limit" class="block text-sm font-medium text-gray-700">使用次數上限 (選填，留空表示無限)</label>
@@ -103,13 +107,15 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted } from 'vue';
+import { ref, reactive, onMounted, computed } from 'vue';
 import { useUiStore } from '@/store/ui';
+import { useDataStore } from '@/store/data'; // 引入 dataStore
 import * as api from '@/services/api';
 import Modal from '@/components/Modal.vue';
 import { format, parseISO, isPast } from 'date-fns';
 
 const uiStore = useUiStore();
+const dataStore = useDataStore(); // 獲取 dataStore
 const isLoading = ref(true);
 
 const settings = reactive({
@@ -121,6 +127,9 @@ const isModalOpen = ref(false);
 const isEditing = ref(false);
 const editableCode = ref({});
 
+// 計算可供選擇的角色列表 (排除 superadmin)
+const availableRoles = computed(() => dataStore.roles.filter(r => r.name !== 'superadmin'));
+
 const toLocalISOString = (isoString) => {
     if (!isoString) return '';
     const date = new Date(isoString);
@@ -128,25 +137,14 @@ const toLocalISOString = (isoString) => {
     return date.toISOString().slice(0, 16);
 };
 
-const generateRandomCode = () => {
-  const length = 8;
-  let result = '';
-  const characters = '0123456789';
-  const charactersLength = characters.length;
-  for (let i = 0; i < length; i++) {
-    result += characters.charAt(Math.floor(Math.random() * charactersLength));
-  }
-  editableCode.value.code = result;
-};
-
-
 onMounted(async () => {
   isLoading.value = true;
   uiStore.setLoading(true);
   try {
     await Promise.all([
       loadSettings(),
-      loadCodes()
+      loadCodes(),
+      dataStore.fetchRolesAndPermissions() // 載入角色列表
     ]);
   } catch (error) {
     uiStore.showMessage(`讀取設定失敗: ${error.message}`, 'error');
@@ -165,6 +163,12 @@ const loadCodes = async () => {
   codes.value = await api.fetchRegistrationCodes();
 };
 
+const getRoleName = (roleId) => {
+  if (!roleId) return null;
+  const role = dataStore.roles.find(r => r.id === roleId);
+  return role ? role.name : '未知角色';
+};
+
 const saveSettings = async () => {
   uiStore.setLoading(true);
   try {
@@ -172,7 +176,6 @@ const saveSettings = async () => {
     uiStore.showMessage('設定已儲存', 'success');
   } catch (error) {
     uiStore.showMessage(`儲存設定失敗: ${error.message}`, 'error');
-    // 回滾UI狀態
     settings.registration_code_required = !settings.registration_code_required;
   } finally {
     uiStore.setLoading(false);
@@ -190,6 +193,7 @@ const openModal = (code = null) => {
     editableCode.value = {
       code: '',
       description: '',
+      role_id: null,
       usage_limit: null,
       expires_at: '',
     };
@@ -206,10 +210,13 @@ const saveCode = async () => {
   try {
     const payload = {
       ...editableCode.value,
-      // 確保空字串轉為 null
       usage_limit: editableCode.value.usage_limit || null,
       expires_at: editableCode.value.expires_at ? new Date(editableCode.value.expires_at).toISOString() : null,
+      role_id: editableCode.value.role_id || null
     };
+    
+    // 移除 description 欄位，因為資料庫沒有
+    delete payload.description;
 
     if (isEditing.value) {
       await api.updateRegistrationCode(payload.id, payload);
@@ -244,6 +251,17 @@ const confirmDelete = (code) => {
       uiStore.setLoading(false);
     }
   });
+};
+
+const generateRandomCode = () => {
+   const length = 8;
+   let result = '';
+   const characters = '0123456789';
+   const charactersLength = characters.length;
+   for (let i = 0; i < length; i++) {
+     result += characters.charAt(Math.floor(Math.random() * charactersLength));
+   }
+   editableCode.value.code = result;
 };
 
 const formatDateTime = (isoString) => {
