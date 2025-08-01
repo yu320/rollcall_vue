@@ -1,7 +1,7 @@
 // /api/register.js
 import { createClient } from '@supabase/supabase-js';
 
-// 輔助函數：記錄稽核日誌 (從現有 API 檔案中借鑒)
+// 輔助函數：記錄稽核日誌
 async function recordSystemAuditLog(supabaseAdmin, logDetails) {
   try {
     const { error } = await supabaseAdmin.from('audit_logs').insert({
@@ -57,7 +57,7 @@ export default async function handler(req, res) {
       // 2. 驗證註冊碼
       const { data: codeData, error: codeError } = await supabaseAdmin
         .from('registration_codes')
-        .select('id, role_id, expires_at, uses_left')
+        .select('id, role_id, expires_at, usage_limit, times_used')
         .eq('code', registration_code)
         .single();
 
@@ -69,7 +69,7 @@ export default async function handler(req, res) {
         return res.status(410).json({ error: '此註冊碼已過期。' });
       }
 
-      if (codeData.uses_left <= 0) {
+      if (codeData.usage_limit !== null && codeData.times_used >= codeData.usage_limit) {
         return res.status(409).json({ error: '此註冊碼已達使用次數上限。' });
       }
 
@@ -109,7 +109,7 @@ export default async function handler(req, res) {
     }
 
     // 5. 如果使用了註冊碼，則更新其剩餘次數
-    if (isCodeRequired && code_id_to_update) {
+    if (code_id_to_update) {
       const { error: updateCodeError } = await supabaseAdmin.rpc('decrement_code_uses', { code_id: code_id_to_update });
       if (updateCodeError) {
         // 即使這裡失敗，使用者也已建立成功，僅記錄錯誤
