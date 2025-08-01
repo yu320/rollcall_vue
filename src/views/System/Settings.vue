@@ -252,21 +252,31 @@ const saveCode = async () => {
       expires_at: editableCode.value.expires_at ? new Date(editableCode.value.expires_at).toISOString() : null,
     };
     
-    // Ensure times_used is not sent on creation
+    // 確保 times_used 不會在新增時被傳送
     if (!isEditing.value) {
       delete payload.times_used;
     }
 
+    let result; // 宣告一個變數來接收 API 回傳的結果
+
     if (isEditing.value) {
-      await api.updateRegistrationCode(payload.id, payload);
+      // 如果是編輯模式，呼叫更新 API
+      result = await api.updateRegistrationCode(payload.id, payload);
     } else {
-      await api.createRegistrationCode(payload);
+      // 如果是新增模式，呼叫新增 API
+      result = await api.createRegistrationCode(payload);
     }
-    uiStore.showMessage('註冊碼已儲存', 'success');
-    await loadCodes();
-    closeModal();
-  } catch (error)
- {
+
+    // 檢查 result 是否存在
+    if (result) {
+        uiStore.showMessage('註冊碼已儲存', 'success');
+        await loadCodes();
+        closeModal();
+    } else {
+        throw new Error("API 未返回有效的儲存結果。");
+    }
+
+  } catch (error) {
     uiStore.showMessage(`儲存註冊碼失敗: ${error.message}`, 'error');
   } finally {
     uiStore.setLoading(false);

@@ -30,7 +30,7 @@ export async function createRegistrationCode(codeData) {
     const { data, error } = await supabase.from('registration_codes').insert(payload);
     if (error) throw error;
     recordAuditLog({ action_type: 'CREATE', target_table: 'registration_codes', target_id: data.id, description: `新增註冊碼: ${codeData.code}`, new_value: data });
-    return data;
+    return data; // <-- 【增加這一行】
 }
 
 export async function updateRegistrationCode(id, updateData) {
