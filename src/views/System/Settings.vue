@@ -34,7 +34,7 @@
             <tr>
               <th class="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">註冊碼</th>
               <th class="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">綁定角色</th>
-              <th class="px-6 py-3 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider">使用次數</th>
+              <th class="px-6 py-3 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider">剩餘次數</th>
               <th class="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">過期時間</th>
               <th class="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">建立者</th>
               <th class="px-6 py-3 text-right text-xs font-semibold text-gray-600 uppercase tracking-wider">操作</th>
@@ -48,8 +48,8 @@
                   {{ getRoleDisplayName(getRoleName(code.role_id)) }}
                 </span>
               </td>
-              <td data-label="使用次數" class="px-6 py-4 text-sm text-center">
-                <span :class="getUsageClass(code)">{{ code.times_used }} / {{ code.usage_limit || '∞' }}</span>
+              <td data-label="剩餘次數" class="px-6 py-4 text-sm text-center">
+                <span :class="getUsageClass(code)">{{ code.uses_left }}</span>
               </td>
               <td data-label="過期時間" class="px-6 py-4 text-sm">
                 <span :class="getExpiryClass(code.expires_at)">{{ formatDateTime(code.expires_at) || '永不過期' }}</span>
@@ -93,13 +93,12 @@
         <div>
           <label for="role" class="block text-sm font-medium text-gray-700">綁定角色 (選填)</label>
           <select id="role" v-model="editableCode.role_id" class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 bg-white">
-            <option :value="null">-- 使用系統預設角色 (operator) --</option>
             <option v-for="role in availableRoles" :key="role.id" :value="role.id">{{ getRoleDisplayName(role.name) }}</option>
           </select>
         </div>
         <div>
-          <label for="usage_limit" class="block text-sm font-medium text-gray-700">使用次數上限 (選填，留空表示無限)</label>
-          <input type="number" id="usage_limit" v-model.number="editableCode.usage_limit" min="0" class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3">
+          <label for="uses_left" class="block text-sm font-medium text-gray-700">使用次數上限</label>
+          <input type="number" id="uses_left" v-model.number="editableCode.uses_left" min="1" required class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3">
         </div>
         <div>
           <label for="expires_at" class="block text-sm font-medium text-gray-700">過期時間 (選填，留空表示永不過期)</label>
@@ -229,9 +228,8 @@ const openModal = (code = null) => {
   } else {
     editableCode.value = {
       code: '',
-      description: '',
       role_id: null,
-      usage_limit: null,
+      uses_left: 1,
       expires_at: '',
     };
   }
@@ -247,9 +245,7 @@ const saveCode = async () => {
   try {
     const payload = {
       ...editableCode.value,
-      usage_limit: editableCode.value.usage_limit || null,
       expires_at: editableCode.value.expires_at ? new Date(editableCode.value.expires_at).toISOString() : null,
-      role_id: editableCode.value.role_id || null
     };
 
     if (isEditing.value) {
@@ -293,7 +289,7 @@ const generateRandomCode = () => {
    const length = 8;
    let result = '';
    // 新的字元集，包含中文、英文大小寫和數字
-   const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789天龍地虎玄武朱雀青龍白虎';
+   const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
    const charactersLength = characters.length;
    for (let i = 0; i < length; i++) {
      result += characters.charAt(Math.floor(Math.random() * charactersLength));
@@ -307,7 +303,7 @@ const formatDateTime = (isoString) => {
 };
 
 const getUsageClass = (code) => {
-  if (code.usage_limit !== null && code.times_used >= code.usage_limit) {
+  if (code.uses_left !== null && code.uses_left <= 0) {
     return 'font-bold text-red-600';
   }
   return 'text-gray-700';
@@ -319,5 +315,4 @@ const getExpiryClass = (expires_at) => {
   }
   return 'text-gray-700';
 };
-
 </script>

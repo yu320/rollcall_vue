@@ -5,7 +5,7 @@
     bg-gradient-to-br from-blue-50 to-indigo-100: 設定頁面背景的漸變色。
     overflow-x-hidden: 【重要】隱藏任何超出容器水平範圍的內容，防止頁面出現水平滾動條或被拉伸。
   -->
-  <div v-if="authStore.isLoggedIn" class="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 overflow-x-hidden">
+  <div v-if="authStore.isLoggedIn" class="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 overflow-x-hidden flex flex-col">
     <!-- 應用程式的頂部導覽列 -->
     <AppHeader />
     <!-- 應用程式的主要導覽列 (頁籤) -->
@@ -16,7 +16,7 @@
       id="mainContent": 用於識別主內容區塊。
       container mx-auto px-4 py-8: 設定容器寬度、水平置中、左右內邊距和上下內邊距。
     -->
-    <main id="mainContent" class="container mx-auto px-4 py-8">
+    <main id="mainContent" class="container mx-auto px-4 py-8 flex-grow">
       <!-- 
         Vue Router 的路由視圖，用於顯示當前匹配的組件。
         v-slot="{ Component }": 獲取當前路由匹配的組件實例。
