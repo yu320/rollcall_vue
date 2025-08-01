@@ -26,6 +26,7 @@ CREATE TABLE IF NOT EXISTS public.permissions (
 
 CREATE TABLE IF NOT EXISTS public.role_permissions (
     role_id uuid NOT NULL,
+    description text NULL, 
     permission_id uuid NOT NULL,
     created_at timestamp with time zone NOT NULL DEFAULT now(),
     CONSTRAINT role_permissions_pkey PRIMARY KEY (role_id, permission_id),
@@ -139,6 +140,11 @@ ALTER TABLE public.registration_codes DROP CONSTRAINT IF EXISTS registration_cod
 ALTER TABLE public.registration_codes ADD CONSTRAINT registration_codes_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.profiles(id) ON DELETE SET NULL;
 
 CREATE INDEX IF NOT EXISTS idx_registration_codes_code ON public.registration_codes(code);
+
+COMMENT ON TABLE public.registration_codes IS '儲存使用者註冊碼及其限制';
+COMMENT ON COLUMN public.registration_codes.description IS '註冊碼的描述或備註';
+COMMENT ON COLUMN public.registration_codes.usage_limit IS '次數上限 (NULL 表示無限)';
+COMMENT ON COLUMN public.registration_codes.times_used IS '已被使用的次數';
 
 
 -- ========= 填充初始資料（角色與權限） =========
@@ -338,81 +344,146 @@ $$;
 COMMENT ON FUNCTION public.get_daily_record_stats() IS '獲取每日報到記錄的統計資訊';
 
 -- 【核心函數】自動匯入並創建人員 + 紀錄簽到
--- 內容略長，如需修改可再詢問
--- 以下省略展開，若你需要「可以立即使用的完整版本」，我可以貼給你
--- ↓↓ 用簡短形式代表已整合 ↓↓
 CREATE OR REPLACE FUNCTION public.import_checkin_records_with_personnel_creation(
-    records jsonb,
-    event_id uuid,
-    action_type text DEFAULT '簽到',
-    default_tags text[] DEFAULT ARRAY[]::text[]
+    records_to_import jsonb,
+    eventid uuid DEFAULT NULL,
+    actiontype text DEFAULT '簽到',
+    user_defined_tags text[] DEFAULT ARRAY[]::text[]
 )
-RETURNS void AS $$
+RETURNS TABLE (success_count int, auto_created_count int, errors text[])
+LANGUAGE plpgsql
+AS $$
 DECLARE
-    record jsonb;
-    name text;
-    code text;
-    card_number text;
-    input text;
-    success boolean;
-    status text;
-    input_type text;
-    personnel_id uuid;
+    rec JSONB;
+    person_id uuid;
+    person_name text;
+    person_code text;
+    person_card_number text;
+    person_input_type text;
+    personnel_exists boolean;
+    record_status text;
+    event_start_time timestamptz;
+    event_end_time timestamptz;
+    all_tags text[];
+    processed_success_count int := 0;
+    processed_auto_created_count int := 0;
+    processed_errors text[] := ARRAY[]::text[];
+    generated_code text;
+    generated_card_number text;
 BEGIN
-    FOR record IN SELECT * FROM jsonb_array_elements(records)
+    IF eventid IS NOT NULL THEN
+        SELECT start_time, end_time INTO event_start_time, event_end_time
+        FROM public.events
+        WHERE id = eventid;
+    END IF;
+
+    FOR rec IN SELECT * FROM jsonb_array_elements(records_to_import)
     LOOP
-        name := record->>'name';
-        code := record->>'code';
-        card_number := record->>'card_number';
+        person_name := TRIM(rec->>'name_at_checkin');
+        person_code := rec->>'input';
+        person_card_number := rec->>'input';
+        person_input_type := rec->>'input_type';
 
-        input := COALESCE(card_number, code);
-        input_type := CASE
-            WHEN card_number IS NOT NULL THEN 'card_number'
-            WHEN code IS NOT NULL THEN 'code'
-            ELSE 'manual'
-        END;
-
-        -- 嘗試取得現有人員 ID
-        SELECT id INTO personnel_id
-        FROM public.personnel
-        WHERE
-            (card_number IS NOT NULL AND card_number = record->>'card_number')
-            OR
-            (code IS NOT NULL AND code = record->>'code')
-        LIMIT 1;
-
-        IF personnel_id IS NULL THEN
-            -- 若查無則創建新 personnel
-            INSERT INTO public.personnel(name, code, card_number, tags)
-            VALUES(name, code, card_number, default_tags)
-            RETURNING id INTO personnel_id;
+        IF person_name IS NULL OR person_name = '' THEN
+            processed_errors := array_append(processed_errors, format('記錄失敗 (學號/卡號: %s): 姓名欄位不能為空。', rec->>'input'));
+            CONTINUE;
         END IF;
 
-        -- 寫入報到記錄
+        person_id := NULL;
+        personnel_exists := FALSE;
+
+        IF person_input_type = '學號' THEN
+            SELECT id INTO person_id FROM public.personnel WHERE code = person_code;
+            IF person_id IS NOT NULL THEN
+                personnel_exists := TRUE;
+            END IF;
+        ELSIF person_input_type = '卡號' THEN
+            SELECT id INTO person_id FROM public.personnel WHERE card_number = person_card_number;
+            IF person_id IS NOT NULL THEN
+                personnel_exists := TRUE;
+            END IF;
+        ELSE
+            SELECT id INTO person_id FROM public.personnel WHERE code = person_code LIMIT 1;
+            IF person_id IS NULL THEN
+                SELECT id INTO person_id FROM public.personnel WHERE card_number = rec->>'input' LIMIT 1;
+            END IF;
+            IF person_id IS NOT NULL THEN
+                personnel_exists := TRUE;
+            END IF;
+        END IF;
+
+        IF person_id IS NULL THEN
+            BEGIN
+                all_tags := ARRAY['系統匯入'] || user_defined_tags;
+
+                IF person_input_type = '學號' THEN
+                    generated_card_number := REGEXP_REPLACE(person_code, '[^0-9]', '', 'g');
+                    IF generated_card_number = '' THEN generated_card_number := SUBSTRING(gen_random_uuid()::text FROM 1 FOR 10); END IF;
+                    INSERT INTO public.personnel (name, code, card_number, tags, created_at, updated_at)
+                    VALUES (person_name, person_code, generated_card_number, all_tags, NOW(), NOW())
+                    RETURNING id INTO person_id;
+                ELSIF person_input_type = '卡號' THEN
+                    generated_code := CONCAT('AUTO_', person_card_number);
+                    INSERT INTO public.personnel (name, code, card_number, tags, created_at, updated_at)
+                    VALUES (person_name, generated_code, person_card_number, all_tags, NOW(), NOW())
+                    RETURNING id INTO person_id;
+                ELSE
+                    IF rec->>'input' ~ '^[0-9]+$' THEN
+                        generated_code := CONCAT('AUTO_', rec->>'input');
+                        generated_card_number := rec->>'input';
+                    ELSE
+                        generated_code := rec->>'input';
+                        generated_card_number := REGEXP_REPLACE(rec->>'input', '[^0-9]', '', 'g');
+                        IF generated_card_number = '' THEN generated_card_number := SUBSTRING(gen_random_uuid()::text FROM 1 FOR 10); END IF;
+                    END IF;
+                    INSERT INTO public.personnel (name, code, card_number, tags, created_at, updated_at)
+                    VALUES (person_name, generated_code, generated_card_number, all_tags, NOW(), NOW())
+                    RETURNING id INTO person_id;
+                END IF;
+
+                processed_auto_created_count := processed_auto_created_count + 1;
+                personnel_exists := TRUE;
+            EXCEPTION
+                WHEN unique_violation THEN
+                    IF person_input_type = '學號' THEN SELECT id INTO person_id FROM public.personnel WHERE code = person_code;
+                    ELSIF person_input_type = '卡號' THEN SELECT id INTO person_id FROM public.personnel WHERE card_number = person_card_number;
+                    ELSE
+                        SELECT id INTO person_id FROM public.personnel WHERE code = rec->>'input' LIMIT 1;
+                        IF person_id IS NULL THEN
+                            SELECT id INTO person_id FROM public.personnel WHERE card_number = rec->>'input' LIMIT 1;
+                        END IF;
+                    END IF;
+                    personnel_exists := TRUE;
+                WHEN OTHERS THEN
+                    processed_errors := array_append(processed_errors, format('自動創建人員失敗 (%s): %s', person_name, SQLERRM));
+                    CONTINUE;
+            END;
+        END IF;
+
+        IF actiontype = '簽到' THEN
+            IF eventid IS NOT NULL AND event_start_time IS NOT NULL THEN
+                IF (rec->>'timestamp')::timestamptz > event_start_time THEN record_status := '遲到';
+                ELSE record_status := '準時'; END IF;
+            ELSE record_status := '成功'; END IF;
+        ELSIF actiontype = '簽退' THEN record_status := '簽退成功';
+        ELSE record_status := '未知狀態'; END IF;
+
         BEGIN
-            INSERT INTO public.check_in_records (
-                input, input_type, success, name_at_checkin,
-                personnel_id, event_id, status, action_type
-            )
-            VALUES (
-                input,
-                input_type,
-                TRUE,
-                name,
-                personnel_id,
-                event_id,
-                '準時',
-                action_type
-            );
+            INSERT INTO public.check_in_records (created_at, input, input_type, success, name_at_checkin, personnel_id, device_id, event_id, status, action_type)
+            VALUES ((rec->>'timestamp')::timestamptz, rec->>'input', person_input_type, personnel_exists, person_name, person_id, rec->>'device_id', eventid, record_status, actiontype);
+            processed_success_count := processed_success_count + 1;
         EXCEPTION
             WHEN OTHERS THEN
-                RAISE NOTICE '匯入記錄失敗: %', SQLERRM;
-                CONTINUE;
+                processed_errors := array_append(processed_errors, format('插入記錄失敗 (%s, %s): %s', person_name, rec->>'input', SQLERRM));
         END;
-    END LOOP;
-END;
-$$ LANGUAGE plpgsql;
 
+    END LOOP;
+
+    RETURN QUERY SELECT processed_success_count, processed_auto_created_count, processed_errors;
+
+END;
+$$;
+COMMENT ON FUNCTION public.import_checkin_records_with_personnel_creation(jsonb, uuid, text, text[]) IS '批次匯入簽到記錄，如果人員不存在則自動創建。';
 
 CREATE OR REPLACE FUNCTION public.save_event_with_participants(
     event_data jsonb,
@@ -424,7 +495,6 @@ AS $$
 DECLARE
     v_event_id uuid;
 BEGIN
-    -- 若為更新
     IF event_data ? 'id' AND event_data->>'id' IS NOT NULL THEN
         v_event_id := (event_data->>'id')::uuid;
         UPDATE public.events
@@ -436,7 +506,6 @@ BEGIN
             created_by = (event_data->>'created_by')::uuid
         WHERE id = v_event_id;
     ELSE
-        -- 若為新增
         INSERT INTO public.events (name, start_time, end_time, created_by, participant_scope)
         VALUES (
             event_data->>'name',
@@ -444,11 +513,9 @@ BEGIN
             (event_data->>'end_time')::timestamptz,
             (event_data->>'created_by')::uuid,
             event_data->>'participant_scope'
-        )
-        RETURNING id INTO v_event_id;
+        ) RETURNING id INTO v_event_id;
     END IF;
 
-    -- 處理參與人員名單
     IF event_data->>'participant_scope' = 'SPECIFIC' THEN
         DELETE FROM public.event_participants WHERE event_id = v_event_id;
         IF array_length(participant_ids, 1) > 0 THEN
@@ -456,16 +523,12 @@ BEGIN
             SELECT v_event_id, unnest(participant_ids);
         END IF;
     ELSE
-        -- 非指定人員模式直接清空
         DELETE FROM public.event_participants WHERE event_id = v_event_id;
     END IF;
-
     RETURN QUERY SELECT * FROM public.events WHERE id = v_event_id;
 END;
 $$;
-
-COMMENT ON FUNCTION public.save_event_with_participants(jsonb, uuid[])
-IS '新增或更新一個活動，並同步更新其參與人員（僅限指定模式）';
+COMMENT ON FUNCTION public.save_event_with_participants(jsonb, uuid[]) IS '新增或更新一個活動，並管理其指定的參與人員列表。';
 
 CREATE OR REPLACE FUNCTION public.get_event_dashboard_data(p_event_id uuid)
 RETURNS jsonb
@@ -484,49 +547,34 @@ DECLARE
     attendees_list jsonb;
     timeline_data jsonb;
 BEGIN
-    -- 確認活動存在
     SELECT * INTO event_info FROM public.events WHERE id = p_event_id;
-    IF event_info IS NULL THEN
-        RAISE EXCEPTION '活動 ID % 不存在', p_event_id;
-    END IF;
+    IF event_info IS NULL THEN RAISE EXCEPTION '活動 ID % 不存在', p_event_id; END IF;
 
-    -- 應到人數
     IF event_info.participant_scope = 'SPECIFIC' THEN
         SELECT COUNT(*) INTO expected_attendee_count FROM public.event_participants WHERE event_id = p_event_id;
     ELSE
         SELECT COUNT(*) INTO expected_attendee_count FROM public.personnel;
     END IF;
 
-    -- 已到人員 ID
-    SELECT ARRAY_AGG(DISTINCT personnel_id)
-    INTO attended_ids
+    SELECT ARRAY_AGG(DISTINCT personnel_id) INTO attended_ids
     FROM public.check_in_records
-    WHERE event_id = p_event_id
-      AND success = TRUE
-      AND action_type = '簽到'
-      AND personnel_id IS NOT NULL;
+    WHERE event_id = p_event_id AND success = TRUE AND action_type = '簽到' AND personnel_id IS NOT NULL;
 
     attended_count := COALESCE(array_length(attended_ids, 1), 0);
     absent_count := expected_attendee_count - attended_count;
 
-    -- 計算準時與遲到人數
-    SELECT
-        COUNT(DISTINCT CASE WHEN status = '準時' THEN personnel_id END),
-        COUNT(DISTINCT CASE WHEN status = '遲到' THEN personnel_id END)
+    SELECT COUNT(DISTINCT CASE WHEN status = '準時' THEN personnel_id END),
+           COUNT(DISTINCT CASE WHEN status = '遲到' THEN personnel_id END)
     INTO on_time_count, late_count
     FROM public.check_in_records
-    WHERE event_id = p_event_id
-      AND success = TRUE
-      AND action_type = '簽到'
-      AND personnel_id IS NOT NULL;
+    WHERE event_id = p_event_id AND success = TRUE AND action_type = '簽到' AND personnel_id IS NOT NULL;
 
-    -- 百分比計算
-    attendance_rate := CASE WHEN expected_attendee_count > 0 THEN
-        (attended_count::numeric / expected_attendee_count) * 100 ELSE 0 END;
-    on_time_rate := CASE WHEN attended_count > 0 THEN
-        (on_time_count::numeric / attended_count) * 100 ELSE 0 END;
+    on_time_count := COALESCE(on_time_count, 0);
+    late_count := COALESCE(late_count, 0);
 
-    -- 詳細人員出席名單
+    attendance_rate := CASE WHEN expected_attendee_count > 0 THEN (attended_count::numeric / expected_attendee_count) * 100 ELSE 0 END;
+    on_time_rate := CASE WHEN attended_count > 0 THEN (on_time_count::numeric / attended_count) * 100 ELSE 0 END;
+
     SELECT jsonb_agg(
         jsonb_build_object(
             'personnel_id', p.id,
@@ -548,7 +596,7 @@ BEGIN
     FROM public.personnel p
     LEFT JOIN LATERAL (
         SELECT created_at, status, personnel_id
-        FROM public.check_in_records
+         FROM public.check_in_records
         WHERE personnel_id = p.id AND event_id = p_event_id AND action_type = '簽到' AND success = TRUE
         ORDER BY created_at ASC
         LIMIT 1
@@ -562,59 +610,21 @@ BEGIN
     ) AS cr_checkout ON TRUE
     LEFT JOIN public.event_participants ep ON p.id = ep.personnel_id AND ep.event_id = p_event_id
     WHERE
-        (event_info.participant_scope = 'ALL')
-        OR
+        (event_info.participant_scope = 'ALL') OR
         (event_info.participant_scope = 'SPECIFIC' AND ep.personnel_id IS NOT NULL);
 
-    -- 累積簽到時間軸資料（5 分鐘間隔）
-    WITH time_series AS (
-        SELECT generate_series(
-            date_trunc('minute', event_info.start_time) - INTERVAL '1 hour',
-            date_trunc('minute', COALESCE(event_info.end_time, event_info.start_time + INTERVAL '2 hours')) + INTERVAL '1 hour',
-            INTERVAL '5 minutes'
-        ) AS interval_start
-    ),
-    cumulative_checkins AS (
-        SELECT ts.interval_start AS time,
-               COUNT(DISTINCT cr.personnel_id) AS checkin_count
-        FROM time_series ts
-        LEFT JOIN public.check_in_records cr
-          ON cr.event_id = p_event_id
-         AND cr.action_type = '簽到'
-         AND cr.success = TRUE
-         AND cr.created_at <= ts.interval_start
-        GROUP BY ts.interval_start
-        ORDER BY ts.interval_start
-    )
-    SELECT jsonb_agg(row_to_json(cc))
-    INTO timeline_data
-    FROM cumulative_checkins cc;
+    WITH time_series AS (SELECT generate_series(date_trunc('minute', event_info.start_time) - INTERVAL '1 hour', date_trunc('minute', COALESCE(event_info.end_time, event_info.start_time + INTERVAL '2 hours')) + INTERVAL '1 hour', INTERVAL '5 minutes') AS interval_start),
+    cumulative_checkins AS (SELECT ts.interval_start AS time, COUNT(DISTINCT cr.personnel_id) AS checkin_count FROM time_series ts LEFT JOIN public.check_in_records cr ON cr.event_id = p_event_id AND cr.action_type = '簽到' AND cr.success = TRUE AND cr.created_at <= ts.interval_start GROUP BY ts.interval_start ORDER BY ts.interval_start)
+    SELECT jsonb_agg(row_to_json(cc)) INTO timeline_data FROM cumulative_checkins cc;
 
     RETURN jsonb_build_object(
-        'summary', jsonb_build_object(
-            'expectedCount', expected_attendee_count,
-            'attendedCount', attended_count,
-            'absentCount', absent_count,
-            'onTimeCount', on_time_count,
-            'lateCount', late_count,
-            'attendanceRate', attendance_rate,
-            'onTimeRate', on_time_rate
-        ),
+        'summary', jsonb_build_object('expectedCount', expected_attendee_count, 'attendedCount', attended_count, 'absentCount', absent_count, 'onTimeCount', on_time_count, 'lateCount', late_count, 'attendanceRate', attendance_rate, 'onTimeRate', on_time_rate),
         'attendees', COALESCE(attendees_list, '[]'::jsonb),
-        'charts', jsonb_build_object(
-            'status', jsonb_build_object(
-                'onTime', on_time_count,
-                'late', late_count,
-                'absent', absent_count
-            ),
-            'timeline', COALESCE(timeline_data, '[]'::jsonb)
-        )
+        'charts', jsonb_build_object('status', jsonb_build_object('onTime', on_time_count, 'late', late_count, 'absent', absent_count), 'timeline', COALESCE(timeline_data, '[]'::jsonb))
     );
 END;
 $$;
-
-COMMENT ON FUNCTION public.get_event_dashboard_data(uuid)
-IS '獲取指定活動的儀錶板數據，包括參與統計與時間軸分析';
+COMMENT ON FUNCTION public.get_event_dashboard_data(uuid) IS '獲取指定活動的儀錶板數據，能根據活動設定計算應到人數。';
 
 -- 【補充函數】註冊碼使用次數遞減
 CREATE OR REPLACE FUNCTION public.decrement_code_uses(code_id uuid)
