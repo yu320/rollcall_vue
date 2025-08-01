@@ -1,0 +1,37 @@
+-- ========= 步驟 1: 為 sdc 角色授權 =========
+-- 描述: 將 'settings:manage' 權限安全地指派給 'sdc' 角色
+
+DO $$
+DECLARE
+    sdc_role_id uuid := (SELECT id FROM public.roles WHERE name = 'sdc');
+    settings_permission_id uuid := (SELECT id FROM public.permissions WHERE name = 'settings:manage');
+BEGIN
+    IF sdc_role_id IS NOT NULL AND settings_permission_id IS NOT NULL THEN
+        INSERT INTO public.role_permissions (role_id, permission_id)
+        VALUES (sdc_role_id, settings_permission_id)
+        ON CONFLICT (role_id, permission_id) DO NOTHING;
+    END IF;
+END $$;
+
+
+-- ========= 步驟 2: 設定 registration_codes 的 RLS 安全策略 =========
+-- 描述: 啟用 RLS 並建立策略，確保只有授權角色可以管理註冊碼
+
+-- 首先，為資料表啟用列級安全性 (RLS)
+ALTER TABLE public.registration_codes ENABLE ROW LEVEL SECURITY;
+
+-- 刪除舊的策略 (如果存在)，確保總是使用最新版本
+DROP POLICY IF EXISTS "Allow authorized users to manage registration codes" ON public.registration_codes;
+
+-- 建立新策略
+CREATE POLICY "Allow authorized users to manage registration codes"
+ON public.registration_codes
+FOR ALL  -- 這條策略適用於 SELECT, INSERT, UPDATE, DELETE 所有操作
+USING (
+    -- 檢查當前操作的使用者是否擁有 'settings:manage' 權限
+    public.user_has_permission(auth.uid(), 'settings:manage')
+)
+WITH CHECK (
+    -- 在新增或更新時，也進行同樣的權限檢查
+    public.user_has_permission(auth.uid(), 'settings:manage')
+);

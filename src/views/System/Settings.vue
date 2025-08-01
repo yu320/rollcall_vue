@@ -304,15 +304,27 @@ const confirmDelete = (code) => {
 };
 
 const generateRandomCode = () => {
-   const length = 8;
-   let result = '';
-   const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
-   const charactersLength = characters.length;
-   for (let i = 0; i < length; i++) {
-     result += characters.charAt(Math.floor(Math.random() * charactersLength));
-   }
-   editableCode.value.code = result;
+  const upper = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+  const lower = 'abcdefghijklmnopqrstuvwxyz';
+  const digits = '0123456789';
+  const all = upper + lower + digits;
+  const length = 8;
+
+  let result = '';
+  // 保證至少一個大寫、小寫、數字
+  result += upper.charAt(Math.floor(Math.random() * upper.length));
+  result += lower.charAt(Math.floor(Math.random() * lower.length));
+  result += digits.charAt(Math.floor(Math.random() * digits.length));
+
+  // 剩下隨機填滿
+  for (let i = 3; i < length; i++) {
+    result += all.charAt(Math.floor(Math.random() * all.length));
+  }
+
+  // 隨機打亂順序
+  editableCode.value.code = result.split('').sort(() => 0.5 - Math.random()).join('');
 };
+
 
 const formatDateTime = (isoString) => {
   if (!isoString) return null;
