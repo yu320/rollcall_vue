@@ -81,8 +81,7 @@
                   <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                       <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H5v-2H3v-2H1v-4a6 6 0 016-6h4a6 6 0 016 6z" /></svg>
                   </div>
-                  <input v-model="credentials.registration_code" id="registration_code" type="text" :required="isCodeRequired" class="form-input block w-full pl-10 pr-3 py-3 border border-gray-300 rounded-lg" placeholder="請向管理員索取">
-               </div>
+<input v-model="credentials.registration_code" id="registration_code" type="text" class="form-input block w-full pl-10 pr-3 py-3 border border-gray-300 rounded-lg" placeholder="請向管理員索取">               </div>
             </div>
             
             <div class="flex items-start pt-2">
@@ -160,12 +159,13 @@ onMounted(async () => {
     authStore.error = null;
     try {
         const settings = await api.fetchSettings();
-        isCodeRequired.value = settings.registration_code_required !== false;
+        isCodeRequired.value = settings.registration_code_required === true; 
     } catch (error) {
         console.error("無法讀取系統設定:", error);
-        isCodeRequired.value = true;
+        // 如果 API 呼叫失敗，將其設為非必填
+        isCodeRequired.value = false;
     }
-});
+})
 
 const passwordStrengthText = computed(() => {
     const texts = ['密碼強度', '很弱', '弱', '中等', '強'];

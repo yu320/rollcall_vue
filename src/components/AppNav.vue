@@ -74,6 +74,7 @@
                 <router-link v-if="canView('records:create')" to="/import/checkin" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">簽到記錄匯入</router-link>
                 <router-link v-if="canView('accounts:manage_users')" to="/system/accounts" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">帳號管理</router-link>
                 <router-link v-if="canView('accounts:manage')" to="/system/permissions" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">權限管理</router-link>
+                <router-link v-if="canView('accounts:manage')" to="/system/settings" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">註冊管理</router-link>
             </div>
         </div>
 
