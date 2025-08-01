@@ -91,7 +91,6 @@
                 >
               </div>
             </div>
-          </div>
             
             <div class="flex items-start pt-2">
               <input type="checkbox" id="terms" v-model="agreedToTerms" class="mt-1 h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded">
