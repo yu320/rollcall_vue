@@ -2,7 +2,6 @@ import { createClient } from '@supabase/supabase-js';
 
 /**
  * 在 Serverless Function 中記錄稽核日誌。
- * 這個函式可以直接使用 supabaseAdmin 客戶端。
  */
 async function recordAdminAuditLog(supabaseAdmin, adminUserId, logDetails) {
   try {
@@ -22,13 +21,14 @@ async function recordAdminAuditLog(supabaseAdmin, adminUserId, logDetails) {
       old_value: old_value_json,
       new_value: new_value_json,
     });
-    if (error) console.error("記錄管理員稽核日誌失敗:", error);
+    if (error) console.error("記錄稽核日誌失敗:", error);
   } catch (err) {
-    console.error("記錄管理員稽核日誌時發生錯誤:", err);
+    console.error("記錄稽核日誌時發生錯誤:", err);
   }
 }
 
-export default async function handler(req, res) {
+export default async function handler(req, res) { // 確保這裡使用 export default async function
+  // 確保請求方法是 POST
   if (req.method !== 'POST') {
     res.setHeader('Allow', ['POST']);
     return res.status(405).json({ error: `請求方法 ${req.method} 不允許` });
@@ -43,13 +43,17 @@ export default async function handler(req, res) {
     process.env.SUPABASE_URL,
     process.env.SUPABASE_SERVICE_KEY,
     {
-      db: { schema: 'public' },
-      auth: { autoRefreshToken: false, persistSession: false }
+      db: {
+        schema: 'public', // 明確指定 schema
+      },
+      auth: {
+        autoRefreshToken: false, // 在 Serverless 環境中通常不需要
+        persistSession: false,   // 在 Serverless 環境中通常不需要
+      }
     }
   );
 
-  // 從請求主體中解構出 registration_code
-  let { email, password, role: roleName, nickname, registration_code } = req.body;
+  let { email, password, role: roleName, nickname } = req.body; // 這裡的 roleName 已經是前端傳過來的名稱了
   const adminUserId = req.headers['x-admin-user-id'];
 
   try {
@@ -57,6 +61,7 @@ export default async function handler(req, res) {
       return res.status(401).json({ error: '此操作需要管理員使用者 ID。' });
     }
     
+    // 獲取執行操作的管理員角色和權限
     const { data: adminProfile, error: adminProfileError } = await supabaseAdmin
       .from('profiles')
       .select('roles(name)')
@@ -64,67 +69,73 @@ export default async function handler(req, res) {
       .single();
 
     if (adminProfileError || !adminProfile?.roles?.name) {
-      return res.status(403).json({ error: '未授權的操作或未指派管理員角色。' });
+        console.error("建立帳號：未授權或未指派管理員角色", { adminUserId, adminProfileError });
+        return res.status(403).json({ error: '未授權的操作或未指派管理員角色。' });
     }
 
     const adminRole = adminProfile.roles.name;
 
-    const { data: hasPermission, error: rpcError } = await supabaseAdmin.rpc('user_has_permission', { p_user_id: adminUserId, p_permission_name: 'accounts:manage_users' });
+    // --- 新增權限檢查：是否允許建立使用者 ---
+    const { data: hasCreateUsersPermission, error: rpcError } = await supabaseAdmin.rpc('user_has_permission', { p_user_id: adminUserId, p_permission_name: 'accounts:create_users' });
     
     if (rpcError) {
+      console.error("建立帳號：RPC 權限檢查失敗", { adminUserId, rpcError });
       return res.status(500).json({ error: '權限檢查失敗。' });
     }
-    
-    if (adminRole !== 'superadmin' && !hasPermission) {
+
+    // 如果執行者不是 'superadmin' 並且沒有 'accounts:create_users' 權限，則拒絕
+    if (adminRole !== 'superadmin' && !hasCreateUsersPermission) {
+      console.warn("建立帳號：非超級管理員且無建立權限。", { adminUserId });
       return res.status(403).json({ error: '未經授權：您沒有權限建立使用者帳號。' });
     }
+    // --- 權限檢查結束 ---
 
-    // [新增] 檢查要建立的角色是否存在且合法
-    const { data: targetRole, error: roleError } = await supabaseAdmin
-      .from('roles')
-      .select('id, name')
-      .eq('name', roleName)
-      .single();
-
-    if (roleError || !targetRole) {
-      return res.status(400).json({ error: `指定的角色名稱 '${roleName}' 無效或不存在。` });
+    // 安全性檢查：admin 不能建立 superadmin (即使有 create_users 權限)
+    if (adminRole === 'admin' && roleName === 'superadmin') {
+        console.warn("建立帳號：管理員嘗試建立超級管理員帳號。", { adminUserId });
+        return res.status(403).json({ error: '管理員無法建立超級管理員帳號。' });
     }
 
-    // [新增] 管理員不能建立超級管理員帳號的檢查
-    if (adminRole === 'admin' && targetRole.name === 'superadmin') {
-      return res.status(403).json({ error: '管理員無法建立超級管理員帳號。' });
-    }
-
-    // 將 roleName 傳遞給 app_metadata
     const { data: userData, error: signUpError } = await supabaseAdmin.auth.admin.createUser({
       email,
       password,
-      email_confirm: true,
-      app_metadata: {
-        source: 'admin_creation',
-        role: roleName,
-        nickname: nickname
-      }
+      email_confirm: true, // 自動確認 Email
     });
 
     if (signUpError) {
+      console.error("建立帳號：Supabase auth.admin.createUser 失敗", {
+        email,
+        errorMessage: signUpError.message,
+        originalError: signUpError
+      });
       if (signUpError.message.includes('User already registered')) {
         return res.status(409).json({ error: '此 Email 已被其他帳號使用。' });
       }
-      return res.status(500).json({ error: `建立認證使用者失敗: ${signUpError.message}` });
+      return res.status(500).json({ error: signUpError.message || '建立認證使用者失敗。' });
     }
-    
-    // 使用 Supabase Admin 客戶端直接更新 profiles 表格，並包含 registration_code
-    const { error: profileInsertError } = await supabaseAdmin
+
+    const { data: roleData, error: fetchRoleError } = await supabaseAdmin.from('roles').select('id').eq('name', roleName).single();
+    if (fetchRoleError || !roleData) {
+      console.error("建立帳號：找不到角色 ID 或查詢失敗", { roleName, fetchRoleError });
+      // 如果找不到角色，則刪除剛創建的認證用戶以保持數據一致性
+      await supabaseAdmin.auth.admin.deleteUser(userData.user.id);
+      return res.status(400).json({ error: `找不到角色 '${roleName}'。` });
+    }
+
+    const { error: profileError } = await supabaseAdmin
       .from('profiles')
-      .update({ registration_code: registration_code })
-      .eq('id', userData.user.id);
-      
-    if (profileInsertError) {
-        console.error("更新使用者檔案 (profiles) 失敗:", profileInsertError);
-        // 如果 profiles 表格更新失敗，您可能需要處理使用者帳號的刪除以保持資料一致性
+      .upsert({ id: userData.user.id, email, role_id: roleData.id, nickname }, { onConflict: 'id' });
+
+    if (profileError) {
+        console.error("建立帳號：Supabase profiles 表 upsert 失敗", {
+          newUserId: userData.user.id,
+          profileData: { email, role_id: roleData.id, nickname },
+          errorMessage: profileError.message,
+          originalError: profileError
+        });
+        // 如果 profile 更新失敗，最好將剛建立的 auth user 刪除以保持資料一致性
         await supabaseAdmin.auth.admin.deleteUser(userData.user.id);
-        return res.status(500).json({ error: `更新使用者檔案失敗: ${profileInsertError.message}` });
+        return res.status(500).json({ error: profileError.message || '建立使用者資料失敗。' });
     }
 
     await recordAdminAuditLog(supabaseAdmin, adminUserId, {
@@ -138,7 +149,6 @@ export default async function handler(req, res) {
     res.status(200).json({ success: true, userId: userData.user.id });
   } catch (error) {
     console.error("建立帳號 handler 發生未預期錯誤:", error);
-    // 確保所有錯誤都以 JSON 格式返回
     res.status(500).json({ error: error.message || '發生預期外的錯誤' });
   }
 }
