@@ -83,6 +83,14 @@
             </button>
           </div>
         </form>
+        <div class="text-center mt-6">
+  <p class="text-sm text-gray-600">
+    還沒有帳號嗎？
+    <router-link to="/register" class="font-medium text-indigo-600 hover:text-indigo-500">
+      立即註冊
+    </router-link>
+  </p>
+</div>
       </div>
 
       <div v-else class="car-loading-overlay">

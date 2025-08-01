@@ -8,6 +8,7 @@ import { useUiStore } from './ui';
 import { DEFAULT_EMAIL_DOMAIN } from '@/utils/constants';
 import { USER_ROLE_NAMES } from '@/utils/constants';
 
+
 export const useAuthStore = defineStore('auth', () => {
   const uiStore = useUiStore();
 
@@ -43,6 +44,31 @@ export const useAuthStore = defineStore('auth', () => {
     // 檢查權限集合
     return userPermissions.value.has(permissionName);
   };
+
+
+   // 【全新】註冊 Action
+  async function register(userData) {
+    loading.value = true;
+    error.value = null;
+    try {
+      let finalEmail = userData.email;
+      if (finalEmail && !finalEmail.includes('@')) {
+        finalEmail = finalEmail + DEFAULT_EMAIL_DOMAIN;
+      }
+      
+      await api.register({ ...userData, email: finalEmail });
+      
+      uiStore.showMessage('註冊成功！請使用您的新帳號登入。', 'success');
+      router.push('/login');
+      return true;
+    } catch (e) {
+      error.value = e.message || '註冊時發生未知錯誤';
+      uiStore.showMessage(`註冊失敗: ${error.value}`, 'error');
+      return false;
+    } finally {
+      loading.value = false;
+    }
+  }
 
   async function login(email, password) {
     loading.value = true;
@@ -156,6 +182,7 @@ export const useAuthStore = defineStore('auth', () => {
     userRoleName,
     userPermissions,
     hasPermission,
+    register, // 【全新】導出 register action
     login,
     logout,
     fetchUserProfile,

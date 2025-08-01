@@ -2,6 +2,25 @@
 import { supabase } from '../supabase';
 import { recordAuditLog } from './helpers';
 
+/**
+ * 【全新】處理使用者註冊請求。
+ * 這是一個公開的 API 呼叫，不需要管理員權限。
+ * @param {object} userData - 包含 email, password, nickname, registration_code 的物件
+ * @returns {Promise<object>} - 註冊成功的結果
+ */
+export async function register(userData) {
+  const response = await fetch('/api/register', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(userData)
+  });
+  const result = await response.json();
+  if (!response.ok) {
+    throw new Error(result.error || '註冊失敗');
+  }
+  return result;
+}
+
 export async function login(email, password) {
   const { data, error } = await supabase.auth.signInWithPassword({ email, password });
   if (error) throw error;
