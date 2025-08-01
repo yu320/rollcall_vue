@@ -43,7 +43,11 @@
           <tbody class="bg-white divide-y divide-gray-100">
             <tr v-for="code in codes" :key="code.id" class="hover:bg-gray-50">
               <td data-label="註冊碼" class="px-6 py-4 font-mono text-indigo-700 font-semibold">{{ code.code }}</td>
-              <td data-label="綁定角色" class="px-6 py-4 text-sm text-gray-600">{{ getRoleName(code.role_id) || '預設' }}</td>
+              <td data-label="綁定角色" class="px-6 py-4 text-sm text-gray-600">
+                <span :class="getRoleClass(getRoleName(code.role_id))">
+                  {{ getRoleDisplayName(getRoleName(code.role_id)) }}
+                </span>
+              </td>
               <td data-label="使用次數" class="px-6 py-4 text-sm text-center">
                 <span :class="getUsageClass(code)">{{ code.times_used }} / {{ code.usage_limit || '∞' }}</span>
               </td>
@@ -83,10 +87,14 @@
           </div>
         </div>
         <div>
-          <label for="role" class="block text-sm font-medium text-gray-700">綁定角色 (選填，預設為操作員)</label>
+          <label for="description" class="block text-sm font-medium text-gray-700">描述 (選填)</label>
+          <input type="text" id="description" v-model="editableCode.description" class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3">
+        </div>
+        <div>
+          <label for="role" class="block text-sm font-medium text-gray-700">綁定角色 (選填)</label>
           <select id="role" v-model="editableCode.role_id" class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 bg-white">
-            <option :value="null">-- 使用系統預設角色 (操作員) --</option>
-            <option v-for="role in availableRoles" :key="role.id" :value="role.id">{{ role.name }}</option>
+            <option :value="null">-- 使用系統預設角色 (operator) --</option>
+            <option v-for="role in availableRoles" :key="role.id" :value="role.id">{{ getRoleDisplayName(role.name) }}</option>
           </select>
         </div>
         <div>
@@ -109,13 +117,17 @@
 <script setup>
 import { ref, reactive, onMounted, computed } from 'vue';
 import { useUiStore } from '@/store/ui';
-import { useDataStore } from '@/store/data'; // 引入 dataStore
+import { useDataStore } from '@/store/data';
+import { useAuthStore } from '@/store/auth';
 import * as api from '@/services/api';
 import Modal from '@/components/Modal.vue';
 import { format, parseISO, isPast } from 'date-fns';
+import { USER_ROLE_NAMES } from '@/utils/constants';
 
 const uiStore = useUiStore();
-const dataStore = useDataStore(); // 獲取 dataStore
+const dataStore = useDataStore();
+const authStore = useAuthStore();
+
 const isLoading = ref(true);
 
 const settings = reactive({
@@ -127,8 +139,20 @@ const isModalOpen = ref(false);
 const isEditing = ref(false);
 const editableCode = ref({});
 
-// 計算可供選擇的角色列表 (排除 superadmin)
-const availableRoles = computed(() => dataStore.roles.filter(r => r.name !== 'superadmin'));
+const availableRoles = computed(() => {
+  const currentUserRole = authStore.user?.roles?.name;
+  
+  if (currentUserRole === 'superadmin') {
+    return dataStore.roles;
+  }
+  if (currentUserRole === 'admin') {
+    return dataStore.roles.filter(r => r.name !== 'superadmin');
+  }
+  if (currentUserRole === 'sdc') {
+    return dataStore.roles.filter(r => r.name !== 'superadmin' && r.name !== 'admin');
+  }
+  return [];
+});
 
 const toLocalISOString = (isoString) => {
     if (!isoString) return '';
@@ -144,7 +168,7 @@ onMounted(async () => {
     await Promise.all([
       loadSettings(),
       loadCodes(),
-      dataStore.fetchRolesAndPermissions() // 載入角色列表
+      dataStore.fetchRolesAndPermissions()
     ]);
   } catch (error) {
     uiStore.showMessage(`讀取設定失敗: ${error.message}`, 'error');
@@ -167,6 +191,19 @@ const getRoleName = (roleId) => {
   if (!roleId) return null;
   const role = dataStore.roles.find(r => r.id === roleId);
   return role ? role.name : '未知角色';
+};
+
+const getRoleDisplayName = (roleName) => USER_ROLE_NAMES[roleName] || roleName || '預設';
+
+const getRoleClass = (roleName) => {
+  switch (roleName) {
+    case 'superadmin': return 'px-2 py-1 text-xs font-semibold rounded-full bg-yellow-100 text-yellow-800';
+    case 'admin': return 'px-2 py-1 text-xs font-semibold rounded-full bg-red-100 text-red-800';
+    case 'sdc': return 'px-2 py-1 text-xs font-semibold rounded-full bg-blue-100 text-blue-800';
+    case 'operator': return 'px-2 py-1 text-xs font-semibold rounded-full bg-green-100 text-green-800';
+    case 'sdsc': return 'px-2 py-1 text-xs font-semibold rounded-full bg-purple-100 text-purple-800';
+    default: return 'px-2 py-1 text-xs font-semibold rounded-full bg-gray-100 text-gray-800';
+  }
 };
 
 const saveSettings = async () => {
@@ -214,9 +251,6 @@ const saveCode = async () => {
       expires_at: editableCode.value.expires_at ? new Date(editableCode.value.expires_at).toISOString() : null,
       role_id: editableCode.value.role_id || null
     };
-    
-    // 移除 description 欄位，因為資料庫沒有
-    delete payload.description;
 
     if (isEditing.value) {
       await api.updateRegistrationCode(payload.id, payload);
@@ -226,7 +260,8 @@ const saveCode = async () => {
     uiStore.showMessage('註冊碼已儲存', 'success');
     await loadCodes();
     closeModal();
-  } catch (error) {
+  } catch (error)
+ {
     uiStore.showMessage(`儲存註冊碼失敗: ${error.message}`, 'error');
   } finally {
     uiStore.setLoading(false);
@@ -253,10 +288,12 @@ const confirmDelete = (code) => {
   });
 };
 
+// 【核心修改】更新 generateRandomCode 函式
 const generateRandomCode = () => {
    const length = 8;
    let result = '';
-   const characters = '0123456789';
+   // 新的字元集，包含中文、英文大小寫和數字
+   const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789天龍地虎玄武朱雀青龍白虎';
    const charactersLength = characters.length;
    for (let i = 0; i < length; i++) {
      result += characters.charAt(Math.floor(Math.random() * charactersLength));

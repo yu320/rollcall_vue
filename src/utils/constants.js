@@ -30,6 +30,7 @@ export const USER_ROLE_NAMES = {
     operator: '操作員',
     sdc: '宿委會',
     sdsc: '宿服'
+    guest: '訪客等待權限升級中'
 };
 
 // --- 匯入功能相關常數 ---
