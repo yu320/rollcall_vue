@@ -19,7 +19,7 @@ export async function updateSetting(key, value) {
 }
 
 export async function fetchRegistrationCodes() {
-    const { data, error } = await supabase.from('registration_codes').select('*, profiles:created_by(nickname)').order('created_at', { ascending: false });
+    const { data, error } = await supabase.from('registration_codes').select('*, profiles!registration_codes_created_by_fkey(nickname)').order('created_at', { ascending: false });
     if (error) throw error;
     return data;
 }
@@ -27,15 +27,15 @@ export async function fetchRegistrationCodes() {
 export async function createRegistrationCode(codeData) {
     const adminUserId = await getAdminUserId();
     const payload = { ...codeData, created_by: adminUserId };
-    const { data, error } = await supabase.from('registration_codes').insert(payload).select().single();
+    const { data, error } = await supabase.from('registration_codes').insert(payload);
     if (error) throw error;
-    recordAuditLog({ action_type: 'CREATE', target_table: 'registration_codes', target_id: data.id, description: `新增註冊碼: ${data.code}`, new_value: data });
+    recordAuditLog({ action_type: 'CREATE', target_table: 'registration_codes', target_id: data.id, description: `新增註冊碼: ${codeData.code}`, new_value: data });
     return data;
 }
 
 export async function updateRegistrationCode(id, updateData) {
     const { data: oldData } = await supabase.from('registration_codes').select('*').eq('id', id).single();
-    const { data, error } = await supabase.from('registration_codes').update(updateData).eq('id', id).select().single();
+    const { data, error } = await supabase.from('registration_codes').update(updateData).eq('id', id);
     if (error) throw error;
     recordAuditLog({ action_type: 'UPDATE', target_table: 'registration_codes', target_id: data.id, description: `更新註冊碼: ${data.code}`, old_value: oldData, new_value: data });
     return data;
