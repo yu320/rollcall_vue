@@ -13,6 +13,7 @@ export async function fetchEvents() {
         .order('start_time', { ascending: false });
 
     if (error) throw error;
+    // 確保 profiles 關聯存在，避免空值導致的前端錯誤
     return data.map(event => ({
         ...event,
         profiles: event.profiles || { nickname: '未知' }

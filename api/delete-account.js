@@ -27,8 +27,7 @@ async function recordAdminAuditLog(supabaseAdmin, adminUserId, logDetails) {
   }
 }
 
-export default async function handler(req, res) { // 確保這裡使用 export default async function
-  // 確保請求方法是 POST
+export default async function handler(req, res) {
   if (req.method !== 'POST') {
     res.setHeader('Allow', ['POST']);
     return res.status(405).json({ error: `請求方法 ${req.method} 不允許` });
@@ -43,11 +42,11 @@ export default async function handler(req, res) { // 確保這裡使用 export d
     process.env.SUPABASE_SERVICE_KEY,
     {
       db: {
-        schema: 'public', // 明確指定 schema
+        schema: 'public',
       },
       auth: {
-        autoRefreshToken: false, // 在 Serverless 環境中通常不需要
-        persistSession: false,   // 在 Serverless 環境中通常不需要
+        autoRefreshToken: false,
+        persistSession: false,
       }
     }
   );
@@ -64,7 +63,6 @@ export default async function handler(req, res) { // 確保這裡使用 export d
       return res.status(401).json({ error: '需要管理員使用者 ID。' });
     }
     
-    // 獲取執行操作的管理員角色和權限
     const { data: adminProfile, error: adminProfileError } = await supabaseAdmin
       .from('profiles')
       .select('roles(name)')
@@ -77,7 +75,6 @@ export default async function handler(req, res) { // 確保這裡使用 export d
     }
 
     const adminRole = adminProfile.roles.name;
-    // 檢查 adminUserId 是否有 'accounts:delete_users' 權限
     const { data: hasDeleteUsersPermission, error: rpcError } = await supabaseAdmin.rpc('user_has_permission', { p_user_id: adminUserId, p_permission_name: 'accounts:delete_users' });
 
     if (rpcError) {
@@ -85,7 +82,6 @@ export default async function handler(req, res) { // 確保這裡使用 export d
       return res.status(500).json({ error: '權限檢查失敗。' });
     }
 
-    // 如果執行者不是 'superadmin' 並且沒有 'accounts:delete_users' 權限，則拒絕
     if (adminRole !== 'superadmin' && !hasDeleteUsersPermission) {
       console.warn("刪除帳號：非超級管理員且無刪除權限。", { adminUserId });
       return res.status(403).json({ error: '未經授權：您沒有權限刪除使用者帳號。' });
@@ -94,7 +90,6 @@ export default async function handler(req, res) { // 確保這裡使用 export d
     const successfulDeletes = [];
     const failedDeletes = [];
     
-    // 獲取待刪除的個人資料及其角色，用於權限檢查和稽核
     const { data: profilesToDelete, error: fetchProfilesError } = await supabaseAdmin
         .from('profiles')
         .select('id, email, nickname, roles(name)')
@@ -107,7 +102,6 @@ export default async function handler(req, res) { // 確保這裡使用 export d
       try {
         const profileToDelete = profileMap.get(id);
 
-        // 安全性規則：admin 不能刪除 superadmin
         if (adminRole === 'admin' && profileToDelete?.roles?.name === 'superadmin') {
             console.warn("刪除帳號：管理員嘗試刪除超級管理員帳號。", { adminUserId, targetUserId: id });
             failedDeletes.push({ id: id, reason: '管理員無法刪除超級管理員帳號。' });
@@ -121,11 +115,9 @@ export default async function handler(req, res) { // 確保這裡使用 export d
             errorMessage: authError.message,
             originalError: authError
           });
-          // 如果使用者在 auth 中不存在，但在 profiles 中存在，這是一個數據不一致的情況，但我們仍然應該繼續嘗試刪除 profiles 中的記錄
           if (authError.message.includes('User not found')) {
             console.warn(`Auth 中找不到使用者 ${id}，將繼續嘗試刪除 profiles 中的對應記錄。`);
           } else {
-            // 對於其他 auth 錯誤，視為刪除失敗
             throw authError; 
           }
         }
@@ -147,7 +139,7 @@ export default async function handler(req, res) { // 確保這裡使用 export d
     }
     
     if (failedDeletes.length > 0) {
-      return res.status(207).json({ // 207 Multi-Status 表示部分成功
+      return res.status(207).json({
         success: false, 
         message: `成功刪除 ${successfulDeletes.length} 個帳號，但有 ${failedDeletes.length} 個失敗。`,
         failed: failedDeletes,

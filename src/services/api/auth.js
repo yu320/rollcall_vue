@@ -22,11 +22,23 @@ export async function getSession() {
 export async function getUserProfile(userId) {
   const { data, error } = await supabase
     .from('profiles')
-    .select(`id, email, nickname, roles ( name, role_permissions ( permissions (name) ) )`)
+    // 關鍵修改: 確保查詢能夠深度關聯到 roles 和 permissions
+    .select(`
+      id, 
+      email, 
+      nickname, 
+      roles ( 
+        name, 
+        role_permissions ( 
+          permissions (name) 
+        ) 
+      )
+    `)
     .eq('id', userId)
     .single();
 
   if (error) throw error;
+  // 返回的 data 包含 roles 和其下的 role_permissions
   return data;
 }
 
@@ -40,7 +52,6 @@ export async function updateUserProfile(userId, payload) {
     let errorMessage = '';
 
     try {
-        // Update nickname in 'profiles' table if it's provided in payload
         if (payload.nickname !== undefined) {
             const { data: oldProfileData } = await supabase
                 .from('profiles')
@@ -68,7 +79,6 @@ export async function updateUserProfile(userId, payload) {
             }
         }
 
-        // Update password using Supabase Auth if it's provided in payload
         if (payload.password) {
             const { error: authError } = await supabase.auth.updateUser({ password: payload.password });
             if (authError) {
