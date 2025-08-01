@@ -29,7 +29,7 @@ export const USER_ROLE_NAMES = {
     admin: '管理員',
     operator: '操作員',
     sdc: '宿委會',
-    sdsc: '宿服'
+    sdsc: '宿服',
     guest: '訪客等待權限升級中'
 };
 
