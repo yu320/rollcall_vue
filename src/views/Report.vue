@@ -196,17 +196,20 @@ import { useAuthStore } from '@/store/auth';
 import * as api from '@/services/api';
 import Chart from 'chart.js/auto';
 import { createSummaryCard } from '@/utils/index';
+import { useRouter, useRoute } from 'vue-router';
 
 const uiStore = useUiStore();
 const dataStore = useDataStore();
 const authStore = useAuthStore();
+const router = useRouter();
+const route = useRoute();
 
 const isLoading = ref(true);
-const activeTab = ref('participation');
+const activeTab = ref(route.query.tab || 'participation');
 const startDate = ref('');
 const endDate = ref('');
-const activityFilter = ref('all');
-const buildingFilter = ref('all');
+const activityFilter = ref(route.query.activity || 'all');
+const buildingFilter = ref(route.query.building || 'all');
 const personnelSearchTerm = ref('');
 const personnelReportData = ref(null);
 
@@ -224,6 +227,34 @@ const attendanceTrendChartCanvas = ref(null);
 const attendancePieChartCanvas = ref(null);
 const attendanceStatusPieChartCanvas = ref(null);
 const buildingAttendanceChartCanvas = ref(null);
+
+// Watchers for URL state sync
+watch([startDate, endDate, activeTab, activityFilter, buildingFilter], () => {
+    const query = {};
+    if (startDate.value) query.startDate = startDate.value;
+    if (endDate.value) query.endDate = endDate.value;
+    if (activeTab.value !== 'participation') query.tab = activeTab.value;
+    if (activityFilter.value !== 'all') query.activity = activityFilter.value;
+    if (buildingFilter.value !== 'all') query.building = buildingFilter.value;
+    
+    if (JSON.stringify(query) !== JSON.stringify(route.query)) {
+      router.replace({ query });
+    }
+}, { deep: true });
+
+// Other watchers
+watch([startDate, endDate, buildingFilter], () => {
+    updateReportView();
+});
+
+watch(activeTab, (newTab) => {
+    if (newTab === 'participation' || newTab === 'building') {
+        nextTick(() => {
+            renderAllCharts();
+        });
+    }
+});
+
 
 const eventOptions = computed(() => {
     if (!rawData.value) return [];
@@ -246,23 +277,6 @@ const filteredActivityStats = computed(() => {
 const summaryCards = computed(() => processedReportStats.value?.summaryCards || []);
 const buildingOnTimeRank = computed(() => processedReportStats.value?.buildingOnTimeRank || []);
 
-watch([startDate, endDate, buildingFilter], () => {
-    updateReportView();
-});
-
-watch(activityFilter, () => {
-    // Note: Activity filter is now applied on the frontend, so no full re-process needed.
-});
-
-
-watch(activeTab, (newTab) => {
-    if (newTab === 'participation' || newTab === 'building') {
-        nextTick(() => {
-            renderAllCharts();
-        });
-    }
-});
-
 const formatDate = (date) => {
   if (!date || isNaN(date)) return '';
   const year = date.getFullYear();
@@ -279,11 +293,16 @@ const initializeReport = async () => {
     uiStore.setLoading(true);
     isLoading.value = true;
     try {
-        const end = new Date();
-        const start = new Date();
-        start.setMonth(start.getMonth() - 1);
-        startDate.value = formatDate(start);
-        endDate.value = formatDate(end);
+        if (route.query.startDate && route.query.endDate) {
+            startDate.value = route.query.startDate;
+            endDate.value = route.query.endDate;
+        } else {
+            const end = new Date();
+            const start = new Date();
+            start.setMonth(start.getMonth() - 1);
+            startDate.value = formatDate(start);
+            endDate.value = formatDate(end);
+        }
 
         await Promise.all([dataStore.fetchAllPersonnel(), dataStore.fetchEvents()]);
         
@@ -610,14 +629,13 @@ const exportReportData = () => {
     uiStore.showMessage('報表已匯出', 'success');
 };
 
-// 【*** 核心修正 ***】新增下載圖表的函式
 const downloadChart = (chartInstance, baseFilename) => {
   if (!chartInstance) {
     uiStore.showMessage('圖表尚未準備好，無法下載。', 'warning');
     return;
   }
   
-  const timestamp = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
+  const timestamp = new Date().toISOString().slice(0, 10);
   const filename = `${baseFilename}_${startDate.value}_至_${endDate.value}.png`;
 
   const link = document.createElement('a');

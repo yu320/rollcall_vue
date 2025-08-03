@@ -117,22 +117,27 @@ import { useDataStore } from '@/store/data';
 import * as api from '@/services/api';
 import { format, parseISO } from 'date-fns';
 import { formatDateTime } from '@/utils';
+import { useRouter, useRoute } from 'vue-router'; // [新增]
 
 const uiStore = useUiStore();
 const authStore = useAuthStore();
 const dataStore = useDataStore();
+const router = useRouter(); // [新增]
+const route = useRoute();   // [新增]
 
 const isLoading = ref(true);
 const isDatesLoading = ref(true);
 
 const today = new Date().toISOString().split('T')[0];
-const selectedDate = ref(today);
+// [修改] 從 URL 初始化 selectedDate
+const selectedDate = ref(route.query.date || today);
 const records = ref([]);
 const savedDates = ref([]);
 const selectedRecords = ref([]);
 const pagination = ref({
-  currentPage: 1,
-  pageSize: 25,
+  // [修改] 從 URL 初始化分頁
+  currentPage: parseInt(route.query.page, 10) || 1,
+  pageSize: parseInt(route.query.pageSize, 10) || 25,
   totalPages: 1,
 });
 
@@ -185,15 +190,28 @@ onMounted(() => {
   fetchSavedDates();
 });
 
+// [新增] 監聽器，用於將狀態同步到 URL
+watch([selectedDate, () => pagination.value.currentPage, () => pagination.value.pageSize], () => {
+    const query = {};
+    if (selectedDate.value !== today) query.date = selectedDate.value;
+    if (pagination.value.currentPage > 1) query.page = pagination.value.currentPage;
+    if (pagination.value.pageSize !== 25) query.pageSize = pagination.value.pageSize;
+    
+    // 只有在查詢參數實際發生變化時才更新路由
+    if (JSON.stringify(query) !== JSON.stringify(route.query)) {
+        router.replace({ query });
+    }
+}, { deep: true });
+
 watch(selectedDate, (newDate) => {
     if (newDate) {
+      pagination.value.currentPage = 1; // 切換日期時重置到第一頁
       loadRecords();
       selectedRecords.value = [];
     }
 });
 
 watch(() => records.value, (newRecords) => {
-  pagination.value.currentPage = 1;
   pagination.value.totalPages = Math.ceil(newRecords.length / pagination.value.pageSize);
 });
 
@@ -301,40 +319,31 @@ const exportToCSV = () => {
 </script>
 
 <style scoped>
-/* 快速選擇日期卡片樣式 */
 .date-card {
   @apply p-4 rounded-lg cursor-pointer transition-all duration-200 border-2 text-center flex flex-col justify-between items-center;
   min-height: 120px;
 }
-
 .date-card-active {
   @apply bg-indigo-600 border-indigo-600 text-white shadow-md;
 }
-
 .date-card-inactive {
   @apply bg-gray-50 hover:bg-gray-100 border-transparent text-gray-800;
 }
-
 .date-card span {
   line-height: 1.4;
 }
-
 .date-card .text-lg {
   font-weight: 700;
 }
-
 .date-card .text-sm {
   color: rgba(255, 255, 255, 0.8); 
 }
-
 .date-card-inactive .text-sm {
   color: #6b7280;
 }
-
 .date-card-active .text-yellow-700 {
   color: #fcd34d;
 }
-
 .date-card-active .text-red-700 {
   color: #f87171;
 }
