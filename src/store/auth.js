@@ -97,13 +97,22 @@ export const useAuthStore = defineStore('auth', () => {
     uiStore.setLoading(true);
     try {
       await api.logout();
+    } catch (e) {
+      // 【*** 核心修正點 ***】
+      // 檢查錯誤訊息是否為 "Auth session missing!"
+      // 如果是，代表使用者本來就已經是登出狀態，我們可以安全地忽略這個錯誤。
+      if (e.message === 'Auth session missing!') {
+        console.log('Session was already missing. Proceeding with client-side logout.');
+      } else {
+        // 如果是其他未預期的錯誤，則顯示錯誤訊息。
+        uiStore.showMessage(`登出時發生錯誤: ${e.message}`, 'error');
+      }
+    } finally {
+      // 無論成功或失敗（包含 session missing 的情況），都必須執行客戶端的登出清理。
       user.value = null;
       userPermissions.value.clear();
       router.push('/login');
       uiStore.showMessage('您已成功登出。');
-    } catch (e) {
-      uiStore.showMessage(`登出時發生錯誤: ${e.message}`, 'error');
-    } finally {
       uiStore.setLoading(false);
     }
   }
