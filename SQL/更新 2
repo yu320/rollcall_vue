@@ -1,0 +1,11 @@
+-- 登入您的 Supabase 專案，並在 SQL Editor 中執行以下指令
+
+-- 新增「活動參與統計」的查看權限
+INSERT INTO public.permissions (name, description) VALUES
+('reports:participation', '查看活動參與統計報表')
+ON CONFLICT (name) DO NOTHING;
+
+-- 新增「棟別活動分析」的查看權限
+INSERT INTO public.permissions (name, description) VALUES
+('reports:building', '查看棟別活動分析報表')
+ON CONFLICT (name) DO NOTHING;

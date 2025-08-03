@@ -653,3 +653,21 @@ input:focus, textarea:focus, select:focus {
 .animate-shake {
   animation: shake 0.3s ease;
 }
+
+/* --- NEW: Report Page Tab Scrolling on Mobile --- */
+@media (max-width: 768px) {
+  .report-tabs-container {
+      flex-wrap: nowrap; /* 防止頁籤換行 */
+      overflow-x: auto;  /* 允許水平滾動 */
+      -webkit-overflow-scrolling: touch; /* 在 iOS 上啟用流暢滾動 */
+      scrollbar-width: none; /* 隱藏 Firefox 的滾動條 */
+  }
+
+  .report-tabs-container::-webkit-scrollbar {
+      display: none; /* 隱藏 Chrome/Safari 的滾動條 */
+  }
+
+  .report-tabs-container > .report-tab {
+      flex-shrink: 0; /* 防止頁籤本身被壓縮 */
+  }
+}

@@ -20,9 +20,9 @@
       </div>
 
       <div class="border-b border-gray-200">
-        <nav class="-mb-px flex space-x-6" aria-label="Tabs">
-          <button @click="activeTab = 'participation'" :class="['report-tab', { 'active': activeTab === 'participation' }]">活動參與統計</button>
-          <button @click="activeTab = 'building'" :class="['report-tab', { 'active': activeTab === 'building' }]">棟別活動分析</button>
+        <nav class="-mb-px flex space-x-6 report-tabs-container" aria-label="Tabs">
+          <button v-if="authStore.hasPermission('reports:participation')" @click="activeTab = 'participation'" :class="['report-tab', { 'active': activeTab === 'participation' }]">活動參與統計</button>
+          <button v-if="authStore.hasPermission('reports:building')" @click="activeTab = 'building'" :class="['report-tab', { 'active': activeTab === 'building' }]">棟別活動分析</button>
           <button v-if="authStore.hasPermission('reports:personnel')" @click="activeTab = 'personnel'" :class="['report-tab', { 'active': activeTab === 'personnel' }]">人員活動參與報表</button>
         </nav>
       </div>
