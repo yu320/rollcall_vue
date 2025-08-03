@@ -58,7 +58,8 @@ router.beforeEach(async (to, from, next) => {
   const authStore = useAuthStore();
   const uiStore = useUiStore();
 
-  // [FIX] 確保在檢查權限前，已經從 Supabase 獲取了使用者狀態
+  // 【*** 核心修正點 ***】
+  // 確保在檢查權限前，已經從 Supabase 獲取了使用者狀態
   if (!authStore.isInitialized) {
     await authStore.checkInitialAuth();
   }
