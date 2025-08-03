@@ -1,138 +1,192 @@
+// src/store/auth.js
+
 import { defineStore } from 'pinia';
-import { supabase } from '@/services/supabase';
-import router from '@/router';
+import { ref, computed } from 'vue';
 import * as api from '@/services/api';
+import router from '@/router';
+import { useUiStore } from './ui';
+import { DEFAULT_EMAIL_DOMAIN } from '@/utils/constants';
+import { USER_ROLE_NAMES } from '@/utils/constants';
 
-export const useAuthStore = defineStore('auth', {
-  state: () => ({
-    user: null,
-    permissions: [],
-    isInitialized: false, // [修改] 狀態名稱更清晰
-  }),
 
-  getters: {
-    isLoggedIn: (state) => !!state.user,
-    canView: (state) => (page) => {
-      // [修改] 增加保護，確保在初始化完成後才進行權限檢查
-      if (!state.isInitialized) {
-        console.warn(`Permission check for '${page}' failed: Auth store is not initialized.`);
+export const useAuthStore = defineStore('auth', () => {
+  const uiStore = useUiStore();
+
+  const user = ref(null);
+  const userPermissions = ref(new Set());
+  const loading = ref(false);
+  const isInitialized = ref(false);
+  const error = ref(null);
+
+  const isLoggedIn = computed(() => !!user.value);
+  const userRoleName = computed(() => {
+    const roleKey = user.value?.roles?.name;
+    return USER_ROLE_NAMES[roleKey] || roleKey || '未知';
+  });
+
+  const hasPermission = (permissionName) => {
+    // 確保在權限集合載入前不會出錯
+    if (!isInitialized.value) {
+        console.warn(`Permission check for '${permissionName}' failed: Auth store is not initialized.`);
         return false;
-      }
-      return state.permissions.includes(page);
-    },
-    hasPermission: (state) => (permission) => {
-      if (!state.isInitialized) {
-        console.warn(`Permission check for '${permission}' failed: Auth store is not initialized.`);
+    }
+    // 確保 user 存在
+    if (!user.value || !user.value.roles) {
+        console.warn(`Permission check for '${permissionName}' failed: User or role is missing.`);
         return false;
-      }
-      return state.permissions.includes(permission);
-    },
-  },
+    }
 
-  actions: {
-    async checkInitialAuth() {
-      return new Promise((resolve) => {
-        supabase.auth.onAuthStateChange(async (event, session) => {
-          // [核心修改] 增加更完整的 session 處理邏輯
-          if (event === 'SIGNED_OUT' || !session) {
-            // 如果使用者登出或 session 無效，強制執行登出流程
-            this.user = null;
-            this.permissions = [];
-            if (router.currentRoute.value.name !== 'Login') {
-              router.push({ name: 'Login' });
-            }
-          } else if (event === 'SIGNED_IN' || event === 'INITIAL_SESSION' || event === 'TOKEN_REFRESHED') {
-            // 如果成功登入、初始化或刷新 token，則設定使用者資料
-            try {
-              const { data: { user } } = await supabase.auth.getUser();
-              if (user) {
-                const profile = await api.fetchUserProfile(user.id);
-                if (profile) {
-                  this.user = { ...user, ...profile };
-                  this.permissions = profile.permissions || [];
-                } else {
-                  // 如果找不到 profile，也視為登出
-                  this.user = null;
-                  this.permissions = [];
-                }
-              } else {
-                this.user = null;
-                this.permissions = [];
-              }
-            } catch (error) {
-              console.error("Error fetching user profile during auth state change:", error);
-              this.user = null;
-              this.permissions = [];
-            }
-          }
-          
-          // 無論結果如何，最後都將狀態設為已初始化
-          if (!this.isInitialized) {
-            this.isInitialized = true;
-          }
-          resolve();
-        });
-      });
-    },
-
-    async login(email, password) {
-      const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-      if (error) throw error;
-      
-      const profile = await api.fetchUserProfile(data.user.id);
-      if (profile) {
-        this.user = { ...data.user, ...profile };
-        this.permissions = profile.permissions || [];
-        router.push({ name: 'Overview' });
+    // superadmin 擁有所有權限
+    if (user.value.roles.name === 'superadmin') {
         return true;
-      } else {
-        await this.logout();
-        throw new Error('無法獲取使用者設定檔，請聯繫管理員。');
-      }
-    },
-
-    async logout() {
-      await supabase.auth.signOut();
-      this.user = null;
-      this.permissions = [];
-      // 使用 replace 避免使用者可以透過瀏覽器的「上一頁」回到需要登入的頁面
-      router.replace({ name: 'Login' });
-    },
-
-    async register(email, password, nickname, registrationCode) {
-        const response = await fetch('/api/register', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ email, password, nickname, registrationCode }),
-        });
-        const result = await response.json();
-        if (!response.ok) {
-            throw new Error(result.error || '註冊失敗');
-        }
-        return result;
-    },
+    }
     
-    async updateUserProfile(nickname, newPassword) {
-      try {
-        const updates = {};
-        if (nickname && nickname !== this.user.nickname) {
-          updates.data = { nickname };
-        }
-        if (newPassword) {
-          updates.password = newPassword;
-        }
+    // 檢查權限集合
+    return userPermissions.value.has(permissionName);
+  };
 
-        const { error } = await supabase.auth.updateUser(updates);
-        if (error) throw error;
 
-        if (updates.data) {
-          this.user.nickname = nickname;
-        }
-        return true;
-      } catch (error) {
-        console.error('更新個人資料失敗:', error);
-        return false;
+   // 【全新】註冊 Action
+  async function register(userData) {
+    loading.value = true;
+    error.value = null;
+    try {
+      let finalEmail = userData.email;
+      if (finalEmail && !finalEmail.includes('@')) {
+        finalEmail = finalEmail + DEFAULT_EMAIL_DOMAIN;
       }
-    },
-  },
+      
+      await api.register({ ...userData, email: finalEmail });
+      
+      uiStore.showMessage('註冊成功！請使用您的新帳號登入。', 'success');
+      router.push('/login');
+      return true;
+    } catch (e) {
+      error.value = e.message || '註冊時發生未知錯誤';
+      uiStore.showMessage(`註冊失敗: ${error.value}`, 'error');
+      return false;
+    } finally {
+      loading.value = false;
+    }
+  }
+
+  async function login(email, password) {
+    loading.value = true;
+    error.value = null;
+    try {
+      let finalEmail = email;
+      if (email && !email.includes('@')) {
+        finalEmail = email + DEFAULT_EMAIL_DOMAIN;
+      }
+
+      const { user: authUser } = await api.login(finalEmail, password);
+      if (authUser) {
+        await fetchUserProfile(authUser.id);
+        router.push('/');
+        uiStore.showMessage('登入成功！', 'success');
+      }
+    } catch (e) {
+      error.value = e.message || '使用者名稱或密碼錯誤';
+      uiStore.showMessage(`登入失敗: ${error.value}`, 'error');
+    } finally {
+      loading.value = false;
+    }
+  }
+
+  async function logout() {
+    uiStore.setLoading(true);
+    try {
+      await api.logout();
+      user.value = null;
+      userPermissions.value.clear();
+      router.push('/login');
+      uiStore.showMessage('您已成功登出。');
+    } catch (e) {
+      uiStore.showMessage(`登出時發生錯誤: ${e.message}`, 'error');
+    } finally {
+      uiStore.setLoading(false);
+    }
+  }
+
+  async function fetchUserProfile(userId) {
+    try {
+        const profile = await api.getUserProfile(userId);
+        user.value = profile;
+
+        const permissions = new Set();
+        // 確保角色和權限數據存在，防止因空值而崩潰
+        if (profile?.roles?.role_permissions && Array.isArray(profile.roles.role_permissions)) {
+          profile.roles.role_permissions.forEach(rp => {
+            if (rp.permissions?.name) {
+                permissions.add(rp.permissions.name);
+            }
+          });
+        }
+        userPermissions.value = permissions;
+        // console.log("User fetched and permissions set:", permissions);
+    } catch (e) {
+        console.error('無法獲取使用者資料:', e);
+        // 如果獲取失敗，強制登出以防意外
+        await logout();
+    }
+  }
+
+  async function checkInitialAuth() {
+    try {
+      loading.value = true;
+      const session = await api.getSession();
+      if (session) {
+        await fetchUserProfile(session.user.id);
+      } else {
+        user.value = null;
+        userPermissions.value.clear();
+      }
+    } catch (e) {
+      console.error('檢查初始登入狀態失敗:', e);
+      user.value = null;
+      userPermissions.value.clear();
+    } finally {
+      loading.value = false;
+      isInitialized.value = true;
+    }
+  }
+  
+  async function updateUserProfile(nickname, newPassword) {
+    uiStore.setLoading(true);
+    try {
+        const payload = { nickname: nickname };
+        if (newPassword) {
+            payload.password = newPassword;
+        }
+        await api.updateUserProfile(user.value.id, payload);
+        
+        if (user.value) {
+            user.value.nickname = nickname;
+        }
+        uiStore.showMessage('個人資料已成功更新！', 'success');
+        return true;
+    } catch (e) {
+        uiStore.showMessage(`更新個人資料失敗: ${e.message}`, 'error');
+        return false;
+    } finally {
+        uiStore.setLoading(false);
+    }
+  }
+
+  return {
+    user,
+    loading,
+    error,
+    isInitialized,
+    isLoggedIn,
+    userRoleName,
+    userPermissions,
+    hasPermission,
+    register, // 【全新】導出 register action
+    login,
+    logout,
+    fetchUserProfile,
+    checkInitialAuth,
+    updateUserProfile,
+  };
 });
