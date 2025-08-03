@@ -27,7 +27,11 @@
         <div class="lg:col-span-3 bg-white rounded-xl shadow-lg border border-gray-200 flex flex-col">
           <div class="p-4 border-b flex flex-wrap justify-between items-center gap-3">
             <h3 class="text-xl font-bold text-gray-800">出席人員詳情</h3>
-            <div v-if="dashboardData.attendees.length > 0" class="flex items-center gap-2">
+            <div class="flex items-center gap-2 flex-wrap">
+                <button @click="exportAttendeesToCSV" class="bg-emerald-600 hover:bg-emerald-700 text-white font-medium py-1 px-3 rounded-lg text-sm transition shadow-sm flex items-center justify-center">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+                    匯出 CSV
+                </button>
                 <label for="attendees-page-size" class="text-sm font-medium text-gray-600">每頁顯示:</label>
                 <select id="attendees-page-size" v-model.number="attendeesPagination.pageSize" class="border border-gray-300 rounded-md text-sm py-1 px-2 focus:outline-none focus:ring-1 focus:ring-indigo-500">
                     <option value="10">10</option>
@@ -402,5 +406,40 @@ const downloadChart = (chartInstance, baseFilename) => {
   link.href = chartInstance.toBase64Image();
   link.download = filename;
   link.click();
+};
+
+// [新增] 匯出出席人員 CSV 的函式
+const exportAttendeesToCSV = () => {
+    if (!dashboardData.value || dashboardData.value.attendees.length === 0) {
+        uiStore.showMessage('沒有可匯出的出席人員資料。', 'info');
+        return;
+    }
+
+    const eventName = sortedEvents.value.find(e => e.id === selectedEventId.value)?.name || '未知活動';
+    const timestamp = new Date().toISOString().slice(0, 10);
+    const filename = `${eventName}_出席人員詳情_${timestamp}.csv`;
+
+    const headers = ['姓名', '學號', '狀態', '簽到時間', '簽退時間'];
+    const rows = dashboardData.value.attendees.map(attendee => [
+        `"${attendee.name}"`,
+        `"${attendee.code}"`,
+        `"${attendee.status}"`,
+        `"${formatDateTime(attendee.check_in_time, 'yyyy-MM-dd HH:mm:ss') || ''}"`,
+        `"${formatDateTime(attendee.check_out_time, 'yyyy-MM-dd HH:mm:ss') || ''}"`
+    ]);
+
+    let csvContent = headers.join(',') + '\n' + rows.map(row => row.join(',')).join('\n');
+    
+    // 添加 BOM (Byte Order Mark) 確保 Excel 等軟體打開時中文不亂碼
+    const blob = new Blob([`\uFEFF${csvContent}`], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(link.href);
+
+    uiStore.showMessage('出席人員詳情已匯出。', 'success');
 };
 </script>

@@ -32,7 +32,7 @@
         @change="$emit('update:selectedEventId', $event.target.value || null)"
         class="w-full pl-4 pr-10 py-3 border border-gray-300 rounded-lg text-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white"
       >
-        <option :value="null">-- 不選擇活動 (測試用) --</option>
+        <option value="">-- 不選擇活動 (測試用) --</option>
         <option v-for="event in events" :key="event.id" :value="event.id" :class="{'text-gray-500': isEventEnded(event.end_time)}">
           {{ event.name }} ({{ formatDateTime(event.start_time, 'yyyy-MM-dd') }})
           <span v-if="isEventEnded(event.end_time)">(已結束)</span>
@@ -62,7 +62,7 @@
 import { ref } from 'vue';
 import { format, parseISO, isPast } from 'date-fns';
 
-const props = defineProps({
+defineProps({
   events: Array,
   checkinMode: String,
   selectedEventId: String,
