@@ -7,16 +7,11 @@ export const useAuthStore = defineStore('auth', {
   state: () => ({
     user: null,
     permissions: [],
-    isInitialized: false, // 用於追蹤身份驗證是否已完成初始化
+    isInitialized: false, // [修改] 狀態名稱更清晰
   }),
 
   getters: {
     isLoggedIn: (state) => !!state.user,
-    /**
-     * 檢查使用者是否有權限查看某個頁面 (用於 AppNav.vue)
-     * @param {object} state - Pinia state
-     * @returns {function(string): boolean}
-     */
     canView: (state) => (page) => {
       // [修改] 增加保護，確保在初始化完成後才進行權限檢查
       if (!state.isInitialized) {
@@ -25,11 +20,6 @@ export const useAuthStore = defineStore('auth', {
       }
       return state.permissions.includes(page);
     },
-    /**
-     * 檢查使用者是否有某項特定權限 (用於元件內部)
-     * @param {object} state - Pinia state
-     * @returns {function(string): boolean}
-     */
     hasPermission: (state) => (permission) => {
       if (!state.isInitialized) {
         console.warn(`Permission check for '${permission}' failed: Auth store is not initialized.`);
@@ -40,25 +30,20 @@ export const useAuthStore = defineStore('auth', {
   },
 
   actions: {
-    /**
-     * 檢查初始的身份驗證狀態。
-     * 這是應用程式啟動時最重要的函式之一。
-     */
     async checkInitialAuth() {
       return new Promise((resolve) => {
         supabase.auth.onAuthStateChange(async (event, session) => {
           // [核心修改] 增加更完整的 session 處理邏輯
-          try {
-            if (event === 'SIGNED_OUT' || !session) {
-              // 如果使用者登出或 session 無效 (例如 token 過期且無法刷新)
-              this.user = null;
-              this.permissions = [];
-              // 如果目前不在登入頁，則導向到登入頁
-              if (router.currentRoute.value.name !== 'Login') {
-                router.push({ name: 'Login' });
-              }
-            } else if (event === 'SIGNED_IN' || event === 'INITIAL_SESSION' || event === 'TOKEN_REFRESHED') {
-              // 如果成功登入、初始化或刷新 token
+          if (event === 'SIGNED_OUT' || !session) {
+            // 如果使用者登出或 session 無效，強制執行登出流程
+            this.user = null;
+            this.permissions = [];
+            if (router.currentRoute.value.name !== 'Login') {
+              router.push({ name: 'Login' });
+            }
+          } else if (event === 'SIGNED_IN' || event === 'INITIAL_SESSION' || event === 'TOKEN_REFRESHED') {
+            // 如果成功登入、初始化或刷新 token，則設定使用者資料
+            try {
               const { data: { user } } = await supabase.auth.getUser();
               if (user) {
                 const profile = await api.fetchUserProfile(user.id);
@@ -66,28 +51,26 @@ export const useAuthStore = defineStore('auth', {
                   this.user = { ...user, ...profile };
                   this.permissions = profile.permissions || [];
                 } else {
-                  // 雖然有 Supabase user，但找不到對應的 profile，視為異常並登出
-                  console.error("User exists in Supabase auth but profile is missing.");
-                  await this.logout();
+                  // 如果找不到 profile，也視為登出
+                  this.user = null;
+                  this.permissions = [];
                 }
               } else {
-                // 理論上 session 存在時 user 應該也存在，但作為保護措施
                 this.user = null;
                 this.permissions = [];
               }
-            }
-          } catch (error) {
-              console.error("Error during onAuthStateChange handling:", error);
-              // 發生任何錯誤都強制登出，以確保安全
+            } catch (error) {
+              console.error("Error fetching user profile during auth state change:", error);
               this.user = null;
               this.permissions = [];
-          } finally {
-            // 無論結果如何，只要這個回調被觸發過，就代表初始化已完成
-            if (!this.isInitialized) {
-              this.isInitialized = true;
             }
-            resolve();
           }
+          
+          // 無論結果如何，最後都將狀態設為已初始化
+          if (!this.isInitialized) {
+            this.isInitialized = true;
+          }
+          resolve();
         });
       });
     },
