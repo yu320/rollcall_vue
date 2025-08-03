@@ -102,22 +102,27 @@
 </template>
 
 <script setup>
-import { ref, onMounted, nextTick, computed, watch } from 'vue';
+import { ref, onMounted, onUnmounted, nextTick, computed, watch } from 'vue';
 import { useUiStore } from '@/store/ui';
 import { useDataStore } from '@/store/data';
 import * as api from '@/services/api';
+import { supabase } from '@/services/supabase';
 import Chart from 'chart.js/auto';
 import 'chartjs-adapter-date-fns';
 import { zhTW } from 'date-fns/locale';
 import { createSummaryCard } from '@/utils/index';
 import { format, parseISO } from 'date-fns';
+import { useRouter, useRoute } from 'vue-router';
 
 const uiStore = useUiStore();
 const dataStore = useDataStore();
+const router = useRouter();
+const route = useRoute();
 
-const selectedEventId = ref(null);
+const selectedEventId = ref(route.query.event || null);
 const isLoading = ref(true);
 const dashboardData = ref(null);
+const supabaseChannel = ref(null);
 
 const attendeesPagination = ref({
   currentPage: 1,
@@ -132,6 +137,13 @@ const chartInstances = {
   status: null,
   timeline: null,
 };
+
+watch(selectedEventId, (newEventId) => {
+    const query = newEventId ? { event: newEventId } : {};
+    if (JSON.stringify(query) !== JSON.stringify(route.query)) {
+        router.replace({ query });
+    }
+});
 
 watch(isLoading, (newIsLoading) => {
   if (newIsLoading === false && dashboardData.value) {
@@ -148,37 +160,6 @@ watch(() => attendeesPagination.value.pageSize, () => {
     }
 });
 
-const destroyChart = (chartInstance) => {
-  if (chartInstance) {
-    chartInstance.destroy();
-  }
-};
-
-const formatDateTime = (isoString, formatStr = 'HH:mm:ss') => {
-    if (!isoString) return null;
-    return format(parseISO(isoString), formatStr);
-};
-
-const getStatusClass = (status) => {
-  if (status && status.includes('未簽到')) return 'status-badge bg-red-100 text-red-800';
-  if (status && status.includes('準時')) return 'status-badge bg-green-100 text-green-800';
-  if (status && status.includes('遲到')) return 'status-badge bg-yellow-100 text-yellow-800';
-  return 'status-badge bg-gray-100 text-gray-800';
-};
-
-const sortedEvents = computed(() => {
-    return [...dataStore.events].sort((a, b) => new Date(b.start_time) - new Date(a.start_time));
-});
-
-const paginatedAttendees = computed(() => {
-  if (!dashboardData.value || !dashboardData.value.attendees) {
-    return [];
-  }
-  const start = (attendeesPagination.value.currentPage - 1) * attendeesPagination.value.pageSize;
-  const end = start + attendeesPagination.value.pageSize;
-  return dashboardData.value.attendees.slice(start, end);
-});
-
 onMounted(async () => {
   isLoading.value = true;
   uiStore.setLoading(true);
@@ -188,18 +169,28 @@ onMounted(async () => {
       dataStore.fetchAllPersonnel()
     ]);
 
-    if (sortedEvents.value.length > 0) {
+    if (!selectedEventId.value && sortedEvents.value.length > 0) {
       selectedEventId.value = sortedEvents.value[0].id;
-      await updateDashboard();
-    } else {
-      isLoading.value = false;
-      uiStore.setLoading(false);
     }
+    
+    if (selectedEventId.value) {
+        await updateDashboard();
+    } else {
+        isLoading.value = false;
+        uiStore.setLoading(false);
+    }
+
   } catch (error) {
     uiStore.showMessage(`初始化儀表板失敗: ${error.message}`, 'error');
     dashboardData.value = null;
     isLoading.value = false;
     uiStore.setLoading(false);
+  }
+});
+
+onUnmounted(() => {
+  if (supabaseChannel.value) {
+    supabase.removeChannel(supabaseChannel.value);
   }
 });
 
@@ -210,6 +201,35 @@ const updateDashboard = async () => {
   }
   isLoading.value = true;
   uiStore.setLoading(true);
+
+  if (supabaseChannel.value) {
+    supabase.removeChannel(supabaseChannel.value);
+    supabaseChannel.value = null;
+  }
+
+  supabaseChannel.value = supabase.channel(`dashboard_event_${selectedEventId.value}`)
+    .on(
+      'postgres_changes',
+      {
+        event: 'INSERT',
+        schema: 'public',
+        table: 'check_in_records',
+        filter: `event_id=eq.${selectedEventId.value}`
+      },
+      (payload) => {
+        console.log('收到新的簽到記錄，正在更新儀表板...', payload.new);
+        updateDashboard(); 
+      }
+    )
+    .subscribe((status, err) => {
+        if (status === 'SUBSCRIBED') {
+            console.log(`成功訂閱活動 ${selectedEventId.value} 的即時更新！`);
+        }
+        if (status === 'CHANNEL_ERROR') {
+            console.error('即時更新訂閱失敗:', err);
+        }
+    });
+
   try {
     const data = await api.getDashboardData(selectedEventId.value);
     
@@ -243,6 +263,37 @@ const updateDashboard = async () => {
     uiStore.setLoading(false);
   }
 };
+
+const destroyChart = (chartInstance) => {
+  if (chartInstance) {
+    chartInstance.destroy();
+  }
+};
+
+const formatDateTime = (isoString, formatStr = 'HH:mm:ss') => {
+    if (!isoString) return null;
+    return format(parseISO(isoString), formatStr);
+};
+
+const getStatusClass = (status) => {
+  if (status && status.includes('未簽到')) return 'status-badge bg-red-100 text-red-800';
+  if (status && status.includes('準時')) return 'status-badge bg-green-100 text-green-800';
+  if (status && status.includes('遲到')) return 'status-badge bg-yellow-100 text-yellow-800';
+  return 'status-badge bg-gray-100 text-gray-800';
+};
+
+const sortedEvents = computed(() => {
+    return [...dataStore.events].sort((a, b) => new Date(b.start_time) - new Date(a.start_time));
+});
+
+const paginatedAttendees = computed(() => {
+  if (!dashboardData.value || !dashboardData.value.attendees) {
+    return [];
+  }
+  const start = (attendeesPagination.value.currentPage - 1) * attendeesPagination.value.pageSize;
+  const end = start + attendeesPagination.value.pageSize;
+  return dashboardData.value.attendees.slice(start, end);
+});
 
 const renderCharts = () => {
   destroyChart(chartInstances.status);
@@ -337,7 +388,6 @@ const renderCharts = () => {
   }
 };
 
-// 【*** 核心修正 2 ***】新增下載圖表的函式
 const downloadChart = (chartInstance, baseFilename) => {
   if (!chartInstance) {
     uiStore.showMessage('圖表尚未準備好，無法下載。', 'warning');
@@ -345,7 +395,7 @@ const downloadChart = (chartInstance, baseFilename) => {
   }
   
   const eventName = sortedEvents.value.find(e => e.id === selectedEventId.value)?.name || '未知活動';
-  const timestamp = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
+  const timestamp = new Date().toISOString().slice(0, 10);
   const filename = `${eventName}_${baseFilename}_${timestamp}.png`;
 
   const link = document.createElement('a');
