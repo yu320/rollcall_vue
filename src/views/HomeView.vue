@@ -132,7 +132,7 @@
         to="/personnel"
         class="feature-card group"
         @mouseover="triggerCosmicDust($event)"
-        v-if="canViewAny(['personnel:read', 'events:create', 'personnel:create', 'records:create'])"
+        v-if="canViewAny(['personnel:manage:view', 'events:create', 'personnel:create', 'records:create'])"
       >
         <div class="icon-wrapper bg-teal-200 group-hover:bg-teal-600 group-hover:text-white group-hover:animate-spin-hover">
           <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-10 h-10 text-teal-800 group-hover:text-white">
@@ -144,7 +144,7 @@
         <h2 class="card-title group-hover:animate-wiggle-title">資料管理</h2>
         <p class="card-description">管理人員、活動資料，並支援檔案匯入與記錄匯入。</p>
       </router-link>
-    </div>
+      </div>
 
     <div class="text-center mt-12 hidden-message" :class="{ 'revealed': showHiddenMessage }">
       <p>

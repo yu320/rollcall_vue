@@ -51,7 +51,7 @@
             </div>
         </div>
 
-        <div v-if="canView('personnel:read') || canView('events:create') || canView('accounts:manage_users') || canView('accounts:manage') || canView('settings:manage')" class="relative" @mouseenter="handleMouseEnter('management')" @mouseleave="handleMouseLeave('management')">
+        <div v-if="canView('personnel:manage:view') || canView('events:create') || canView('accounts:manage_users') || canView('accounts:manage') || canView('settings:manage')" class="relative" @mouseenter="handleMouseEnter('management')" @mouseleave="handleMouseLeave('management')">
             <button 
               ref="managementButtonRef" 
               @click="handleClick('management')" 
@@ -69,7 +69,7 @@
               @mouseleave="handleMouseLeave('management')"
             >
                 <router-link v-if="canView('events:create')" to="/events" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">活動管理</router-link>
-                <router-link v-if="canView('personnel:read')" to="/personnel" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">人員管理</router-link>
+                <router-link v-if="canView('personnel:manage:view')" to="/personnel" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">人員管理</router-link>
                 <router-link v-if="canView('personnel:create')" to="/import/personnel" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">人員資料匯入</router-link>
                 <router-link v-if="canView('records:create')" to="/import/checkin" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">簽到記錄匯入</router-link>
                 <router-link v-if="canView('accounts:manage_users')" to="/system/accounts" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">帳號管理</router-link>
@@ -79,8 +79,7 @@
                 <router-link v-if="canView('accounts:manage')" to="/system/permissions" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">權限管理</router-link>
             </div>
         </div>
-
-      </div>
+        </div>
     </div>
   </div>
 </template>
