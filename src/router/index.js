@@ -42,7 +42,7 @@ const routes = [
   { path: '/import/personnel', name: 'PersonnelImport', component: PersonnelImport, meta: { requiresAuth: true, permission: 'personnel:create' } },
   { path: '/import/checkin', name: 'CheckInImport', component: CheckInImport, meta: { requiresAuth: true, permission: 'records:create' } },
   { path: '/system/accounts', name: 'AccountManagement', component: AccountManagement, meta: { requiresAuth: true, permission: 'accounts:manage_users' } }, // 將權限從 accounts:manage 改為 accounts:manage_users
-  { path: '/system/settings', name: 'Settings', component: Settings, meta: { requiresAuth: true, permission: 'settings:manage' } }, // 【全新】設定路由
+  { path: '/system/reg_setting', name: 'Settings', component: Settings, meta: { requiresAuth: true, permission: 'settings:manage' } }, // 【全新】設定路由
   { path: '/system/permissions', name: 'Permissions', component: Permissions, meta: { requiresAuth: true, permission: 'accounts:manage' } }, // 保持為 accounts:manage (權限管理)
   { path: '/:pathMatch(.*)*', name: 'NotFound', component: NotFound },
 ];
