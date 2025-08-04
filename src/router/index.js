@@ -35,7 +35,7 @@ const routes = [
   { path: '/checkin', name: 'CheckIn', component: CheckIn, meta: { requiresAuth: true, permission: 'checkin:use' } },
   { path: '/dashboard', name: 'Dashboard', component: Dashboard, meta: { requiresAuth: true, permission: 'reports:view' } },
   { path: '/report', name: 'Report', component: Report, meta: { requiresAuth: true, permission: 'reports:view' } },
-  { path: '/personnel', name: 'Personnel', component: Personnel, meta: { requiresAuth: true, permission: 'personnel:read' } },
+  { path: '/personnel', name: 'Personnel', component: Personnel, meta: { requiresAuth: true, permission: 'personnel:manage:view' } },
   { path: '/events', name: 'Events', component: Events, meta: { requiresAuth: true, permission: 'events:create' } }, 
   { path: '/records/daily', name: 'DailyRecords', component: DailyRecords, meta: { requiresAuth: true, permission: 'records:view' } },
   { path: '/records/activity', name: 'ActivityRecords', component: ActivityRecords, meta: { requiresAuth: true, permission: 'records:view' } },
@@ -89,5 +89,6 @@ router.beforeEach(async (to, from, next) => {
     next();
   }
 });
+
 
 export default router;
