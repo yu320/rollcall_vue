@@ -9,3 +9,7 @@ ON CONFLICT (name) DO NOTHING;
 INSERT INTO public.permissions (name, description) VALUES
 ('reports:building', '查看棟別活動分析報表')
 ON CONFLICT (name) DO NOTHING;
+
+
+CREATE INDEX IF NOT EXISTS idx_check_in_records_event_id ON public.check_in_records(event_id);
+CREATE INDEX IF NOT EXISTS idx_check_in_records_created_at ON public.check_in_records(created_at);
