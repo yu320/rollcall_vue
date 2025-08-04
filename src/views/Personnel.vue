@@ -58,7 +58,6 @@ import { ref, onMounted, computed, watch } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 import { useUiStore } from '@/store/ui';
 import { useDataStore } from '@/store/data';
-import { useAuthStore } from '@/store/auth'; // 引入 Auth Store
 import * as api from '@/services/api';
 import { formatDate } from '@/utils';
 
@@ -66,11 +65,10 @@ import { formatDate } from '@/utils';
 import PersonnelToolbar from '@/components/personnel/PersonnelToolbar.vue';
 import PersonnelGrid from '@/components/personnel/PersonnelGrid.vue';
 import PersonnelModal from '@/components/personnel/PersonnelModal.vue';
-import Modal from '@/components/Modal.vue'; // Keep for batch tags modal
+import Modal from '@/components/Modal.vue'; 
 
 const uiStore = useUiStore();
 const dataStore = useDataStore();
-const authStore = useAuthStore(); // 建立 Auth Store 實例
 const router = useRouter();
 const route = useRoute();
 const isLoading = ref(true);
@@ -177,17 +175,8 @@ const selectAll = computed({
     }
 });
 
-// --- Methods with Permission Checks ---
-
+// --- Methods ---
 const openModal = (person = null) => {
-    const isEditing = !!person;
-    const requiredPermission = isEditing ? 'personnel:update' : 'personnel:create';
-
-    if (!authStore.hasPermission(requiredPermission)) {
-        uiStore.showMessage('您沒有權限執行此操作。', 'error');
-        return;
-    }
-
     editablePerson.value = person;
     isModalOpen.value = true;
 };
@@ -195,7 +184,6 @@ const openModal = (person = null) => {
 const closeModal = () => isModalOpen.value = false;
 
 const handleSave = async (personData) => {
-    // 儲存操作的權限已在 openModal 中檢查，此處直接執行
     const success = await dataStore.savePerson(personData);
     if (success) {
         closeModal();
@@ -203,10 +191,6 @@ const handleSave = async (personData) => {
 };
 
 const confirmDelete = (person) => {
-    if (!authStore.hasPermission('personnel:delete')) {
-        uiStore.showMessage('您沒有權限執行此操作。', 'error');
-        return;
-    }
     uiStore.showConfirmation(
         '確認刪除',
         `確定要刪除 ${person.name} (${person.code}) 嗎？`,
@@ -220,10 +204,6 @@ const confirmDelete = (person) => {
 
 const confirmBatchDelete = () => {
     if (selectedPersonnel.value.length === 0) return;
-    if (!authStore.hasPermission('personnel:delete')) {
-        uiStore.showMessage('您沒有權限執行此操作。', 'error');
-        return;
-    }
     uiStore.showConfirmation(
         '確認批次刪除',
         `確定要刪除選取的 ${selectedPersonnel.value.length} 位人員嗎？`,
@@ -237,10 +217,6 @@ const confirmBatchDelete = () => {
 
 const openBatchAddTagsModal = () => {
     if (selectedPersonnel.value.length === 0) return;
-    if (!authStore.hasPermission('personnel:update')) {
-        uiStore.showMessage('您沒有權限執行此操作。', 'error');
-        return;
-    }
     newTagsInput.value = '';
     isBatchAddTagsModalOpen.value = true;
 };
@@ -248,7 +224,6 @@ const openBatchAddTagsModal = () => {
 const closeBatchAddTagsModal = () => isBatchAddTagsModalOpen.value = false;
 
 const handleBatchAddTags = async () => {
-    // 權限已在 openBatchAddTagsModal 中檢查
     const tagsToAdd = newTagsInput.value.trim().split(/[;；]/).map(tag => tag.trim()).filter(Boolean);
     if (tagsToAdd.length === 0) return;
 
