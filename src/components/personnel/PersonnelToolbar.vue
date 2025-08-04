@@ -31,11 +31,11 @@
           <option value="24">每頁 24 筆</option>
           <option value="48">每頁 48 筆</option>
         </select>
-        <button @click="$emit('add-new')" class="w-full sm:w-auto bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-2 px-6 rounded-lg shadow-sm transition flex items-center justify-center">
+        <button v-if="authStore.hasPermission('personnel:create')" @click="$emit('add-new')" class="w-full sm:w-auto bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-2 px-6 rounded-lg shadow-sm transition flex items-center justify-center">
           <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4" /></svg>
           新增人員
         </button>
-      </div>
+        </div>
     </div>
     
     <div v-if="selectedCount > 0" class="mb-4 p-3 bg-indigo-50 border border-indigo-200 rounded-lg flex flex-wrap items-center gap-4">
@@ -59,6 +59,9 @@
 </template>
 
 <script setup>
+import { useAuthStore } from '@/store/auth'; // 引入 auth store
+const authStore = useAuthStore(); // 建立 auth store 實例
+
 defineProps({
   filters: Object,
   pageSize: Number,
