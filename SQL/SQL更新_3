@@ -1,0 +1,57 @@
+-- SQL 腳本：修復統計功能並調整 sdsc 頁面訪問權限
+
+BEGIN;
+
+-- 步驟 1: 新增一個專門用於控制「人員管理」頁面訪問的權限
+INSERT INTO public.permissions (name, description) VALUES
+('personnel:manage:view', '查看人員管理頁面')
+ON CONFLICT (name) DO NOTHING;
+
+-- 步驟 2: 將查看「人員管理」頁面的新權限授予需要看見此頁面的角色
+-- (根據原始設定，admin, sdc, operator 應有權限)
+DO $$
+DECLARE
+    new_permission_id uuid := (SELECT id FROM public.permissions WHERE name = 'personnel:manage:view');
+    admin_role_id uuid := (SELECT id FROM public.roles WHERE name = 'admin');
+    sdc_role_id uuid := (SELECT id FROM public.roles WHERE name = 'sdc');
+    operator_role_id uuid := (SELECT id FROM public.roles WHERE name = 'operator');
+BEGIN
+    -- 授予 admin
+    IF admin_role_id IS NOT NULL AND new_permission_id IS NOT NULL THEN
+        INSERT INTO public.role_permissions (role_id, permission_id)
+        VALUES (admin_role_id, new_permission_id)
+        ON CONFLICT (role_id, permission_id) DO NOTHING;
+    END IF;
+
+    -- 授予 sdc
+    IF sdc_role_id IS NOT NULL AND new_permission_id IS NOT NULL THEN
+        INSERT INTO public.role_permissions (role_id, permission_id)
+        VALUES (sdc_role_id, new_permission_id)
+        ON CONFLICT (role_id, permission_id) DO NOTHING;
+    END IF;
+    
+    -- 授予 operator
+    IF operator_role_id IS NOT NULL AND new_permission_id IS NOT NULL THEN
+        INSERT INTO public.role_permissions (role_id, permission_id)
+        VALUES (operator_role_id, new_permission_id)
+        ON CONFLICT (role_id, permission_id) DO NOTHING;
+    END IF;
+END $$;
+
+
+-- 步驟 3: 恢復 sdsc 角色讀取人員資料的權限，以修復統計功能
+-- 這是為了解決儀表板和總覽無法讀取人員數據的問題
+DO $$
+DECLARE
+    sdsc_role_id uuid := (SELECT id FROM public.roles WHERE name = 'sdsc');
+    personnel_read_permission_id uuid := (SELECT id FROM public.permissions WHERE name = 'personnel:read');
+BEGIN
+    IF sdsc_role_id IS NOT NULL AND personnel_read_permission_id IS NOT NULL THEN
+        INSERT INTO public.role_permissions (role_id, permission_id)
+        VALUES (sdsc_role_id, personnel_read_permission_id)
+        ON CONFLICT (role_id, permission_id) DO NOTHING;
+    END IF;
+END $$;
+
+
+COMMIT;
