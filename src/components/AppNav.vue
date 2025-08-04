@@ -79,7 +79,8 @@
                 <router-link v-if="canView('accounts:manage')" to="/system/permissions" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">權限管理</router-link>
             </div>
         </div>
-        </div>
+
+      </div>
     </div>
   </div>
 </template>
@@ -120,13 +121,20 @@ watch(() => route.path, () => {
   });
 });
 
+// ***** 修改開始 *****
+// 移除了 handleClick 函數中的 if (window.innerWidth <= 768) 條件
 const handleClick = (menu) => {
-  if (window.innerWidth <= 768) {
-    const currentState = dropdowns[menu];
-    Object.keys(dropdowns).forEach(key => dropdowns[key] = false);
-    dropdowns[menu] = !currentState;
-  }
+  const currentState = dropdowns[menu];
+  // 先關閉所有其他的下拉選單
+  Object.keys(dropdowns).forEach(key => {
+    if (key !== menu) {
+      dropdowns[key] = false;
+    }
+  });
+  // 然後切換當前點擊的選單狀態
+  dropdowns[menu] = !currentState;
 };
+// ***** 修改結束 *****
 
 const handleMouseEnter = (menu) => {
   if (window.innerWidth > 768) {
